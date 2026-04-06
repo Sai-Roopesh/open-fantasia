@@ -12,6 +12,7 @@ import {
   UserRound,
   X,
 } from "lucide-react";
+import { SignOutButton } from "@/components/auth/sign-out-button";
 import { cn } from "@/lib/utils";
 import type { ThreadListItem } from "@/lib/types";
 import { useState } from "react";
@@ -56,7 +57,7 @@ export function AppShell({
           <div className="flex items-center gap-3">
             <div className="h-11 w-11 rounded-full bg-brand/90 p-0.5">
               <div className="flex h-full w-full items-center justify-center rounded-full bg-paper text-brand">
-                <MessageCircleHeart suppressHydrationWarning className="h-5 w-5" />
+                <MessageCircleHeart className="h-5 w-5" />
               </div>
             </div>
             <div>
@@ -83,7 +84,7 @@ export function AppShell({
                       : "text-ink-soft hover:bg-black/5 hover:text-foreground",
                   )}
                 >
-                  <Icon suppressHydrationWarning className="h-4 w-4" />
+                  <Icon className="h-4 w-4" />
                   {item.label}
                 </Link>
               );
@@ -144,14 +145,7 @@ export function AppShell({
           <div className="mt-10 rounded-[1.75rem] bg-black/5 px-4 py-4 text-sm text-ink-soft">
             <p className="font-medium text-foreground">Signed in</p>
             <p className="mt-1 break-all">{email}</p>
-            <form action="/auth/signout" method="post" className="mt-4">
-              <button
-                type="submit"
-                className="rounded-full border border-border px-4 py-2 text-xs font-semibold text-foreground transition hover:border-brand hover:text-brand"
-              >
-                Sign out
-              </button>
-            </form>
+            <SignOutButton className="mt-4" compact />
           </div>
         </aside>
 
@@ -160,7 +154,7 @@ export function AppShell({
             <div className="flex items-center justify-between gap-3">
               <Link href="/app" className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand text-white">
-                  <MessageCircleHeart suppressHydrationWarning className="h-4 w-4" />
+                  <MessageCircleHeart className="h-4 w-4" />
                 </div>
                 <div>
                   <p className="font-serif text-2xl leading-none text-foreground">Fantasia</p>
@@ -175,7 +169,7 @@ export function AppShell({
                 onClick={() => setMoreOpen(true)}
                 className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-4 py-2 text-sm font-semibold text-foreground transition hover:border-brand hover:text-brand"
               >
-                <Menu suppressHydrationWarning className="h-4 w-4" />
+                <Menu className="h-4 w-4" />
                 More
               </button>
             </div>
@@ -204,7 +198,7 @@ export function AppShell({
                     : "text-ink-soft hover:bg-white hover:text-foreground",
                 )}
               >
-                <Icon suppressHydrationWarning className="h-4 w-4" />
+                <Icon className="h-4 w-4" />
                 {item.label}
               </Link>
             );
@@ -215,7 +209,7 @@ export function AppShell({
             onClick={() => setMoreOpen(true)}
             className="flex flex-col items-center justify-center gap-1 rounded-2xl px-3 py-2 text-[11px] font-semibold text-ink-soft transition hover:bg-white hover:text-foreground"
           >
-            <Settings2 suppressHydrationWarning className="h-4 w-4" />
+            <Settings2 className="h-4 w-4" />
             More
           </button>
         </div>
@@ -240,7 +234,7 @@ export function AppShell({
                 onClick={() => setMoreOpen(false)}
                 className="rounded-full border border-border p-2 text-foreground transition hover:border-brand hover:text-brand"
               >
-                <X suppressHydrationWarning className="h-4 w-4" />
+                <X className="h-4 w-4" />
               </button>
             </div>
 
@@ -255,7 +249,7 @@ export function AppShell({
                     className="flex items-center justify-between rounded-2xl border border-border bg-white px-4 py-3 text-sm font-medium text-foreground transition hover:border-brand hover:text-brand"
                   >
                     <span className="flex items-center gap-3">
-                      <Icon suppressHydrationWarning className="h-4 w-4" />
+                      <Icon className="h-4 w-4" />
                       {item.label}
                     </span>
                     <span className="text-xs uppercase tracking-[0.18em] text-ink-soft">
@@ -269,14 +263,7 @@ export function AppShell({
             <div className="mt-5 rounded-[1.5rem] bg-black/5 px-4 py-4 text-sm text-ink-soft">
               <p className="font-medium text-foreground">Signed in</p>
               <p className="mt-1 break-all">{email}</p>
-              <form action="/auth/signout" method="post" className="mt-4">
-                <button
-                  type="submit"
-                  className="rounded-full border border-border px-4 py-2 text-xs font-semibold text-foreground transition hover:border-brand hover:text-brand"
-                >
-                  Sign out
-                </button>
-              </form>
+              <SignOutButton className="mt-4" compact />
             </div>
           </div>
         </div>

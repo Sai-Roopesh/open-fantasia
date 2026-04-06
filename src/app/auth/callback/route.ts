@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getPublicEnv } from "@/lib/env";
+import { requirePublicSiteUrl } from "@/lib/env";
 import { isAllowedEmail, syncProfile } from "@/lib/auth";
 
 const supportedEmailOtpTypes = new Set<EmailOtpType>([
@@ -20,7 +20,7 @@ export async function GET(request: Request) {
   const type = url.searchParams.get("type");
   const next = url.searchParams.get("next") ?? "/app";
   const supabase = await createSupabaseServerClient();
-  const { siteUrl } = getPublicEnv();
+  const siteUrl = requirePublicSiteUrl();
 
   if ((!code && !tokenHash) || !supabase) {
     return NextResponse.redirect(`${siteUrl}/login?reason=missing+code`);

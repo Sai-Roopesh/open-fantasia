@@ -1,12 +1,7 @@
 import { decryptSecret } from "@/lib/crypto";
-import { providerCatalog, uniqueModels } from "@/lib/ai/catalog";
+import { uniqueModels } from "@/lib/ai/catalog";
+import { normalizeOllamaApiBaseUrl } from "@/lib/ai/ollama-url";
 import type { ConnectionRecord, ModelCatalogEntry, ProviderId } from "@/lib/types";
-
-function normalizeOllamaApiBase(baseUrl?: string | null) {
-  const raw = (baseUrl ?? providerCatalog.ollama.defaultBaseUrl ?? "").trim();
-  if (!raw) return providerCatalog.ollama.defaultBaseUrl!;
-  return raw.endsWith("/api") ? raw : `${raw.replace(/\/+$/, "")}/api`;
-}
 
 async function fetchJson(url: string, init?: RequestInit) {
   const response = await fetch(url, {
@@ -48,7 +43,12 @@ export async function discoverModels(connection: ConnectionRecord) {
   switch (connection.provider) {
     case "google": {
       const data = (await fetchJson(
-        `https://generativelanguage.googleapis.com/v1beta/models?key=${encodeURIComponent(apiKey)}`,
+        "https://generativelanguage.googleapis.com/v1beta/models",
+        {
+          headers: {
+            "x-goog-api-key": apiKey,
+          },
+        },
       )) as {
         models?: Array<{
           name?: string;
@@ -111,7 +111,7 @@ export async function discoverModels(connection: ConnectionRecord) {
       );
     }
     case "ollama": {
-      const data = (await fetchJson(`${normalizeOllamaApiBase(connection.base_url)}/tags`, {
+      const data = (await fetchJson(`${normalizeOllamaApiBaseUrl(connection.base_url)}/tags`, {
         headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined,
       })) as {
         models?: Array<{ model?: string; name?: string }>;

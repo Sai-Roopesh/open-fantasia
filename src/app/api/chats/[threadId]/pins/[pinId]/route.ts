@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/lib/auth";
-import { resolvePin } from "@/lib/data/threads";
+import { resolvePin } from "@/lib/data/pins";
 
 export async function DELETE(
   _request: Request,

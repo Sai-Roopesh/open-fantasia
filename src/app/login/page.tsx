@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { BrandMark } from "@/components/brand-mark";
 import { SubmitButton } from "@/components/forms/submit-button";
-import { getAllowedEmails, isConfigured, isLocalDevAuthBypassEnabled } from "@/lib/env";
+import { isConfigured, isLocalDevAuthBypassEnabled } from "@/lib/env";
 import { getCurrentUser } from "@/lib/auth";
 import { requestMagicLink } from "@/app/login/actions";
 
@@ -20,13 +20,13 @@ function humanizeLoginReason(reason: string | null) {
     return "Enter the allowlisted email you want to use for this build.";
   }
   if (lower.includes("rate limit")) {
-    return "Email sending is rate limited right now. In localhost mode you can use the direct dev access buttons below instead.";
+    return "Email sending is rate limited right now. On localhost, submitting an allowlisted email will still continue immediately.";
   }
   if (lower.includes("email")) {
     return "That email could not be used for sign-in. Double-check the address and make sure it is on your allowlist.";
   }
 
-  return "Sign-in didn’t complete. Try again, or use the localhost dev access path if you’re still building locally.";
+  return "Sign-in didn’t complete. Try again, or retry from localhost if you’re still building locally.";
 }
 
 async function LoginCard({
@@ -38,8 +38,7 @@ async function LoginCard({
   const sent = params.sent === "1";
   const reason = typeof params.reason === "string" ? params.reason : null;
   const { user, isAllowed } = await getCurrentUser();
-  const allowedEmails = getAllowedEmails();
-  const showLocalDevAccess = isLocalDevAuthBypassEnabled() && allowedEmails.length > 0;
+  const showLocalDevAccess = isLocalDevAuthBypassEnabled();
   const reasonMessage = humanizeLoginReason(reason);
 
   return (
@@ -57,8 +56,8 @@ async function LoginCard({
 
       {showLocalDevAccess ? (
         <div className="mt-4 rounded-2xl border border-accent/25 bg-accent/10 p-4 text-sm leading-7 text-accent">
-          Localhost dev access is enabled. You can skip email entirely and enter
-          with one of your allowlisted identities below.
+          Localhost dev access is enabled. Submitting an allowlisted email here
+          will continue directly without waiting for mailbox delivery.
         </div>
       ) : null}
 
@@ -95,7 +94,7 @@ async function LoginCard({
         </div>
       ) : (
         <div className="mt-6 space-y-5">
-          <form action={requestMagicLink} className="space-y-4">
+          <form action={requestMagicLink} className="space-y-4" data-testid="login-form">
             <label className="block">
               <span className="mb-2 block text-sm font-medium text-foreground">
                 Email
@@ -106,33 +105,15 @@ async function LoginCard({
                 required
                 placeholder="you@example.com"
                 className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-brand"
+                data-testid="login-email-input"
               />
             </label>
-            <SubmitButton className="w-full">Send magic link</SubmitButton>
+            <SubmitButton className="w-full" data-testid="login-submit-button">
+              {showLocalDevAccess ? "Continue" : "Send magic link"}
+            </SubmitButton>
           </form>
-
-          {showLocalDevAccess ? (
-            <div className="space-y-3 rounded-[1.75rem] border border-border bg-white/55 p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">
-                Localhost dev mode
-              </p>
-              {allowedEmails.map((email) => (
-                <Link
-                  key={email}
-                  href={`/auth/dev-login?email=${encodeURIComponent(email)}`}
-                  className="inline-flex w-full items-center justify-center rounded-full bg-accent px-5 py-3 text-sm font-semibold text-white transition hover:bg-accent"
-                >
-                    Enter as {email}
-                </Link>
-              ))}
-            </div>
-          ) : null}
         </div>
       )}
-
-      <div className="mt-8 border-t border-border pt-5 text-xs uppercase tracking-[0.18em] text-ink-soft">
-        Allowlisted now: {allowedEmails.length ? allowedEmails.join(", ") : "none configured"}
-      </div>
     </div>
   );
 }

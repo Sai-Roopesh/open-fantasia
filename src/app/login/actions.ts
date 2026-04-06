@@ -3,8 +3,13 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { isAllowedEmail } from "@/lib/auth";
-import { getPublicEnv, hasSupabaseEnv, isLocalDevAuthBypassEnabled } from "@/lib/env";
+import {
+  hasSupabaseEnv,
+  isLocalDevAuthBypassEnabled,
+  requirePublicSiteUrl,
+} from "@/lib/env";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { loginRequestSchema } from "@/lib/validation";
 
 function canUseLocalMagicLinkBypass(email: string) {
   return isLocalDevAuthBypassEnabled() && isAllowedEmail(email);
@@ -42,16 +47,23 @@ export async function requestMagicLink(formData: FormData) {
     redirect("/login?reason=setup");
   }
 
-  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const parsed = loginRequestSchema.safeParse({
+    email: String(formData.get("email") ?? "").trim().toLowerCase(),
+  });
   const supabase = await createSupabaseServerClient();
 
-  if (!email || !supabase) {
+  if (!parsed.success || !supabase) {
     redirect("/login?reason=invalid");
   }
 
-  const { siteUrl } = getPublicEnv();
+  const siteUrl = requirePublicSiteUrl();
+
+  if (canUseLocalMagicLinkBypass(parsed.data.email)) {
+    await redirectViaLocalMagicLinkBypass(parsed.data.email, siteUrl);
+  }
+
   const { error } = await supabase.auth.signInWithOtp({
-    email,
+    email: parsed.data.email,
     options: {
       emailRedirectTo: `${siteUrl}/auth/callback`,
     },
@@ -59,7 +71,7 @@ export async function requestMagicLink(formData: FormData) {
 
   if (error) {
     if (error.message.toLowerCase().includes("rate limit")) {
-      await redirectViaLocalMagicLinkBypass(email, siteUrl);
+      await redirectViaLocalMagicLinkBypass(parsed.data.email, siteUrl);
     }
 
     redirect(`/login?reason=${encodeURIComponent(error.message)}`);

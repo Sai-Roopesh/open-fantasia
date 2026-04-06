@@ -2,16 +2,20 @@
 
 import { createBrowserClient } from "@supabase/ssr";
 import type { AuthChangeEvent, Session, SupabaseClient } from "@supabase/supabase-js";
-import { getPublicEnv, hasSupabaseEnv } from "@/lib/env";
+import { hasSupabaseEnv, requireSupabasePublicEnv } from "@/lib/env";
+import type { Database } from "@/lib/supabase/database.types";
 
-let browserClient: SupabaseClient | null = null;
+let browserClient: SupabaseClient<Database> | null = null;
 
 export function getSupabaseBrowserClient() {
   if (!hasSupabaseEnv()) return null;
   if (browserClient) return browserClient;
 
-  const { supabaseUrl, supabaseAnonKey } = getPublicEnv();
-  browserClient = createBrowserClient(supabaseUrl!, supabaseAnonKey!);
+  const { supabaseUrl, supabasePublishableKey } = requireSupabasePublicEnv();
+  browserClient = createBrowserClient<Database>(
+    supabaseUrl,
+    supabasePublishableKey,
+  );
   return browserClient;
 }
 

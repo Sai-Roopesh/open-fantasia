@@ -7,18 +7,18 @@ import { deleteCharacter, upsertCharacterBundle } from "@/lib/data/characters";
 import { listConnections } from "@/lib/data/connections";
 import { getDefaultPersona } from "@/lib/data/personas";
 import { createThread } from "@/lib/data/threads";
+import {
+  characterDeleteCommandSchema,
+  saveCharacterCommandSchema,
+  startThreadCommandSchema,
+} from "@/lib/validation";
 
 export async function saveCharacterAction(formData: FormData) {
   const { supabase, user } = await requireAllowedUser();
 
-  const name = String(formData.get("name") ?? "").trim();
-  if (!name) {
-    redirect("/app/characters?reason=name");
-  }
-
-  const character = await upsertCharacterBundle(supabase, user.id, {
+  const parsed = saveCharacterCommandSchema.safeParse({
     id: String(formData.get("id") ?? "").trim() || undefined,
-    name,
+    name: String(formData.get("name") ?? "").trim(),
     tagline: String(formData.get("tagline") ?? ""),
     short_description: String(formData.get("short_description") ?? ""),
     long_description: String(formData.get("long_description") ?? ""),
@@ -29,10 +29,10 @@ export async function saveCharacterAction(formData: FormData) {
     author_notes: String(formData.get("author_notes") ?? ""),
     definition: String(formData.get("definition") ?? ""),
     negative_guidance: String(formData.get("negative_guidance") ?? ""),
-    example_dialogue: "",
-    starters: formData
-      .getAll("starter_text")
-      .map((value) => String(value)),
+    temperature: String(formData.get("temperature") ?? "0.92"),
+    top_p: String(formData.get("top_p") ?? "0.94"),
+    max_output_tokens: String(formData.get("max_output_tokens") ?? "750"),
+    starters: formData.getAll("starter_text").map((value) => String(value)),
     exampleConversations: formData
       .getAll("example_user_line")
       .map((value, index) => ({
@@ -41,13 +41,25 @@ export async function saveCharacterAction(formData: FormData) {
       })),
   });
 
+  if (!parsed.success) {
+    redirect("/app/characters?reason=name");
+  }
+
+  const character = await upsertCharacterBundle(supabase, user.id, parsed.data);
+
   revalidatePath("/app/characters");
   redirect(`/app/characters?edit=${character.character.id}&saved=1`);
 }
 
 export async function startThreadAction(formData: FormData) {
   const { supabase, user } = await requireAllowedUser();
-  const characterId = String(formData.get("characterId") ?? "");
+  const parsed = startThreadCommandSchema.safeParse({
+    characterId: String(formData.get("characterId") ?? ""),
+  });
+  if (!parsed.success) {
+    redirect("/app/characters?reason=character");
+  }
+
   const connections = await listConnections(supabase, user.id);
   const persona = await getDefaultPersona(supabase, user.id);
   const usableConnection = connections.find(
@@ -63,7 +75,7 @@ export async function startThreadAction(formData: FormData) {
   }
 
   const thread = await createThread(supabase, user.id, {
-    characterId,
+    characterId: parsed.data.characterId,
     connection: usableConnection!,
     modelId: usableConnection!.model_cache[0].id,
     personaId: persona!.id,
@@ -76,13 +88,15 @@ export async function startThreadAction(formData: FormData) {
 
 export async function deleteCharacterAction(formData: FormData) {
   const { supabase, user } = await requireAllowedUser();
-  const characterId = String(formData.get("characterId") ?? "").trim();
+  const parsed = characterDeleteCommandSchema.safeParse({
+    characterId: String(formData.get("characterId") ?? "").trim(),
+  });
 
-  if (!characterId) {
+  if (!parsed.success) {
     redirect("/app/characters");
   }
 
-  await deleteCharacter(supabase, user.id, characterId);
+  await deleteCharacter(supabase, user.id, parsed.data.characterId);
 
   revalidatePath("/app");
   revalidatePath("/app/characters");

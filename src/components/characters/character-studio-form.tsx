@@ -157,6 +157,7 @@ export function CharacterStudioForm({
       ) : null}
 
       <JsonPortabilityPanel
+        key={`character-portability-${editing?.character.id ?? "new"}`}
         kind="character"
         currentData={characterDraftToPortableData(draft)}
         onImport={importCharacterData}

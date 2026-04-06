@@ -1,10 +1,7 @@
 import { getCurrentUser } from "@/lib/auth";
-import { createPin, getThreadGraphView } from "@/lib/data/threads";
-
-type PinRequest = {
-  body?: string;
-  sourceMessageId?: string | null;
-};
+import { getThreadGraphView } from "@/lib/data/threads";
+import { createPin } from "@/lib/data/pins";
+import { createPinRequestSchema } from "@/lib/validation";
 
 export async function POST(
   request: Request,
@@ -16,9 +13,8 @@ export async function POST(
   }
 
   const { threadId } = await params;
-  const body = (await request.json()) as PinRequest;
-  const pinBody = body.body?.trim();
-  if (!pinBody) {
+  const parsedBody = createPinRequestSchema.safeParse(await request.json());
+  if (!parsedBody.success) {
     return Response.json({ error: "Pin body is required." }, { status: 400 });
   }
 
@@ -30,8 +26,8 @@ export async function POST(
   const pin = await createPin(context.supabase, {
     thread_id: threadId,
     branch_id: threadView.activeBranch.id,
-    source_message_id: body.sourceMessageId ?? null,
-    body: pinBody,
+    source_message_id: parsedBody.data.sourceMessageId ?? null,
+    body: parsedBody.data.body,
     status: "active",
   });
 

@@ -1,5 +1,6 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { getEncryptionKeySecret } from "@/lib/env";
+import { ConfigurationError } from "@/lib/errors";
 
 function deriveKey() {
   const secret = getEncryptionKeySecret();
@@ -22,7 +23,12 @@ export function encryptSecret(value: string) {
 export function decryptSecret(value: string | null) {
   if (!value) return "";
   const [ivPart, tagPart, encryptedPart] = value.split(".");
-  if (!ivPart || !tagPart || !encryptedPart) return "";
+  if (!ivPart || !tagPart || !encryptedPart) {
+    throw new ConfigurationError(
+      "malformed_secret",
+      "Stored provider secret is malformed.",
+    );
+  }
 
   const key = deriveKey();
   const decipher = createDecipheriv(

@@ -6,78 +6,89 @@ import { requireAllowedUser } from "@/lib/auth";
 import {
   deleteThread,
   getThread,
+  renameThread,
   updateThreadPinnedState,
   updateThreadStatus,
-  updateThreadTitle,
 } from "@/lib/data/threads";
+import {
+  threadDeleteCommandSchema,
+  threadPinnedCommandSchema,
+  threadRenameCommandSchema,
+  threadStatusCommandSchema,
+} from "@/lib/validation";
 
 export async function renameThreadAction(formData: FormData) {
   const { supabase, user } = await requireAllowedUser();
-  const threadId = String(formData.get("threadId") ?? "").trim();
-  const title = String(formData.get("title") ?? "").trim();
+  const parsed = threadRenameCommandSchema.safeParse({
+    threadId: String(formData.get("threadId") ?? "").trim(),
+    title: String(formData.get("title") ?? "").trim(),
+  });
 
-  if (!threadId || !title) {
+  if (!parsed.success) {
     throw new Error("A thread id and title are required.");
   }
 
-  await updateThreadTitle(supabase, user.id, threadId, title);
+  await renameThread(supabase, user.id, parsed.data.threadId, parsed.data.title);
   revalidatePath("/app");
   revalidatePath("/app/threads");
-  revalidatePath(`/app/chats/${threadId}`);
+  revalidatePath(`/app/chats/${parsed.data.threadId}`);
 }
 
 export async function setThreadArchiveAction(formData: FormData) {
   const { supabase, user } = await requireAllowedUser();
-  const threadId = String(formData.get("threadId") ?? "").trim();
-  const nextStatus = String(formData.get("status") ?? "active") as "active" | "archived";
+  const parsed = threadStatusCommandSchema.safeParse({
+    threadId: String(formData.get("threadId") ?? "").trim(),
+    status: String(formData.get("status") ?? "active"),
+  });
 
-  if (!threadId) {
+  if (!parsed.success) {
     throw new Error("Thread id is required.");
   }
 
-  await updateThreadStatus(supabase, user.id, {
-    threadId,
-    status: nextStatus,
-  });
+  await updateThreadStatus(supabase, user.id, parsed.data);
 
   revalidatePath("/app");
   revalidatePath("/app/threads");
-  revalidatePath(`/app/chats/${threadId}`);
+  revalidatePath(`/app/chats/${parsed.data.threadId}`);
 
-  if (nextStatus === "archived") {
+  if (parsed.data.status === "archived") {
     redirect("/app/threads?status=archived");
   }
 }
 
 export async function setThreadPinnedAction(formData: FormData) {
   const { supabase, user } = await requireAllowedUser();
-  const threadId = String(formData.get("threadId") ?? "").trim();
-  const pinned = String(formData.get("pinned") ?? "false") === "true";
+  const parsed = threadPinnedCommandSchema.safeParse({
+    threadId: String(formData.get("threadId") ?? "").trim(),
+    pinned: String(formData.get("pinned") ?? "false") === "true",
+  });
 
-  if (!threadId) {
+  if (!parsed.success) {
     throw new Error("Thread id is required.");
   }
 
-  await updateThreadPinnedState(supabase, user.id, { threadId, pinned });
+  await updateThreadPinnedState(supabase, user.id, parsed.data);
   revalidatePath("/app");
   revalidatePath("/app/threads");
-  revalidatePath(`/app/chats/${threadId}`);
+  revalidatePath(`/app/chats/${parsed.data.threadId}`);
 }
 
 export async function deleteThreadFromListAction(formData: FormData) {
   const { supabase, user } = await requireAllowedUser();
-  const threadId = String(formData.get("threadId") ?? "").trim();
+  const parsed = threadDeleteCommandSchema.safeParse({
+    threadId: String(formData.get("threadId") ?? "").trim(),
+  });
 
-  if (!threadId) {
+  if (!parsed.success) {
     throw new Error("Thread id is required.");
   }
 
-  const thread = await getThread(supabase, user.id, threadId);
+  const thread = await getThread(supabase, user.id, parsed.data.threadId);
   if (!thread) {
     redirect("/app/threads");
   }
 
-  await deleteThread(supabase, user.id, threadId);
+  await deleteThread(supabase, user.id, parsed.data.threadId);
   revalidatePath("/app");
   revalidatePath("/app/threads");
   redirect("/app/threads?deleted=1");

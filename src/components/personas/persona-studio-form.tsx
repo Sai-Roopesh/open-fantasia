@@ -127,6 +127,7 @@ export function PersonaStudioForm({
       ) : null}
 
       <JsonPortabilityPanel
+        key={`persona-portability-${editing?.id ?? "new"}`}
         kind="persona"
         currentData={personaDraftToPortableData(draft)}
         onImport={importPersonaData}

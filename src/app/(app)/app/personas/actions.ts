@@ -9,25 +9,31 @@ import {
   setDefaultPersona,
   upsertPersona,
 } from "@/lib/data/personas";
+import {
+  parseFormBoolean,
+  personaCommandSchema,
+  savePersonaCommandSchema,
+} from "@/lib/validation";
 
 export async function savePersonaAction(formData: FormData) {
   const { supabase, user } = await requireAllowedUser();
-  const name = String(formData.get("name") ?? "").trim();
-  if (!name) {
-    redirect("/app/personas?reason=name");
-  }
-
-  const persona = await upsertPersona(supabase, user.id, {
+  const parsed = savePersonaCommandSchema.safeParse({
     id: String(formData.get("id") ?? "").trim() || undefined,
-    name,
+    name: String(formData.get("name") ?? "").trim(),
     identity: String(formData.get("identity") ?? ""),
     backstory: String(formData.get("backstory") ?? ""),
     voice_style: String(formData.get("voice_style") ?? ""),
     goals: String(formData.get("goals") ?? ""),
     boundaries: String(formData.get("boundaries") ?? ""),
     private_notes: String(formData.get("private_notes") ?? ""),
-    is_default: formData.get("is_default") === "on",
+    is_default: parseFormBoolean(formData.get("is_default")),
   });
+
+  if (!parsed.success) {
+    redirect("/app/personas?reason=name");
+  }
+
+  const persona = await upsertPersona(supabase, user.id, parsed.data);
 
   revalidatePath("/app/personas");
   revalidatePath("/app/characters");
@@ -36,12 +42,15 @@ export async function savePersonaAction(formData: FormData) {
 
 export async function setDefaultPersonaAction(formData: FormData) {
   const { supabase, user } = await requireAllowedUser();
-  const personaId = String(formData.get("personaId") ?? "").trim();
-  if (!personaId) {
+  const parsed = personaCommandSchema.safeParse({
+    personaId: String(formData.get("personaId") ?? "").trim(),
+  });
+
+  if (!parsed.success) {
     throw new Error("Persona id is required.");
   }
 
-  await setDefaultPersona(supabase, user.id, personaId);
+  await setDefaultPersona(supabase, user.id, parsed.data.personaId);
   revalidatePath("/app");
   revalidatePath("/app/personas");
   revalidatePath("/app/characters");
@@ -50,24 +59,30 @@ export async function setDefaultPersonaAction(formData: FormData) {
 
 export async function duplicatePersonaAction(formData: FormData) {
   const { supabase, user } = await requireAllowedUser();
-  const personaId = String(formData.get("personaId") ?? "").trim();
-  if (!personaId) {
+  const parsed = personaCommandSchema.safeParse({
+    personaId: String(formData.get("personaId") ?? "").trim(),
+  });
+
+  if (!parsed.success) {
     throw new Error("Persona id is required.");
   }
 
-  const persona = await duplicatePersona(supabase, user.id, personaId);
+  const persona = await duplicatePersona(supabase, user.id, parsed.data.personaId);
   revalidatePath("/app/personas");
   redirect(`/app/personas?edit=${persona.id}&duplicated=1`);
 }
 
 export async function deletePersonaAction(formData: FormData) {
   const { supabase, user } = await requireAllowedUser();
-  const personaId = String(formData.get("personaId") ?? "").trim();
-  if (!personaId) {
+  const parsed = personaCommandSchema.safeParse({
+    personaId: String(formData.get("personaId") ?? "").trim(),
+  });
+
+  if (!parsed.success) {
     throw new Error("Persona id is required.");
   }
 
-  await deletePersona(supabase, user.id, personaId);
+  await deletePersona(supabase, user.id, parsed.data.personaId);
   revalidatePath("/app");
   revalidatePath("/app/personas");
   revalidatePath("/app/characters");

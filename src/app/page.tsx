@@ -32,7 +32,7 @@ export default async function Home() {
   const { user, isAllowed } = await getCurrentUser();
 
   return (
-    <div className="min-h-screen overflow-hidden bg-[#160f0b] text-white">
+    <div className="min-h-screen overflow-hidden bg-[#160f0b] text-white" data-testid="landing-page">
       <div className="relative">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_10%_20%,rgba(255,168,91,0.26),transparent_20%),radial-gradient(circle_at_75%_18%,rgba(51,112,114,0.28),transparent_26%),linear-gradient(180deg,#160f0b_0%,#2a1b12_50%,#110d0a_100%)]" />
         <div className="absolute inset-x-0 top-0 h-[42rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.05),transparent)]" />
@@ -45,7 +45,7 @@ export default async function Home() {
               className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm transition hover:bg-white/16"
             >
               {user && isAllowed ? "Enter workspace" : "Private sign-in"}
-              <ArrowRight suppressHydrationWarning className="h-4 w-4" />
+              <ArrowRight className="h-4 w-4" />
             </Link>
           </header>
 
@@ -67,7 +67,7 @@ export default async function Home() {
                   className="inline-flex items-center gap-2 rounded-full bg-[#f2d2b6] px-6 py-3 text-sm font-semibold text-[#2b170e] transition hover:bg-[#f7dfca]"
                 >
                   {user && isAllowed ? "Continue your workspace" : "Start in 2 minutes"}
-                  <ArrowRight suppressHydrationWarning className="h-4 w-4" />
+                  <ArrowRight className="h-4 w-4" />
                 </Link>
                 <Link
                   href="#architecture"
@@ -98,7 +98,7 @@ export default async function Home() {
 
               {!isConfigured() ? (
                 <div className="mt-8 inline-flex max-w-xl items-center gap-3 rounded-2xl border border-amber-300/25 bg-amber-200/10 px-4 py-3 text-sm text-amber-100">
-                  <Sparkles suppressHydrationWarning className="h-4 w-4 shrink-0" />
+                  <Sparkles className="h-4 w-4 shrink-0" />
                   Add Supabase keys, your allowlist, and an encryption secret in
                   `.env.local` to activate the private build.
                 </div>
@@ -143,10 +143,7 @@ export default async function Home() {
                         key={feature.title}
                         className="rounded-2xl border border-white/10 bg-white/5 p-4"
                       >
-                        <Icon
-                          suppressHydrationWarning
-                          className="h-4 w-4 text-[#f0cba9]"
-                        />
+                        <Icon className="h-4 w-4 text-[#f0cba9]" />
                         <p className="mt-3 text-sm font-semibold text-white">
                           {feature.title}
                         </p>

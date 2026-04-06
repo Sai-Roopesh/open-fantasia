@@ -1,25 +1,16 @@
 import { convertToModelMessages, generateText } from "ai";
 import { getCurrentUser } from "@/lib/auth";
-import { reconcileTurnState, buildSnapshotFromReconciliation } from "@/lib/ai/thread-engine";
+import { finalizeAssistantTurn } from "@/lib/ai/turn-finalizer";
+import { resolveThreadGenerationSettings } from "@/lib/ai/generation-settings";
 import { getCharacterBundle } from "@/lib/data/characters";
 import { getConnection } from "@/lib/data/connections";
 import { getPersona } from "@/lib/data/personas";
-import {
-  createCheckpoint,
-  createTextMessage,
-  getSnapshot,
-  getThreadGraphView,
-  insertTimelineEvent,
-  persistMessage,
-  saveSnapshot,
-  selectCheckpointAsBranchHead,
-} from "@/lib/data/threads";
+import { getSnapshot } from "@/lib/data/snapshots";
+import { createTextMessage, getThreadGraphView } from "@/lib/data/threads";
+import { insertTimelineEvent } from "@/lib/data/timeline";
 import { createLanguageModel } from "@/lib/ai/provider-factory";
 import { buildRoleplaySystemPrompt } from "@/lib/ai/roleplay-prompt";
-
-type RegenerateRequest = {
-  checkpointId?: string;
-};
+import { regenerateRequestSchema } from "@/lib/validation";
 
 export async function POST(
   request: Request,
@@ -30,18 +21,24 @@ export async function POST(
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const supabase = context.supabase;
+  const user = context.user;
   const { threadId } = await params;
-  const body = (await request.json()) as RegenerateRequest;
-  const threadView = await getThreadGraphView(context.supabase, context.user.id, threadId);
+  const parsedBody = regenerateRequestSchema.safeParse(await request.json());
+  if (!parsedBody.success) {
+    return Response.json({ error: "Invalid regenerate payload." }, { status: 400 });
+  }
+
+  const threadView = await getThreadGraphView(supabase, user.id, threadId);
   if (!threadView || !threadView.latestCheckpoint) {
     return Response.json({ error: "Thread not found." }, { status: 404 });
   }
 
   const [character, connection, persona] = await Promise.all([
-    getCharacterBundle(context.supabase, context.user.id, threadView.thread.character_id),
-    getConnection(context.supabase, context.user.id, threadView.thread.connection_id),
+    getCharacterBundle(supabase, user.id, threadView.thread.character_id),
+    getConnection(supabase, user.id, threadView.thread.connection_id),
     threadView.thread.persona_id
-      ? getPersona(context.supabase, context.user.id, threadView.thread.persona_id)
+      ? getPersona(supabase, user.id, threadView.thread.persona_id)
       : Promise.resolve(null),
   ]);
 
@@ -50,28 +47,38 @@ export async function POST(
   }
 
   const latestCheckpoint = threadView.latestCheckpoint;
-  if (body.checkpointId && body.checkpointId !== latestCheckpoint.id) {
+  if (
+    parsedBody.data.checkpointId &&
+    parsedBody.data.checkpointId !== latestCheckpoint.id
+  ) {
     return Response.json(
       { error: "Only the latest assistant checkpoint can be regenerated." },
       { status: 400 },
     );
   }
 
-  const contextMessages = threadView.canonicalMessages.slice(0, -1);
+  const contextMessages = threadView.modelContextMessages.slice(0, -1);
+  const priorSnapshot = latestCheckpoint.parent_checkpoint_id
+    ? await getSnapshot(supabase, latestCheckpoint.parent_checkpoint_id)
+    : null;
+  const generationSettings = resolveThreadGenerationSettings({
+    character: character.character,
+    thread: threadView.thread,
+  });
 
   const result = await generateText({
     model: createLanguageModel(connection, threadView.thread.model_id),
     system: buildRoleplaySystemPrompt({
       character,
       persona,
-      snapshot: threadView.headSnapshot,
+      snapshot: priorSnapshot,
       pins: threadView.pins,
       timeline: [...threadView.timeline].reverse(),
     }),
     messages: await convertToModelMessages(contextMessages),
-    temperature: 0.92,
-    topP: 0.94,
-    maxOutputTokens: 750,
+    temperature: generationSettings.temperature,
+    topP: generationSettings.topP,
+    maxOutputTokens: generationSettings.maxOutputTokens,
   });
 
   const assistantMessage = createTextMessage({
@@ -87,55 +94,32 @@ export async function POST(
     },
   });
 
-  const storedAssistant = await persistMessage(context.supabase, threadId, assistantMessage);
-  const checkpoint = await createCheckpoint(context.supabase, {
+  const { checkpoint } = await finalizeAssistantTurn({
+    supabase,
+    userId: user.id,
+    thread: threadView.thread,
+    branchId: threadView.activeBranch.id,
+    parentCheckpointId: latestCheckpoint.parent_checkpoint_id,
+    userMessage: null,
+    existingUserMessageId: latestCheckpoint.user_message_id,
+    assistantMessage,
+    choiceGroupKey: latestCheckpoint.choice_group_key,
+    previousSnapshot: priorSnapshot,
+    connection,
+    character,
+    modelId: threadView.thread.model_id,
+    recentMessages: [...contextMessages, assistantMessage],
+  });
+
+  await insertTimelineEvent(supabase, {
     thread_id: threadId,
     branch_id: threadView.activeBranch.id,
-    parent_checkpoint_id: latestCheckpoint.parent_checkpoint_id,
-    user_message_id: latestCheckpoint.user_message_id,
-    assistant_message_id: storedAssistant.id,
-    choice_group_key: latestCheckpoint.choice_group_key,
-    feedback_rating: null,
-    created_by: context.user.id,
+    checkpoint_id: checkpoint.id,
+    source_message_id: checkpoint.assistant_message_id,
+    title: "Alternate reply generated",
+    detail: "Saved a sibling assistant reply for the latest user turn.",
+    importance: 2,
   });
-
-  await selectCheckpointAsBranchHead(context.supabase, threadView.activeBranch.id, checkpoint.id);
-
-  const nextMessages = [...contextMessages, assistantMessage];
-  const previousCheckpointSnapshot = latestCheckpoint.parent_checkpoint_id
-    ? await getSnapshot(context.supabase, latestCheckpoint.parent_checkpoint_id)
-    : null;
-
-  const reconciliation = await reconcileTurnState({
-    connection,
-    modelId: threadView.thread.model_id,
-    character,
-    previousSnapshot: previousCheckpointSnapshot,
-    recentMessages: nextMessages.slice(-16),
-  });
-
-  await saveSnapshot(
-    context.supabase,
-    buildSnapshotFromReconciliation({
-      checkpointId: checkpoint.id,
-      threadId,
-      branchId: threadView.activeBranch.id,
-      previousSnapshot: previousCheckpointSnapshot,
-      reconciliation,
-    }),
-  );
-
-  if (reconciliation.timelineEvent) {
-    await insertTimelineEvent(context.supabase, {
-      thread_id: threadId,
-      branch_id: threadView.activeBranch.id,
-      checkpoint_id: checkpoint.id,
-      source_message_id: storedAssistant.id,
-      title: reconciliation.timelineEvent.title,
-      detail: reconciliation.timelineEvent.detail,
-      importance: reconciliation.timelineEvent.importance,
-    });
-  }
 
   return Response.json({ ok: true, checkpointId: checkpoint.id });
 }

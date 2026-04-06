@@ -18,6 +18,9 @@ function reasonCopy(reason: string) {
   if (reason === "name") {
     return "Give the persona a name so it is recognizable when you attach it to a thread.";
   }
+  if (reason === "default") {
+    return "Choose a default persona before starting a new thread, or keep only one persona in the library so Fantasia can infer it.";
+  }
   return reason;
 }
 

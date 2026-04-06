@@ -1,12 +1,13 @@
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ChatWorkspace } from "@/components/chat/chat-workspace";
 import { ConfirmSubmitButton } from "@/components/forms/confirm-submit-button";
+import { getTextFromMessage } from "@/lib/ai/message-text";
 import { requireAllowedUser } from "@/lib/auth";
 import { getCharacterBundle } from "@/lib/data/characters";
 import { listConnections } from "@/lib/data/connections";
 import { listPersonas } from "@/lib/data/personas";
 import { getThreadGraphView } from "@/lib/data/threads";
-import type { ContinuityInspectorView, FantasiaUIMessage } from "@/lib/types";
+import type { ContinuityInspectorView } from "@/lib/types";
 import {
   deleteThreadAction,
   switchThreadBranchAction,
@@ -24,11 +25,12 @@ export default async function ChatThreadPage({
   const threadView = await getThreadGraphView(supabase, user.id, threadId);
 
   if (!threadView) {
-    redirect("/app/characters");
+    notFound();
   }
+  const view = threadView;
 
   const [character, connections, personas] = await Promise.all([
-    getCharacterBundle(supabase, user.id, threadView!.thread.character_id),
+    getCharacterBundle(supabase, user.id, view.thread.character_id),
     listConnections(supabase, user.id),
     listPersonas(supabase, user.id),
   ]);
@@ -38,32 +40,42 @@ export default async function ChatThreadPage({
   }
 
   const currentConnection =
-    connections.find((connection) => connection.id === threadView!.thread.connection_id) ??
+    connections.find((connection) => connection.id === view.thread.connection_id) ??
     connections[0];
   const currentPersona =
-    personas.find((persona) => persona.id === threadView!.thread.persona_id) ?? null;
+    personas.find((persona) => persona.id === view.thread.persona_id) ?? null;
   const messageTextById = new Map(
-    threadView.canonicalMessages.map((message) => [message.id, getMessageText(message)]),
+    view.canonicalMessages.map((message) => [message.id, getTextFromMessage(message)]),
   );
-  const parentBranch = threadView.branches.find(
-    (branch) => branch.id === threadView.activeBranch.parent_branch_id,
+  const parentBranch = view.branches.find(
+    (branch) => branch.id === view.activeBranch.parent_branch_id,
   );
-  const latestAssistantMessage = [...threadView.canonicalMessages]
+  const latestAssistantMessage = [...view.canonicalMessages]
     .reverse()
     .find((message) => message.role === "assistant");
   const alternateCount = latestAssistantMessage
     ? Math.max(
-        (threadView.controlsByMessageId[latestAssistantMessage.id]?.alternates.length ?? 1) - 1,
+        (view.controlsByMessageId[latestAssistantMessage.id]?.alternates.length ?? 1) - 1,
         0,
       )
     : 0;
+  const continuitySnapshot = view.headSnapshot;
+  const continuityStatus = view.headSnapshotPending
+    ? {
+        tone: "pending" as const,
+        title: "This branch head is missing its continuity snapshot",
+        detail:
+          "The active branch points at a turn without a committed continuity state. New turns should stay blocked until the thread is repaired or rebuilt.",
+      }
+    : null;
 
   const inspectorView: ContinuityInspectorView = {
+    continuityStatus,
     continuity: [
       {
         label: "Scenario state",
         value:
-          threadView.headSnapshot?.scenario_state ||
+          continuitySnapshot?.scenario_state ||
           "No scenario snapshot has been written for this branch yet.",
         helper:
           "This is the current framing of the scene that the next assistant turn receives.",
@@ -71,7 +83,7 @@ export default async function ChatThreadPage({
       {
         label: "Relationship state",
         value:
-          threadView.headSnapshot?.relationship_state ||
+          continuitySnapshot?.relationship_state ||
           "No relationship state is locked in for this branch yet.",
         helper:
           "Use this to understand the emotional distance, trust, tension, or intimacy being carried forward.",
@@ -79,15 +91,15 @@ export default async function ChatThreadPage({
       {
         label: "Rolling summary",
         value:
-          threadView.headSnapshot?.rolling_summary ||
+          continuitySnapshot?.rolling_summary ||
           "No rolling summary exists yet. Once the thread advances, the runtime will compress the recent scene here.",
         helper:
           "This is the short-form continuity buffer that keeps long chats coherent without replaying every turn.",
       },
       {
         label: "Open loops",
-        value: threadView.headSnapshot?.open_loops?.length
-          ? threadView.headSnapshot.open_loops.map((item) => `• ${item}`).join("\n")
+        value: continuitySnapshot?.open_loops?.length
+          ? continuitySnapshot.open_loops.map((item) => `• ${item}`).join("\n")
           : "No unresolved loops are currently tracked on this branch.",
         helper:
           "Open loops are the unresolved promises, questions, or consequences the system believes still matter.",
@@ -95,13 +107,13 @@ export default async function ChatThreadPage({
       {
         label: "Scene goals and user facts",
         value: [
-          threadView.headSnapshot?.scene_goals?.length
-            ? `Scene goals:\n${threadView.headSnapshot.scene_goals
+          continuitySnapshot?.scene_goals?.length
+            ? `Scene goals:\n${continuitySnapshot.scene_goals
                 .map((goal) => `• ${goal}`)
                 .join("\n")}`
             : null,
-          threadView.headSnapshot?.user_facts?.length
-            ? `User facts:\n${threadView.headSnapshot.user_facts
+          continuitySnapshot?.user_facts?.length
+            ? `User facts:\n${continuitySnapshot.user_facts
                 .map((fact) => `• ${fact}`)
                 .join("\n")}`
             : null,
@@ -113,7 +125,7 @@ export default async function ChatThreadPage({
           "These are the durable facts and near-term objectives the runtime believes should influence the next beat.",
       },
     ],
-    pins: threadView.pins.map((pin) => ({
+    pins: view.pins.map((pin) => ({
       id: pin.id,
       body: pin.body,
       createdAt: pin.created_at,
@@ -122,7 +134,7 @@ export default async function ChatThreadPage({
         ? truncateCopy(messageTextById.get(pin.source_message_id) ?? "Source message is no longer on this branch.", 120)
         : "This pin was saved without a direct source message.",
     })),
-    timeline: threadView.timeline.map((event) => ({
+    timeline: view.timeline.map((event) => ({
       id: event.id,
       title: event.title,
       detail: event.detail,
@@ -130,13 +142,13 @@ export default async function ChatThreadPage({
       createdAt: event.created_at,
     })),
     branch: {
-      activeBranchId: threadView.activeBranch.id,
-      activeBranchName: threadView.activeBranch.name,
+      activeBranchId: view.activeBranch.id,
+      activeBranchName: view.activeBranch.name,
       parentBranchName: parentBranch?.name ?? null,
-      forkCheckpointId: threadView.activeBranch.fork_checkpoint_id,
-      headCheckpointId: threadView.activeBranch.head_checkpoint_id,
-      totalBranches: threadView.branches.length,
-      totalCheckpoints: threadView.checkpoints.length,
+      forkCheckpointId: view.activeBranch.fork_checkpoint_id,
+      headCheckpointId: view.activeBranch.head_checkpoint_id,
+      totalBranches: view.branches.length,
+      totalCheckpoints: view.checkpoints.length,
       alternateCount,
     },
   };
@@ -182,16 +194,16 @@ export default async function ChatThreadPage({
       </section>
 
       <ChatWorkspace
-        threadId={threadView.thread.id}
+        threadId={view.thread.id}
         characterName={character.character.name}
-        currentModel={threadView.thread.model_id}
+        currentModel={view.thread.model_id}
         currentConnectionLabel={currentConnection?.label ?? "Unknown lane"}
-        activeBranch={threadView.activeBranch}
-        branches={threadView.branches}
+        activeBranch={view.activeBranch}
+        branches={view.branches}
         currentPersona={currentPersona}
         personas={personas}
-        initialMessages={threadView.canonicalMessages}
-        controlsByMessageId={threadView.controlsByMessageId}
+        initialMessages={view.canonicalMessages}
+        controlsByMessageId={view.controlsByMessageId}
         suggestedStarters={character.starters.map((starter) => starter.text)}
         modelChoices={connections
           .filter((connection) => connection.enabled && connection.model_cache.length > 0)
@@ -208,20 +220,6 @@ export default async function ChatThreadPage({
       />
     </div>
   );
-}
-
-function getMessageText(message: FantasiaUIMessage) {
-  return message.parts
-    .map((part) =>
-      typeof part === "object" &&
-      part !== null &&
-      "type" in part &&
-      part.type === "text" &&
-      "text" in part
-        ? String(part.text)
-        : "",
-    )
-    .join("");
 }
 
 function truncateCopy(value: string, length: number) {

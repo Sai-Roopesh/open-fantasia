@@ -12,6 +12,9 @@ import { formatDateTime } from "@/lib/utils";
 
 function humanizeProviderReason(reason: string) {
   if (!reason) return "";
+  if (reason === "connection") {
+    return "Add at least one enabled provider lane, test it, and refresh models before starting a thread.";
+  }
   if (reason.toLowerCase().includes("requires an api key")) {
     return reason;
   }

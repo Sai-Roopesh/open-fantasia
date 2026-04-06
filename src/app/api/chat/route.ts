@@ -1,27 +1,26 @@
-import { convertToModelMessages, streamText, validateUIMessages } from "ai";
+import {
+  convertToModelMessages,
+  createIdGenerator,
+  streamText,
+  validateUIMessages,
+} from "ai";
 import { getCurrentUser } from "@/lib/auth";
-import { reconcileTurnState, buildSnapshotFromReconciliation } from "@/lib/ai/thread-engine";
+import { finalizeAssistantTurn } from "@/lib/ai/turn-finalizer";
+import { resolveThreadGenerationSettings } from "@/lib/ai/generation-settings";
 import { getCharacterBundle } from "@/lib/data/characters";
 import { getConnection } from "@/lib/data/connections";
 import { getPersona } from "@/lib/data/personas";
-import {
-  createCheckpoint,
-  getThreadGraphView,
-  insertTimelineEvent,
-  persistMessage,
-  saveSnapshot,
-  updateBranchHead,
-  updateThreadTitle,
-} from "@/lib/data/threads";
+import { getThreadGraphView } from "@/lib/data/threads";
 import { createLanguageModel } from "@/lib/ai/provider-factory";
+import { ensureMessageId } from "@/lib/ai/message-utils";
 import { buildRoleplaySystemPrompt } from "@/lib/ai/roleplay-prompt";
+import { chatRequestSchema } from "@/lib/validation";
 import { messageMetadataSchema, type FantasiaUIMessage } from "@/lib/types";
 
-type ChatRequestBody = {
-  threadId?: string;
-  id?: string;
-  messages?: FantasiaUIMessage[];
-};
+const generateMessageId = createIdGenerator({
+  prefix: "msg",
+  size: 16,
+});
 
 export async function POST(request: Request) {
   const context = await getCurrentUser();
@@ -29,22 +28,25 @@ export async function POST(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = (await request.json()) as ChatRequestBody;
-  const threadId = body.threadId ?? body.id;
-  if (!threadId || !Array.isArray(body.messages)) {
+  const supabase = context.supabase;
+  const user = context.user;
+
+  const parsedBody = chatRequestSchema.safeParse(await request.json());
+  if (!parsedBody.success) {
     return Response.json({ error: "Invalid chat payload." }, { status: 400 });
   }
 
-  const threadView = await getThreadGraphView(context.supabase, context.user.id, threadId);
+  const { threadId, messages } = parsedBody.data;
+  const threadView = await getThreadGraphView(supabase, user.id, threadId);
   if (!threadView) {
     return Response.json({ error: "Thread not found." }, { status: 404 });
   }
 
   const [character, connection, persona] = await Promise.all([
-    getCharacterBundle(context.supabase, context.user.id, threadView.thread.character_id),
-    getConnection(context.supabase, context.user.id, threadView.thread.connection_id),
+    getCharacterBundle(supabase, user.id, threadView.thread.character_id),
+    getConnection(supabase, user.id, threadView.thread.connection_id),
     threadView.thread.persona_id
-      ? getPersona(context.supabase, context.user.id, threadView.thread.persona_id)
+      ? getPersona(supabase, user.id, threadView.thread.persona_id)
       : Promise.resolve(null),
   ]);
 
@@ -56,9 +58,15 @@ export async function POST(request: Request) {
   }
 
   const incomingMessages = (await validateUIMessages({
-    messages: body.messages.map((message) => ({
-      ...message,
-      metadata: message.metadata ?? {},
+    messages: messages.map((message) => ({
+      ...(message as FantasiaUIMessage),
+      metadata:
+        typeof message === "object" &&
+        message !== null &&
+        "metadata" in message &&
+        message.metadata
+          ? message.metadata
+          : {},
     })),
     metadataSchema: messageMetadataSchema,
   })) as FantasiaUIMessage[];
@@ -74,26 +82,42 @@ export async function POST(request: Request) {
     );
   }
 
-  const canonicalMessages = threadView.canonicalMessages;
-  const streamMessages = [...canonicalMessages, latestUserMessage];
+  const continuitySnapshot = threadView.latestCheckpoint ? threadView.headSnapshot : null;
+  if (threadView.latestCheckpoint && !continuitySnapshot) {
+    return Response.json(
+      {
+        error:
+          "This thread is missing the latest continuity snapshot. Repair the thread state before sending a new turn.",
+      },
+      { status: 409 },
+    );
+  }
+
+  const stableUserMessage = ensureMessageId(latestUserMessage);
+  const streamMessages = [...threadView.modelContextMessages, stableUserMessage];
+  const generationSettings = resolveThreadGenerationSettings({
+    character: character.character,
+    thread: threadView.thread,
+  });
 
   const result = streamText({
     model: createLanguageModel(connection, threadView.thread.model_id),
     system: buildRoleplaySystemPrompt({
       character,
       persona,
-      snapshot: threadView.headSnapshot,
+      snapshot: continuitySnapshot,
       pins: threadView.pins,
       timeline: [...threadView.timeline].reverse(),
     }),
     messages: await convertToModelMessages(streamMessages),
-    temperature: 0.92,
-    topP: 0.94,
-    maxOutputTokens: 750,
+    temperature: generationSettings.temperature,
+    topP: generationSettings.topP,
+    maxOutputTokens: generationSettings.maxOutputTokens,
   });
 
   return result.toUIMessageStreamResponse<FantasiaUIMessage>({
     originalMessages: streamMessages,
+    generateMessageId,
     messageMetadata: ({ part }) => {
       if (part.type === "start") {
         return {
@@ -121,57 +145,23 @@ export async function POST(request: Request) {
     onFinish: async ({ responseMessage, isAborted }) => {
       if (isAborted) return;
 
-      const storedUser = await persistMessage(context.supabase!, threadId, latestUserMessage);
-      const storedAssistant = await persistMessage(context.supabase!, threadId, responseMessage);
-      const checkpoint = await createCheckpoint(context.supabase!, {
-        thread_id: threadId,
-        branch_id: threadView.activeBranch.id,
-        parent_checkpoint_id: threadView.activeBranch.head_checkpoint_id,
-        user_message_id: storedUser.id,
-        assistant_message_id: storedAssistant.id,
-        choice_group_key: `choice:${crypto.randomUUID()}`,
-        feedback_rating: null,
-        created_by: context.user!.id,
-      });
+      const assistantMessage = ensureMessageId(responseMessage);
 
-      await updateBranchHead(context.supabase!, threadView.activeBranch.id, checkpoint.id);
-      await updateThreadTitle(
-        context.supabase!,
-        context.user!.id,
-        threadId,
-        storedUser.content_text.slice(0, 60) || threadView.thread.title,
-      );
-
-      const reconciliation = await reconcileTurnState({
+      await finalizeAssistantTurn({
+        supabase,
+        userId: user.id,
+        thread: threadView.thread,
+        branchId: threadView.activeBranch.id,
+        parentCheckpointId: threadView.activeBranch.head_checkpoint_id,
+        userMessage: stableUserMessage,
+        assistantMessage,
+        choiceGroupKey: `choice:${crypto.randomUUID()}`,
+        previousSnapshot: continuitySnapshot,
         connection,
-        modelId: threadView.thread.model_id,
         character,
-        previousSnapshot: threadView.headSnapshot,
-        recentMessages: [...streamMessages, responseMessage].slice(-16),
+        modelId: threadView.thread.model_id,
+        recentMessages: [...streamMessages, assistantMessage],
       });
-
-      await saveSnapshot(
-        context.supabase!,
-        buildSnapshotFromReconciliation({
-          checkpointId: checkpoint.id,
-          threadId,
-          branchId: threadView.activeBranch.id,
-          previousSnapshot: threadView.headSnapshot,
-          reconciliation,
-        }),
-      );
-
-      if (reconciliation.timelineEvent) {
-        await insertTimelineEvent(context.supabase!, {
-          thread_id: threadId,
-          branch_id: threadView.activeBranch.id,
-          checkpoint_id: checkpoint.id,
-          source_message_id: storedAssistant.id,
-          title: reconciliation.timelineEvent.title,
-          detail: reconciliation.timelineEvent.detail,
-          importance: reconciliation.timelineEvent.importance,
-        });
-      }
     },
   });
 }

@@ -1,22 +1,59 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
-import { encryptSecret } from "@/lib/crypto";
 import { discoverModels } from "@/lib/ai/model-discovery";
-import type { ConnectionRecord, ModelCatalogEntry, ProviderId } from "@/lib/types";
+import { encryptSecret } from "@/lib/crypto";
+import type {
+  ConnectionRecord,
+  ModelCatalogEntry,
+  ProviderId,
+} from "@/lib/types";
+import { isConfigurationError } from "@/lib/errors";
+import {
+  castRecord,
+  castRows,
+  type DatabaseClient,
+} from "@/lib/data/shared";
 
-function normalizeConnection(connection: ConnectionRecord) {
+const connectionSelect = [
+  "id",
+  "user_id",
+  "provider",
+  "label",
+  "base_url",
+  "encrypted_api_key",
+  "enabled",
+  "model_cache",
+  "health_status",
+  "health_message",
+  "last_checked_at",
+  "last_model_refresh_at",
+  "last_synced_at",
+  "created_at",
+  "updated_at",
+].join(", ");
+
+function normalizeConnection(connection: Record<string, unknown>) {
+  const modelCache = Array.isArray(connection.model_cache)
+    ? (connection.model_cache as ModelCatalogEntry[])
+    : [];
+
   return {
-    ...connection,
-    model_cache: Array.isArray(connection.model_cache)
-      ? (connection.model_cache as ModelCatalogEntry[])
-      : [],
-    health_status: connection.health_status ?? "untested",
-    health_message: connection.health_message ?? "",
-    last_checked_at: connection.last_checked_at ?? null,
-    last_model_refresh_at: connection.last_model_refresh_at ?? null,
+    ...(connection as ConnectionRecord),
+    model_cache: modelCache,
+    health_status: (connection.health_status as ConnectionRecord["health_status"]) ?? "untested",
+    health_message: String(connection.health_message ?? ""),
+    last_checked_at: (connection.last_checked_at as string | null) ?? null,
+    last_model_refresh_at:
+      (connection.last_model_refresh_at as string | null) ?? null,
   } satisfies ConnectionRecord;
 }
 
-function classifyConnectionError(error: unknown) {
+export function classifyConnectionError(error: unknown) {
+  if (isConfigurationError(error)) {
+    return {
+      status: "bad_config" as const,
+      message: "The stored provider secret is malformed. Save the connection again.",
+    };
+  }
+
   const rawMessage =
     error instanceof Error ? error.message : "Connection check failed.";
   const message = rawMessage.toLowerCase();
@@ -71,7 +108,7 @@ function classifyConnectionError(error: unknown) {
 }
 
 async function updateConnectionHealth(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   connectionId: string,
   userId: string,
   payload: Partial<
@@ -91,35 +128,32 @@ async function updateConnectionHealth(
     .update(payload)
     .eq("id", connectionId)
     .eq("user_id", userId)
-    .select("*")
+    .select(connectionSelect)
     .single();
 
   if (error) throw error;
-  return normalizeConnection(data as ConnectionRecord);
+  return normalizeConnection(castRecord(data));
 }
 
-export async function listConnections(
-  supabase: SupabaseClient,
-  userId: string,
-) {
+export async function listConnections(supabase: DatabaseClient, userId: string) {
   const { data, error } = await supabase
     .from("ai_connections")
-    .select("*")
+    .select(connectionSelect)
     .eq("user_id", userId)
     .order("updated_at", { ascending: false });
 
   if (error) throw error;
-  return ((data ?? []) as ConnectionRecord[]).map(normalizeConnection);
+  return castRows<unknown>(data).map((row) => normalizeConnection(castRecord(row)));
 }
 
 export async function getConnection(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   userId: string,
   connectionId: string,
 ) {
   const { data, error } = await supabase
     .from("ai_connections")
-    .select("*")
+    .select(connectionSelect)
     .eq("user_id", userId)
     .eq("id", connectionId)
     .maybeSingle();
@@ -127,11 +161,11 @@ export async function getConnection(
   if (error) throw error;
   if (!data) return null;
 
-  return normalizeConnection(data as ConnectionRecord);
+  return normalizeConnection(castRecord(data));
 }
 
 export async function saveConnection(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   userId: string,
   payload: {
     id?: string;
@@ -179,18 +213,22 @@ export async function saveConnection(
         .update(next)
         .eq("id", payload.id)
         .eq("user_id", userId)
-        .select("*")
+        .select(connectionSelect)
         .single()
-    : supabase.from("ai_connections").insert(next).select("*").single();
+    : supabase
+        .from("ai_connections")
+        .insert(next)
+        .select(connectionSelect)
+        .single();
 
   const { data, error } = await query;
   if (error) throw error;
 
-  return normalizeConnection(data as ConnectionRecord);
+  return normalizeConnection(castRecord(data));
 }
 
 export async function deleteConnection(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   userId: string,
   connectionId: string,
 ) {
@@ -204,7 +242,7 @@ export async function deleteConnection(
 }
 
 export async function refreshConnectionModels(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   connection: ConnectionRecord,
 ) {
   try {
@@ -232,7 +270,7 @@ export async function refreshConnectionModels(
 }
 
 export async function testConnection(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   connection: ConnectionRecord,
 ) {
   try {

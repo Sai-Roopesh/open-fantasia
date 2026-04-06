@@ -5,13 +5,7 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { createOllama } from "ollama-ai-provider-v2";
 import type { ConnectionRecord } from "@/lib/types";
 import { decryptSecret } from "@/lib/crypto";
-import { providerCatalog } from "@/lib/ai/catalog";
-
-function normalizeOllamaBaseUrl(baseUrl?: string | null) {
-  const raw = (baseUrl ?? providerCatalog.ollama.defaultBaseUrl ?? "").trim();
-  if (!raw) return providerCatalog.ollama.defaultBaseUrl!;
-  return raw.endsWith("/api") ? raw : `${raw.replace(/\/+$/, "")}/api`;
-}
+import { normalizeOllamaApiBaseUrl } from "@/lib/ai/ollama-url";
 
 export function createLanguageModel(
   connection: ConnectionRecord,
@@ -30,7 +24,7 @@ export function createLanguageModel(
       return createOpenRouter({ apiKey })(modelId);
     case "ollama":
       return createOllama({
-        baseURL: normalizeOllamaBaseUrl(connection.base_url),
+        baseURL: normalizeOllamaApiBaseUrl(connection.base_url),
         headers: apiKey ? { Authorization: `Bearer ${apiKey}` } : undefined,
       })(modelId);
     default:

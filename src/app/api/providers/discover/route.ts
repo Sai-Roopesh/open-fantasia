@@ -1,5 +1,6 @@
 import { getCurrentUser } from "@/lib/auth";
 import { getConnection, refreshConnectionModels } from "@/lib/data/connections";
+import { connectionRequestSchema } from "@/lib/validation";
 
 export async function POST(request: Request) {
   const context = await getCurrentUser();
@@ -7,15 +8,15 @@ export async function POST(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const payload = (await request.json()) as { connectionId?: string };
-  if (!payload.connectionId) {
+  const parsed = connectionRequestSchema.safeParse(await request.json());
+  if (!parsed.success) {
     return Response.json({ error: "Missing connectionId" }, { status: 400 });
   }
 
   const connection = await getConnection(
     context.supabase,
     context.user.id,
-    payload.connectionId,
+    parsed.data.connectionId,
   );
 
   if (!connection) {

@@ -1,7 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { getPublicEnv, hasSupabaseEnv } from "@/lib/env";
+import { hasSupabaseEnv, requireSupabasePublicEnv } from "@/lib/env";
 import { isAllowedEmail } from "@/lib/auth";
+import type { Database } from "@/lib/supabase/database.types";
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -11,9 +12,9 @@ export async function proxy(request: NextRequest) {
   }
 
   const response = NextResponse.next({ request });
-  const { supabaseUrl, supabaseAnonKey } = getPublicEnv();
+  const { supabaseUrl, supabasePublishableKey } = requireSupabasePublicEnv();
 
-  const supabase = createServerClient(supabaseUrl!, supabaseAnonKey!, {
+  const supabase = createServerClient<Database>(supabaseUrl, supabasePublishableKey, {
     cookies: {
       getAll() {
         return request.cookies.getAll();

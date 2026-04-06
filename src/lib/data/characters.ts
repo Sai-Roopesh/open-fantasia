@@ -1,9 +1,10 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
   CharacterExampleConversationRecord,
+  CharacterInsert,
   CharacterRecord,
   CharacterStarterRecord,
 } from "@/lib/types";
+import { castRow, castRows, type DatabaseClient } from "@/lib/data/shared";
 
 export type CharacterBundle = {
   character: CharacterRecord;
@@ -11,41 +12,84 @@ export type CharacterBundle = {
   exampleConversations: CharacterExampleConversationRecord[];
 };
 
-export async function listCharacters(supabase: SupabaseClient, userId: string) {
+const characterSelect = [
+  "id",
+  "user_id",
+  "name",
+  "tagline",
+  "short_description",
+  "long_description",
+  "greeting",
+  "core_persona",
+  "style_rules",
+  "scenario_seed",
+  "author_notes",
+  "definition",
+  "negative_guidance",
+  "temperature",
+  "top_p",
+  "max_output_tokens",
+  "created_at",
+  "updated_at",
+].join(", ");
+
+const starterSelect = [
+  "id",
+  "character_id",
+  "text",
+  "sort_order",
+  "created_at",
+  "updated_at",
+].join(", ");
+
+const exampleSelect = [
+  "id",
+  "character_id",
+  "user_line",
+  "character_line",
+  "sort_order",
+  "created_at",
+  "updated_at",
+].join(", ");
+
+export async function listCharacters(supabase: DatabaseClient, userId: string) {
   const { data, error } = await supabase
     .from("characters")
-    .select("*")
+    .select(characterSelect)
     .eq("user_id", userId)
     .order("updated_at", { ascending: false });
 
   if (error) throw error;
-  return (data ?? []) as CharacterRecord[];
+  return castRows<CharacterRecord>(data);
 }
 
 export async function getCharacterBundle(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   userId: string,
   characterId: string,
 ) {
-  const [{ data: character, error: characterError }, { data: starters, error: startersError }, { data: examples, error: examplesError }] =
-    await Promise.all([
-      supabase
-        .from("characters")
-        .select("*")
-        .eq("user_id", userId)
-        .eq("id", characterId)
-        .maybeSingle(),
-      supabase
-        .from("character_starters")
-        .select("*")
-        .eq("character_id", characterId)
-        .order("sort_order", { ascending: true }),
-      supabase
-        .from("character_example_conversations")
-        .select("*")
-        .eq("character_id", characterId)
-        .order("sort_order", { ascending: true }),
-    ]);
+  const [
+    { data: character, error: characterError },
+    { data: starters, error: startersError },
+    { data: examples, error: examplesError },
+  ] = await Promise.all([
+    supabase
+      .from("characters")
+      .select(characterSelect)
+      .eq("user_id", userId)
+      .eq("id", characterId)
+      .maybeSingle(),
+    supabase
+      .from("character_starters")
+      .select(starterSelect)
+      .eq("character_id", characterId)
+      .order("sort_order", { ascending: true }),
+    supabase
+      .from("character_example_conversations")
+      .select(exampleSelect)
+      .eq("character_id", characterId)
+      .order("sort_order", { ascending: true }),
+  ]);
 
   if (characterError) throw characterError;
   if (startersError) throw startersError;
@@ -53,14 +97,14 @@ export async function getCharacterBundle(
   if (!character) return null;
 
   return {
-    character: character as CharacterRecord,
-    starters: (starters ?? []) as CharacterStarterRecord[],
-    exampleConversations: (examples ?? []) as CharacterExampleConversationRecord[],
+    character: castRow<CharacterRecord>(character),
+    starters: castRows<CharacterStarterRecord>(starters),
+    exampleConversations: castRows<CharacterExampleConversationRecord>(examples),
   } satisfies CharacterBundle;
 }
 
 export async function upsertCharacterBundle(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   userId: string,
   payload: Partial<CharacterRecord> & {
     id?: string;
@@ -69,7 +113,7 @@ export async function upsertCharacterBundle(
     exampleConversations: Array<{ user_line: string; character_line: string }>;
   },
 ) {
-  const nextCharacter = {
+  const nextCharacter: CharacterInsert = {
     id: payload.id,
     user_id: userId,
     name: payload.name,
@@ -80,10 +124,12 @@ export async function upsertCharacterBundle(
     core_persona: payload.core_persona ?? "",
     style_rules: payload.style_rules ?? "",
     scenario_seed: payload.scenario_seed ?? "",
-    example_dialogue: payload.example_dialogue ?? "",
     author_notes: payload.author_notes ?? "",
     definition: payload.definition ?? "",
     negative_guidance: payload.negative_guidance ?? "",
+    temperature: payload.temperature ?? 0.92,
+    top_p: payload.top_p ?? 0.94,
+    max_output_tokens: payload.max_output_tokens ?? 750,
   };
 
   const characterQuery = payload.id
@@ -92,18 +138,25 @@ export async function upsertCharacterBundle(
         .update(nextCharacter)
         .eq("id", payload.id)
         .eq("user_id", userId)
-        .select("*")
+        .select(characterSelect)
         .single()
-    : supabase.from("characters").insert(nextCharacter).select("*").single();
+    : supabase
+        .from("characters")
+        .insert(nextCharacter)
+        .select(characterSelect)
+        .single();
 
   const { data: character, error } = await characterQuery;
   if (error) throw error;
 
-  const characterId = (character as CharacterRecord).id;
+  const characterId = castRow<CharacterRecord>(character).id;
 
   const [deleteStartersResult, deleteExamplesResult] = await Promise.all([
     supabase.from("character_starters").delete().eq("character_id", characterId),
-    supabase.from("character_example_conversations").delete().eq("character_id", characterId),
+    supabase
+      .from("character_example_conversations")
+      .delete()
+      .eq("character_id", characterId),
   ]);
 
   if (deleteStartersResult.error) throw deleteStartersResult.error;
@@ -154,7 +207,7 @@ export async function upsertCharacterBundle(
 }
 
 export async function deleteCharacter(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   userId: string,
   characterId: string,
 ) {

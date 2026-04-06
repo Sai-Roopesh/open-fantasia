@@ -1,5 +1,6 @@
 import { getCurrentUser } from "@/lib/auth";
-import { getThreadGraphView, selectCheckpointAsBranchHead } from "@/lib/data/threads";
+import { updateBranchHead } from "@/lib/data/branches";
+import { getThreadGraphView } from "@/lib/data/threads";
 
 export async function POST(
   _request: Request,
@@ -19,7 +20,7 @@ export async function POST(
   const selected = threadView.checkpoints.find((checkpoint) => checkpoint.id === checkpointId)
     ?? (await context.supabase
       .from("chat_checkpoints")
-      .select("*")
+      .select("id, choice_group_key, branch_id")
       .eq("id", checkpointId)
       .eq("branch_id", threadView.activeBranch.id)
       .maybeSingle()).data;
@@ -35,6 +36,6 @@ export async function POST(
     );
   }
 
-  await selectCheckpointAsBranchHead(context.supabase, threadView.activeBranch.id, checkpointId);
+  await updateBranchHead(context.supabase, threadView.activeBranch.id, checkpointId);
   return Response.json({ ok: true });
 }

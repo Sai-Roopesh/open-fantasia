@@ -27,7 +27,7 @@ export default async function ThreadsPage({
   const threads = await listThreadItems(supabase, user.id, { query, status });
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" data-testid="threads-page">
       <section className="paper-panel rounded-[2rem] p-8">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -43,11 +43,11 @@ export default async function ThreadsPage({
 
           <Link
             href="/app/characters"
-            className="inline-flex items-center gap-2 rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-strong"
-          >
-            Start from a character
-            <ArrowRight suppressHydrationWarning className="h-4 w-4" />
-          </Link>
+          className="inline-flex items-center gap-2 rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-strong"
+        >
+          Start from a character
+          <ArrowRight className="h-4 w-4" />
+        </Link>
         </div>
 
         {deleted ? (
@@ -142,9 +142,9 @@ export default async function ThreadsPage({
                       className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-semibold text-foreground transition hover:border-brand hover:text-brand"
                     >
                       {thread.pinned_at ? (
-                        <PinOff suppressHydrationWarning className="h-4 w-4" />
+                        <PinOff className="h-4 w-4" />
                       ) : (
-                        <Pin suppressHydrationWarning className="h-4 w-4" />
+                        <Pin className="h-4 w-4" />
                       )}
                       {thread.pinned_at ? "Unpin" : "Pin"}
                     </button>
@@ -161,7 +161,7 @@ export default async function ThreadsPage({
                       type="submit"
                       className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-semibold text-foreground transition hover:border-brand hover:text-brand"
                     >
-                      <ArchiveRestore suppressHydrationWarning className="h-4 w-4" />
+                      <ArchiveRestore className="h-4 w-4" />
                       {thread.status === "archived" ? "Restore" : "Archive"}
                     </button>
                   </form>
@@ -171,7 +171,7 @@ export default async function ThreadsPage({
               <details className="mt-5 rounded-[1.5rem] border border-border bg-white/72 px-4 py-4">
                 <summary className="cursor-pointer list-none text-sm font-semibold text-foreground">
                   <span className="inline-flex items-center gap-2">
-                    <PencilLine suppressHydrationWarning className="h-4 w-4 text-brand" />
+                    <PencilLine className="h-4 w-4 text-brand" />
                     Manage thread details
                   </span>
                 </summary>

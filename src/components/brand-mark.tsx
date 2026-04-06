@@ -3,9 +3,9 @@ import { cn } from "@/lib/utils";
 
 export function BrandMark({ className }: { className?: string }) {
   return (
-    <div className={cn("flex items-center gap-3", className)}>
+    <div className={cn("flex items-center gap-3", className)} data-testid="brand-mark">
       <div className="flex h-11 w-11 items-center justify-center rounded-full border border-white/30 bg-white/20 text-white backdrop-blur-md">
-        <Sparkles suppressHydrationWarning className="h-5 w-5" />
+        <Sparkles className="h-5 w-5" />
       </div>
       <div>
         <p className="font-serif text-2xl leading-none tracking-[0.08em] text-white">

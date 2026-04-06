@@ -154,7 +154,7 @@ export default async function AppIndexPage() {
   ];
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" data-testid="workspace-dashboard">
       <section className="overflow-hidden rounded-[2.4rem] border border-border bg-[#1d130e] text-white shadow-[0_30px_80px_rgba(32,17,10,0.18)]">
         <div className="grid gap-10 px-8 py-10 lg:grid-cols-[1.08fr_0.92fr] lg:px-10 lg:py-12">
           <div>
@@ -176,7 +176,7 @@ export default async function AppIndexPage() {
                 className="inline-flex items-center gap-2 rounded-full bg-[#f2d2b6] px-6 py-3 text-sm font-semibold text-[#2b170e] transition hover:bg-[#f7dfca]"
               >
                 {readiness.nextLabel}
-                <ArrowRight suppressHydrationWarning className="h-4 w-4" />
+                <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
                 href="/app/threads"
@@ -197,7 +197,7 @@ export default async function AppIndexPage() {
                   {readiness.completedSteps}/{readiness.totalSteps}
                 </p>
               </div>
-              <Sparkles suppressHydrationWarning className="h-5 w-5 text-[#f0cba9]" />
+              <Sparkles className="h-5 w-5 text-[#f0cba9]" />
             </div>
             <div className="mt-5 h-2 overflow-hidden rounded-full bg-white/10">
               <div
@@ -216,9 +216,9 @@ export default async function AppIndexPage() {
                 >
                   <div className="flex items-center gap-3">
                     {item.done ? (
-                      <CheckCircle2 suppressHydrationWarning className="h-4 w-4 text-[#f0cba9]" />
+                      <CheckCircle2 className="h-4 w-4 text-[#f0cba9]" />
                     ) : (
-                      <CircleDashed suppressHydrationWarning className="h-4 w-4 text-white/45" />
+                      <CircleDashed className="h-4 w-4 text-white/45" />
                     )}
                     <p className="text-sm font-semibold text-white">{item.label}</p>
                   </div>
@@ -250,7 +250,7 @@ export default async function AppIndexPage() {
                 className="inline-flex items-center gap-2 rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-strong"
               >
                 {readiness.nextLabel}
-                <ArrowRight suppressHydrationWarning className="h-4 w-4" />
+                <ArrowRight className="h-4 w-4" />
               </Link>
               <Link
                 href="/app/characters"

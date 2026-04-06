@@ -1,11 +1,20 @@
 "use client";
 
-import { useId, useMemo, useState } from "react";
-import { Braces, Copy, Download, FileUp, Sparkles, Upload } from "lucide-react";
+import { useId, useMemo, useRef, useState } from "react";
+import {
+  AlertCircle,
+  Braces,
+  CheckCircle2,
+  Copy,
+  Download,
+  FileUp,
+  Info,
+  Sparkles,
+  Upload,
+} from "lucide-react";
 import {
   buildPromptPack,
   documentToJson,
-  parsePortableDocument,
   promptPackFilename,
   schemaFilename,
   templateFilename,
@@ -14,10 +23,25 @@ import {
   openFantasiaCharacterJsonSchema,
   openFantasiaPersonaJsonSchema,
 } from "@/lib/portability/openfantasia-json";
+import {
+  getLatestImportText,
+  hasImportText,
+  validatePortableImport,
+} from "@/components/forms/json-portability-panel-helpers";
 import { cn } from "@/lib/utils";
 
 type CharacterPreviewData = OpenFantasiaCharacterData;
 type PersonaPreviewData = OpenFantasiaPersonaData;
+type FeedbackTone = "neutral" | "success" | "error";
+type ImportPhase = "idle" | "dirty" | "valid" | "invalid" | "imported";
+type ImportFeedback = {
+  phase: ImportPhase;
+  tone: FeedbackTone;
+  title: string;
+  message: string;
+  previewData: CharacterPreviewData | PersonaPreviewData | null;
+  validatedInput: string | null;
+};
 
 type JsonPortabilityPanelProps =
   | {
@@ -33,20 +57,21 @@ type JsonPortabilityPanelProps =
 
 export function JsonPortabilityPanel(props: JsonPortabilityPanelProps) {
   const inputId = useId();
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const kindLabel = props.kind === "character" ? "character" : "persona";
   const [rawImport, setRawImport] = useState("");
-  const [status, setStatus] = useState<{
-    tone: "neutral" | "success" | "error";
+  const baseNoticeMessage =
+    "Export a strict Open-Fantasia JSON document, hand it to any model you like, then import the validated JSON back into this draft.";
+  const [notice, setNotice] = useState<{
+    tone: FeedbackTone;
     message: string;
   }>({
     tone: "neutral",
-    message:
-      "Export a strict Open-Fantasia JSON document, hand it to any model you like, then import the validated JSON back into this draft.",
+    message: baseNoticeMessage,
   });
-  const [previewData, setPreviewData] = useState<
-    CharacterPreviewData | PersonaPreviewData | null
-  >(null);
-
-  const kindLabel = props.kind === "character" ? "character" : "persona";
+  const [importFeedback, setImportFeedback] = useState<ImportFeedback>(() =>
+    createImportFeedback(kindLabel, "idle"),
+  );
   const blankDocument = useMemo(
     () =>
       props.kind === "character"
@@ -98,16 +123,18 @@ export function JsonPortabilityPanel(props: JsonPortabilityPanelProps) {
   const schema = props.kind === "character"
     ? openFantasiaCharacterJsonSchema
     : openFantasiaPersonaJsonSchema;
+  const previewData = importFeedback.previewData;
+  const hasImportValue = hasImportText(rawImport);
 
   async function copyText(label: string, value: string) {
     try {
       await navigator.clipboard.writeText(value);
-      setStatus({
+      setNotice({
         tone: "success",
         message: `${label} copied. Paste it into any model you want and ask for raw JSON back.`,
       });
     } catch {
-      setStatus({
+      setNotice({
         tone: "error",
         message: `Could not copy ${label.toLowerCase()} from this tab. Use the download action instead.`,
       });
@@ -122,7 +149,7 @@ export function JsonPortabilityPanel(props: JsonPortabilityPanelProps) {
     anchor.download = filename;
     anchor.click();
     URL.revokeObjectURL(url);
-    setStatus({
+    setNotice({
       tone: "success",
       message: `${filename} downloaded.`,
     });
@@ -136,35 +163,99 @@ export function JsonPortabilityPanel(props: JsonPortabilityPanelProps) {
     anchor.download = filename;
     anchor.click();
     URL.revokeObjectURL(url);
-    setStatus({
+    setNotice({
       tone: "success",
       message: `${filename} downloaded.`,
     });
   }
 
-  function parseImport(value: string) {
-    try {
-      const parsed =
-        props.kind === "character"
-          ? parsePortableDocument("character", value).data
-          : parsePortableDocument("persona", value).data;
+  function syncImportText(nextValue: string) {
+    setRawImport(nextValue);
 
-      setPreviewData(parsed);
-      setStatus({
-        tone: "success",
-        message: `Valid ${kindLabel} JSON detected. Review the preview, then load it into this draft.`,
-      });
-    } catch (error) {
-      const message =
-        error instanceof Error
-          ? error.message
-          : `That ${kindLabel} JSON could not be parsed.`;
-      setPreviewData(null);
-      setStatus({
-        tone: "error",
-        message,
-      });
+    if (!hasImportText(nextValue)) {
+      setImportFeedback(createImportFeedback(kindLabel, "idle"));
+      return;
     }
+
+    setImportFeedback((current) => {
+      if (current.phase === "valid" && current.validatedInput === nextValue) {
+        return current;
+      }
+
+      return createImportFeedback(kindLabel, "dirty");
+    });
+  }
+
+  function validateCurrentImport(explicitValue?: string) {
+    const nextValue = getLatestImportText(
+      rawImport,
+      explicitValue ?? textareaRef.current?.value,
+    );
+
+    if (nextValue !== rawImport) {
+      setRawImport(nextValue);
+    }
+
+    if (!hasImportText(nextValue)) {
+      setImportFeedback({
+        ...createImportFeedback(kindLabel, "invalid"),
+        message: `Paste raw ${kindLabel} JSON or upload a file before validating.`,
+      });
+      return null;
+    }
+
+    const result = validatePortableImport(props.kind, nextValue);
+
+    if (!result.ok) {
+      setImportFeedback({
+        ...createImportFeedback(kindLabel, "invalid"),
+        message: result.message,
+      });
+      return null;
+    }
+
+    setImportFeedback({
+      ...createImportFeedback(kindLabel, "valid"),
+      message: result.message,
+      previewData: result.data,
+      validatedInput: nextValue,
+    });
+    return result.data;
+  }
+
+  function resetImportPanel(nextMessage: string) {
+    setRawImport("");
+    setImportFeedback({
+      ...createImportFeedback(kindLabel, "imported"),
+      message: nextMessage,
+    });
+  }
+
+  function clearImportPanel() {
+    setRawImport("");
+    setImportFeedback(createImportFeedback(kindLabel, "idle"));
+  }
+
+  function loadCurrentImport() {
+    const nextValue = getLatestImportText(rawImport, textareaRef.current?.value);
+    const importedData =
+      importFeedback.phase === "valid" && importFeedback.validatedInput === nextValue
+        ? importFeedback.previewData
+        : validateCurrentImport(nextValue);
+
+    if (!importedData) {
+      return;
+    }
+
+    if (props.kind === "character") {
+      props.onImport(importedData as CharacterPreviewData);
+    } else {
+      props.onImport(importedData as PersonaPreviewData);
+    }
+
+    resetImportPanel(
+      `Imported ${kindLabel} JSON loaded into the current draft. Review it, then save when it feels right.`,
+    );
   }
 
   return (
@@ -187,8 +278,16 @@ export function JsonPortabilityPanel(props: JsonPortabilityPanelProps) {
         </div>
       </div>
 
-      <div aria-live="polite" className="mt-5 rounded-[1.4rem] bg-paper px-4 py-3 text-sm leading-7 text-foreground">
-        {status.message}
+      <div
+        aria-live="polite"
+        className={cn(
+          "mt-5 rounded-[1.4rem] border px-4 py-3 text-sm leading-7",
+          notice.tone === "success" && "border-emerald-200 bg-emerald-50/80 text-emerald-900",
+          notice.tone === "error" && "border-rose-200 bg-rose-50/90 text-rose-900",
+          notice.tone === "neutral" && "border-border bg-paper text-foreground",
+        )}
+      >
+        {notice.message}
       </div>
 
       <div className="mt-5 grid gap-3 lg:grid-cols-2">
@@ -283,16 +382,18 @@ export function JsonPortabilityPanel(props: JsonPortabilityPanelProps) {
               const file = event.target.files?.[0];
               if (!file) return;
               const text = await file.text();
-              setRawImport(text);
-              parseImport(text);
+              syncImportText(text);
+              validateCurrentImport(text);
+              event.target.value = "";
             }}
           />
         </div>
 
         <textarea
+          ref={textareaRef}
           rows={10}
           value={rawImport}
-          onChange={(event) => setRawImport(event.target.value)}
+          onChange={(event) => syncImportText(event.target.value)}
           placeholder={`Paste openfantasia.${props.kind} JSON here...`}
           className="mt-4 w-full rounded-[1.5rem] border border-border bg-white px-4 py-4 text-sm leading-7 outline-none transition focus:border-brand"
         />
@@ -300,35 +401,40 @@ export function JsonPortabilityPanel(props: JsonPortabilityPanelProps) {
         <div className="mt-4 flex flex-wrap gap-2">
           <PanelActionButton
             icon={FileUp}
-            onClick={() => parseImport(rawImport)}
+            disabled={!hasImportValue}
+            onClick={() => validateCurrentImport()}
           >
-            Validate import
+            Preview import
           </PanelActionButton>
           <button
             type="button"
-            disabled={!previewData}
-            onClick={() => {
-              if (!previewData) return;
-              if (props.kind === "character") {
-                props.onImport(previewData as CharacterPreviewData);
-              } else {
-                props.onImport(previewData as PersonaPreviewData);
-              }
-              setStatus({
-                tone: "success",
-                message: `Imported ${kindLabel} JSON loaded into the current draft. Review it, then save when it feels right.`,
-              });
-            }}
+            disabled={!hasImportValue}
+            onClick={loadCurrentImport}
             className={cn(
               "rounded-full px-4 py-2 text-sm font-semibold transition",
-              previewData
+              hasImportValue
                 ? "bg-brand text-white hover:bg-brand-strong"
                 : "cursor-not-allowed bg-[#e9dfd4] text-ink-soft",
             )}
           >
             Load into draft
           </button>
+          <button
+            type="button"
+            disabled={!hasImportValue}
+            onClick={clearImportPanel}
+            className={cn(
+              "rounded-full border px-4 py-2 text-sm font-semibold transition",
+              hasImportValue
+                ? "border-border bg-white text-foreground hover:border-brand hover:text-brand"
+                : "cursor-not-allowed border-border bg-white/60 text-ink-soft",
+            )}
+          >
+            Clear pasted JSON
+          </button>
         </div>
+
+        <ImportFeedbackCard feedback={importFeedback} />
 
         {previewData ? (
           <div className="mt-5 rounded-[1.4rem] border border-border bg-white px-4 py-4">
@@ -376,22 +482,128 @@ export function JsonPortabilityPanel(props: JsonPortabilityPanelProps) {
 function PanelActionButton({
   children,
   icon: Icon,
+  disabled = false,
   onClick,
 }: {
   children: React.ReactNode;
   icon: typeof Download;
+  disabled?: boolean;
   onClick: () => void;
 }) {
   return (
     <button
       type="button"
+      disabled={disabled}
       onClick={onClick}
-      className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-4 py-2 text-sm font-semibold text-foreground transition hover:border-brand hover:text-brand"
+      className={cn(
+        "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition",
+        disabled
+          ? "cursor-not-allowed border-border bg-white/60 text-ink-soft"
+          : "border-border bg-white text-foreground hover:border-brand hover:text-brand",
+      )}
     >
       <Icon className="h-4 w-4" />
       {children}
     </button>
   );
+}
+
+function ImportFeedbackCard({
+  feedback,
+}: {
+  feedback: ImportFeedback;
+}) {
+  return (
+    <div
+      aria-live="polite"
+      className={cn(
+        "mt-4 rounded-[1.4rem] border px-4 py-3",
+        feedback.tone === "success" && "border-emerald-200 bg-emerald-50/80 text-emerald-900",
+        feedback.tone === "error" && "border-rose-200 bg-rose-50/90 text-rose-900",
+        feedback.tone === "neutral" && "border-border bg-[#fff8ef] text-foreground",
+      )}
+    >
+      <div className="flex items-start gap-3">
+        <ImportFeedbackIcon tone={feedback.tone} />
+        <div className="min-w-0">
+          <p className="text-sm font-semibold">{feedback.title}</p>
+          <p className="mt-1 text-sm leading-7 whitespace-pre-wrap">{feedback.message}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ImportFeedbackIcon({
+  tone,
+}: {
+  tone: FeedbackTone;
+}) {
+  if (tone === "success") {
+    return <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />;
+  }
+
+  if (tone === "error") {
+    return <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />;
+  }
+
+  return <Info className="mt-0.5 h-4 w-4 shrink-0" />;
+}
+
+function createImportFeedback(
+  kindLabel: string,
+  phase: ImportPhase,
+): ImportFeedback {
+  const kindTitle = capitalize(kindLabel);
+
+  switch (phase) {
+    case "dirty":
+      return {
+        phase,
+        tone: "neutral",
+        title: `${kindTitle} JSON pasted`,
+        message: "Preview it to confirm the structure, or load it directly and this panel will validate first.",
+        previewData: null,
+        validatedInput: null,
+      };
+    case "valid":
+      return {
+        phase,
+        tone: "success",
+        title: `${kindTitle} JSON is ready`,
+        message: `Valid ${kindLabel} JSON detected.`,
+        previewData: null,
+        validatedInput: null,
+      };
+    case "invalid":
+      return {
+        phase,
+        tone: "error",
+        title: `${kindTitle} JSON needs attention`,
+        message: `This ${kindLabel} JSON does not match the expected contract yet.`,
+        previewData: null,
+        validatedInput: null,
+      };
+    case "imported":
+      return {
+        phase,
+        tone: "success",
+        title: `${kindTitle} draft refreshed`,
+        message: `Imported ${kindLabel} JSON loaded into the current draft.`,
+        previewData: null,
+        validatedInput: null,
+      };
+    case "idle":
+    default:
+      return {
+        phase: "idle",
+        tone: "neutral",
+        title: `Paste ${kindTitle} JSON`,
+        message: "Paste raw JSON or upload a file. Preview it here, or load it directly and this panel will validate before replacing the draft.",
+        previewData: null,
+        validatedInput: null,
+      };
+  }
 }
 
 function capitalize(value: string) {

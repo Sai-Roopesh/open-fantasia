@@ -1,57 +1,79 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PersonaUsageSummary, UserPersonaRecord } from "@/lib/types";
+import { castRow, castRows, type DatabaseClient } from "@/lib/data/shared";
 
-export async function listPersonas(
-  supabase: SupabaseClient,
-  userId: string,
-) {
+const personaSelect = [
+  "id",
+  "user_id",
+  "name",
+  "identity",
+  "backstory",
+  "voice_style",
+  "goals",
+  "boundaries",
+  "private_notes",
+  "is_default",
+  "created_at",
+  "updated_at",
+].join(", ");
+
+export async function listPersonas(supabase: DatabaseClient, userId: string) {
   const { data, error } = await supabase
     .from("user_personas")
-    .select("*")
+    .select(personaSelect)
     .eq("user_id", userId)
     .order("is_default", { ascending: false })
     .order("updated_at", { ascending: false });
 
   if (error) throw error;
-  return (data ?? []) as UserPersonaRecord[];
+  return castRows<UserPersonaRecord>(data);
 }
 
 export async function getPersona(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   userId: string,
   personaId: string,
 ) {
   const { data, error } = await supabase
     .from("user_personas")
-    .select("*")
+    .select(personaSelect)
     .eq("user_id", userId)
     .eq("id", personaId)
     .maybeSingle();
 
   if (error) throw error;
-  return data as UserPersonaRecord | null;
+  return data ? castRow<UserPersonaRecord>(data) : null;
 }
 
 export async function getDefaultPersona(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   userId: string,
 ) {
   const { data, error } = await supabase
     .from("user_personas")
-    .select("*")
+    .select(personaSelect)
     .eq("user_id", userId)
     .eq("is_default", true)
     .maybeSingle();
 
   if (error) throw error;
-  return data as UserPersonaRecord | null;
+  if (data) {
+    return castRow<UserPersonaRecord>(data);
+  }
+
+  const personas = await listPersonas(supabase, userId);
+  if (personas.length === 1) {
+    return personas[0];
+  }
+
+  return null;
 }
 
 export async function upsertPersona(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   userId: string,
   payload: Partial<UserPersonaRecord> & { id?: string; name: string },
 ) {
+  const shouldSetDefault = Boolean(payload.is_default);
   const next = {
     id: payload.id,
     user_id: userId,
@@ -62,17 +84,8 @@ export async function upsertPersona(
     goals: payload.goals ?? "",
     boundaries: payload.boundaries ?? "",
     private_notes: payload.private_notes ?? "",
-    is_default: Boolean(payload.is_default),
+    is_default: false,
   };
-
-  if (next.is_default) {
-    const { error: resetError } = await supabase
-      .from("user_personas")
-      .update({ is_default: false })
-      .eq("user_id", userId);
-
-    if (resetError) throw resetError;
-  }
 
   const query = payload.id
     ? supabase
@@ -80,17 +93,23 @@ export async function upsertPersona(
         .update(next)
         .eq("id", payload.id)
         .eq("user_id", userId)
-        .select("*")
+        .select(personaSelect)
         .single()
-    : supabase.from("user_personas").insert(next).select("*").single();
+    : supabase
+        .from("user_personas")
+        .insert(next)
+        .select(personaSelect)
+        .single();
 
   const { data, error } = await query;
   if (error) throw error;
-  return data as UserPersonaRecord;
+
+  const persona = castRow<UserPersonaRecord>(data, "User persona");
+  return shouldSetDefault ? setDefaultPersona(supabase, userId, persona.id) : persona;
 }
 
 export async function listPersonaUsage(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   userId: string,
 ) {
   const { data, error } = await supabase
@@ -102,7 +121,7 @@ export async function listPersonaUsage(
   if (error) throw error;
 
   const usage = new Map<string, PersonaUsageSummary>();
-  for (const row of data ?? []) {
+  for (const row of castRows<{ persona_id: string | null; status: "active" | "archived" }>(data)) {
     const personaId = row.persona_id as string | null;
     if (!personaId) continue;
     const current = usage.get(personaId) ?? {
@@ -121,31 +140,23 @@ export async function listPersonaUsage(
 }
 
 export async function setDefaultPersona(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   userId: string,
   personaId: string,
 ) {
-  const { error: resetError } = await supabase
-    .from("user_personas")
-    .update({ is_default: false })
-    .eq("user_id", userId);
-
-  if (resetError) throw resetError;
-
   const { data, error } = await supabase
-    .from("user_personas")
-    .update({ is_default: true })
-    .eq("id", personaId)
-    .eq("user_id", userId)
-    .select("*")
+    .rpc("set_default_persona", {
+      target_persona_id: personaId,
+      target_user_id: userId,
+    })
     .single();
 
   if (error) throw error;
-  return data as UserPersonaRecord;
+  return castRow<UserPersonaRecord>(data, "Default persona");
 }
 
 export async function duplicatePersona(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   userId: string,
   personaId: string,
 ) {
@@ -167,15 +178,15 @@ export async function duplicatePersona(
       private_notes: persona.private_notes,
       is_default: false,
     })
-    .select("*")
+    .select(personaSelect)
     .single();
 
   if (error) throw error;
-  return data as UserPersonaRecord;
+  return castRow<UserPersonaRecord>(data);
 }
 
 export async function deletePersona(
-  supabase: SupabaseClient,
+  supabase: DatabaseClient,
   userId: string,
   personaId: string,
 ) {

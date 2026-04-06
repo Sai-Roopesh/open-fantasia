@@ -1,31 +1,25 @@
 import type { FantasiaUIMessage, MessageMetadata } from "@/lib/types";
+import { getTextFromMessageParts } from "@/lib/ai/message-text";
 
-export function getTextFromParts(parts: unknown[]) {
-  return parts
-    .map((part) => {
-      if (
-        typeof part === "object" &&
-        part !== null &&
-        "type" in part &&
-        part.type === "text" &&
-        "text" in part &&
-        typeof part.text === "string"
-      ) {
-        return part.text;
-      }
+export function ensureMessageId(message: FantasiaUIMessage): FantasiaUIMessage {
+  if (typeof message.id === "string" && message.id.trim().length > 0) {
+    return message;
+  }
 
-      return "";
-    })
-    .join("")
-    .trim();
+  return {
+    ...message,
+    id: crypto.randomUUID(),
+  };
 }
 
 export function toStoredMessage(message: FantasiaUIMessage) {
+  const normalized = ensureMessageId(message);
+
   return {
-    id: message.id,
-    role: message.role,
-    parts: message.parts,
-    content_text: getTextFromParts(message.parts),
-    metadata: (message.metadata ?? null) as MessageMetadata | null,
+    id: normalized.id,
+    role: normalized.role,
+    parts: normalized.parts,
+    content_text: getTextFromMessageParts(normalized.parts),
+    metadata: (normalized.metadata ?? null) as MessageMetadata | null,
   };
 }

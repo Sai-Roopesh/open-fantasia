@@ -1,16 +1,8 @@
 import { getCurrentUser } from "@/lib/auth";
-import {
-  createBranch,
-  getThreadGraphView,
-  insertTimelineEvent,
-  switchActiveBranch,
-} from "@/lib/data/threads";
-
-type BranchRequest = {
-  checkpointId?: string;
-  name?: string;
-  makeActive?: boolean;
-};
+import { createBranch } from "@/lib/data/branches";
+import { getThreadGraphView, switchActiveBranch } from "@/lib/data/threads";
+import { insertTimelineEvent } from "@/lib/data/timeline";
+import { createBranchRequestSchema } from "@/lib/validation";
 
 export async function POST(
   request: Request,
@@ -22,28 +14,31 @@ export async function POST(
   }
 
   const { threadId } = await params;
-  const body = (await request.json()) as BranchRequest;
+  const parsedBody = createBranchRequestSchema.safeParse(await request.json());
+  if (!parsedBody.success) {
+    return Response.json({ error: "Invalid branch payload." }, { status: 400 });
+  }
+
   const threadView = await getThreadGraphView(context.supabase, context.user.id, threadId);
   if (!threadView) {
     return Response.json({ error: "Thread not found." }, { status: 404 });
   }
 
   const baseCheckpoint =
-    body.checkpointId
-      ? threadView.checkpoints.find((checkpoint) => checkpoint.id === body.checkpointId)
-      : threadView.latestCheckpoint;
+    threadView.checkpoints.find(
+      (checkpoint) => checkpoint.id === parsedBody.data.checkpointId,
+    ) ?? threadView.latestCheckpoint;
 
-  const branchCount = threadView.branches.length + 1;
   const branch = await createBranch(context.supabase, {
     threadId,
-    name: body.name?.trim() || `branch-${branchCount}`,
+    name: parsedBody.data.name,
     createdBy: context.user.id,
     parentBranchId: threadView.activeBranch.id,
     forkCheckpointId: baseCheckpoint?.id ?? null,
     headCheckpointId: baseCheckpoint?.id ?? null,
   });
 
-  if (body.makeActive ?? true) {
+  if (parsedBody.data.makeActive) {
     await switchActiveBranch(context.supabase, context.user.id, {
       threadId,
       branchId: branch.id,

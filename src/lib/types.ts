@@ -1,5 +1,6 @@
 import type { UIMessage } from "ai";
 import { z } from "zod";
+import type { Database } from "@/lib/supabase/database.types";
 
 export const providerIds = [
   "google",
@@ -10,6 +11,12 @@ export const providerIds = [
 ] as const;
 
 export type ProviderId = (typeof providerIds)[number];
+
+type PublicTables = Database["public"]["Tables"];
+export type DbTableName = keyof PublicTables;
+export type DbRow<TableName extends DbTableName> = PublicTables[TableName]["Row"];
+export type DbInsert<TableName extends DbTableName> = PublicTables[TableName]["Insert"];
+export type DbUpdate<TableName extends DbTableName> = PublicTables[TableName]["Update"];
 
 export type ModelCatalogEntry = {
   id: string;
@@ -28,171 +35,26 @@ export type ProviderCatalog = {
   defaultBaseUrl?: string;
 };
 
-export type ConnectionRecord = {
-  id: string;
-  user_id: string;
-  provider: ProviderId;
-  label: string;
-  base_url: string | null;
-  encrypted_api_key: string | null;
-  enabled: boolean;
+export type ConnectionRecord = Omit<DbRow<"ai_connections">, "model_cache"> & {
   model_cache: ModelCatalogEntry[];
-  health_status:
-    | "untested"
-    | "healthy"
-    | "auth_failed"
-    | "bad_base_url"
-    | "rate_limited"
-    | "error";
-  health_message: string;
-  last_checked_at: string | null;
-  last_model_refresh_at: string | null;
-  last_synced_at: string | null;
-  created_at: string;
-  updated_at: string;
 };
 
-export type CharacterRecord = {
-  id: string;
-  user_id: string;
-  name: string;
-  tagline: string;
-  short_description: string;
-  long_description: string;
-  greeting: string;
-  core_persona: string;
-  style_rules: string;
-  scenario_seed: string;
-  example_dialogue: string;
-  author_notes: string;
-  definition: string;
-  negative_guidance: string;
-  created_at: string;
-  updated_at: string;
+export type ConnectionInsert = Omit<DbInsert<"ai_connections">, "model_cache"> & {
+  model_cache?: ModelCatalogEntry[];
 };
 
-export type CharacterStarterRecord = {
-  id: string;
-  character_id: string;
-  text: string;
-  sort_order: number;
-  created_at: string;
-  updated_at: string;
-};
-
-export type CharacterExampleConversationRecord = {
-  id: string;
-  character_id: string;
-  user_line: string;
-  character_line: string;
-  sort_order: number;
-  created_at: string;
-  updated_at: string;
-};
-
-export type UserPersonaRecord = {
-  id: string;
-  user_id: string;
-  name: string;
-  identity: string;
-  backstory: string;
-  voice_style: string;
-  goals: string;
-  boundaries: string;
-  private_notes: string;
-  is_default: boolean;
-  created_at: string;
-  updated_at: string;
-};
-
-export type ThreadRecord = {
-  id: string;
-  user_id: string;
-  character_id: string;
-  connection_id: string;
-  model_id: string;
-  persona_id: string | null;
-  active_branch_id: string | null;
-  title: string;
-  status: "active" | "archived";
-  archived_at: string | null;
-  pinned_at: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-export type StoredMessageRecord = {
-  id: string;
-  thread_id: string;
-  role: "user" | "assistant" | "system";
-  parts: unknown[];
-  content_text: string;
-  metadata: MessageMetadata | null;
-  created_at: string;
-};
-
-export type ThreadStateSnapshot = {
-  checkpoint_id: string;
-  thread_id: string;
-  branch_id: string;
-  based_on_snapshot_id: string | null;
-  scenario_state: string;
-  relationship_state: string;
-  rolling_summary: string;
-  user_facts: string[];
-  open_loops: string[];
-  scene_goals: string[];
-  version: number;
-  updated_at: string;
-};
-
-export type TimelineEventRecord = {
-  id: string;
-  thread_id: string;
-  branch_id: string | null;
-  checkpoint_id: string | null;
-  source_message_id: string | null;
-  title: string;
-  detail: string;
-  importance: number;
-  created_at: string;
-};
-
-export type ChatBranchRecord = {
-  id: string;
-  thread_id: string;
-  name: string;
-  parent_branch_id: string | null;
-  fork_checkpoint_id: string | null;
-  head_checkpoint_id: string | null;
-  created_by: string;
-  created_at: string;
-  updated_at: string;
-};
-
-export type ChatCheckpointRecord = {
-  id: string;
-  thread_id: string;
-  branch_id: string;
-  parent_checkpoint_id: string | null;
-  user_message_id: string;
-  assistant_message_id: string;
-  choice_group_key: string;
-  feedback_rating: number | null;
-  created_by: string;
-  created_at: string;
-};
-
-export type ChatPinRecord = {
-  id: string;
-  thread_id: string;
-  branch_id: string;
-  source_message_id: string | null;
-  body: string;
-  status: "active" | "resolved";
-  created_at: string;
-  updated_at: string;
-};
+export type CharacterRecord = DbRow<"characters">;
+export type CharacterInsert = DbInsert<"characters">;
+export type CharacterStarterRecord = DbRow<"character_starters">;
+export type CharacterExampleConversationRecord =
+  DbRow<"character_example_conversations">;
+export type UserPersonaRecord = DbRow<"user_personas">;
+export type ThreadRecord = DbRow<"chat_threads">;
+export type ChatBranchRecord = DbRow<"chat_branches">;
+export type ChatCheckpointRecord = DbRow<"chat_checkpoints">;
+export type TimelineEventRecord = DbRow<"chat_timeline_events">;
+export type ChatPinRecord = DbRow<"chat_pins">;
+export type BackgroundJobRecord = DbRow<"background_jobs">;
 
 export const messageMetadataSchema = z
   .object({
@@ -206,12 +68,48 @@ export const messageMetadataSchema = z
     checkpointId: z.string().optional(),
     branchId: z.string().optional(),
     choiceGroupKey: z.string().optional(),
+    hiddenFromTranscript: z.boolean().optional(),
+    starterSeed: z.boolean().optional(),
   })
   .default({});
 
 export type MessageMetadata = z.infer<typeof messageMetadataSchema>;
 
 export type FantasiaUIMessage = UIMessage<MessageMetadata>;
+
+export type StoredMessageRecord = Omit<
+  DbRow<"chat_messages">,
+  "parts" | "metadata"
+> & {
+  parts: unknown[];
+  metadata: MessageMetadata | null;
+};
+
+export type ThreadStateSnapshot = Omit<
+  DbRow<"chat_state_snapshots">,
+  "user_facts" | "open_loops" | "scene_goals"
+> & {
+  user_facts: string[];
+  open_loops: string[];
+  scene_goals: string[];
+};
+
+export type TranscriptControl = {
+  checkpointId: string;
+  branchId: string;
+  canEdit: boolean;
+  canRegenerate: boolean;
+  canBranch: boolean;
+  canRewind: boolean;
+  canPin: boolean;
+  canRate: boolean;
+  feedbackRating: number | null;
+  alternates: Array<{
+    checkpointId: string;
+    selected: boolean;
+    label: string;
+  }>;
+};
 
 export const reconciliationSchema = z.object({
   scenarioState: z.string().default(""),
@@ -263,6 +161,13 @@ export type PersonaUsageSummary = {
 };
 
 export type ContinuityInspectorView = {
+  continuityStatus:
+    | {
+        tone: "pending";
+        title: string;
+        detail: string;
+      }
+    | null;
   continuity: Array<{
     label: string;
     value: string;
@@ -298,4 +203,22 @@ export type CharacterDraftState = {
   dirty: boolean;
   restoredFromLocalDraft: boolean;
   activeTab: string;
+};
+
+export type ThreadGenerationSettings = {
+  temperature: number;
+  topP: number;
+  maxOutputTokens: number;
+};
+
+export type JobPayload = {
+  threadId: string;
+  branchId: string;
+  checkpointId: string;
+  previousCheckpointId: string | null;
+  connectionId: string;
+  modelId: string;
+  characterId: string;
+  personaId: string | null;
+  recentMessageIds: string[];
 };

@@ -66,8 +66,9 @@ export function ProviderHealthActions({
         disabled={testing || refreshing}
         onClick={() => runRequest("/api/providers/test", "test")}
         className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-4 py-2 text-xs font-semibold text-foreground transition hover:border-brand hover:text-brand disabled:opacity-60"
+        data-testid="provider-test-connection"
       >
-        <ShieldCheck suppressHydrationWarning className="h-3.5 w-3.5" />
+        <ShieldCheck className="h-3.5 w-3.5" />
         Test connection
       </button>
 
@@ -76,9 +77,9 @@ export function ProviderHealthActions({
         disabled={testing || refreshing}
         onClick={() => runRequest("/api/providers/discover", "refresh")}
         className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-4 py-2 text-xs font-semibold text-foreground transition hover:border-brand hover:text-brand disabled:opacity-60"
+        data-testid="provider-refresh-models"
       >
         <RefreshCw
-          suppressHydrationWarning
           className={cn("h-3.5 w-3.5", refreshing && "animate-spin")}
         />
         Refresh models

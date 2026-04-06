@@ -1,4 +1,5 @@
 import type { CharacterBundle } from "@/lib/data/characters";
+import { getTextFromMessage } from "@/lib/ai/message-text";
 import type {
   ChatPinRecord,
   FantasiaUIMessage,
@@ -33,7 +34,7 @@ export function buildRoleplaySystemPrompt(args: {
             `Example ${index + 1}\nUSER: ${example.user_line || "N/A"}\n${character.character.name.toUpperCase()}: ${example.character_line || "N/A"}`,
         )
         .join("\n\n")
-    : character.character.example_dialogue || "No structured example conversations yet.";
+    : "No structured example conversations yet.";
   const pinText = pins.length
     ? pins.map((pin) => `- ${pin.body}`).join("\n")
     : "- No manual branch pins yet.";
@@ -97,19 +98,7 @@ export function buildReconciliationMessages(args: {
 }) {
   const transcript = args.recentMessages
     .map((message) => {
-      const text = message.parts
-        .map((part) =>
-          typeof part === "object" &&
-          part !== null &&
-          "type" in part &&
-          part.type === "text" &&
-          "text" in part
-            ? String(part.text)
-            : "",
-        )
-        .join("");
-
-      return `${message.role.toUpperCase()}: ${text}`;
+      return `${message.role.toUpperCase()}: ${getTextFromMessage(message)}`;
     })
     .join("\n\n");
 

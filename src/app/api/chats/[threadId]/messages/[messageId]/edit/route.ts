@@ -1,28 +1,17 @@
 import { convertToModelMessages, generateText } from "ai";
 import { getCurrentUser } from "@/lib/auth";
-import { reconcileTurnState, buildSnapshotFromReconciliation } from "@/lib/ai/thread-engine";
+import { finalizeAssistantTurn } from "@/lib/ai/turn-finalizer";
+import { resolveThreadGenerationSettings } from "@/lib/ai/generation-settings";
 import { getCharacterBundle } from "@/lib/data/characters";
 import { getConnection } from "@/lib/data/connections";
 import { getPersona } from "@/lib/data/personas";
-import {
-  createBranch,
-  createCheckpoint,
-  createTextMessage,
-  getSnapshot,
-  getThreadGraphView,
-  insertTimelineEvent,
-  persistMessage,
-  saveSnapshot,
-  switchActiveBranch,
-  updateBranchHead,
-  updateThreadTitle,
-} from "@/lib/data/threads";
+import { createBranch } from "@/lib/data/branches";
+import { getSnapshot } from "@/lib/data/snapshots";
+import { insertTimelineEvent } from "@/lib/data/timeline";
+import { createTextMessage, getThreadGraphView, switchActiveBranch } from "@/lib/data/threads";
 import { createLanguageModel } from "@/lib/ai/provider-factory";
 import { buildRoleplaySystemPrompt } from "@/lib/ai/roleplay-prompt";
-
-type EditRequest = {
-  content?: string;
-};
+import { editMessageRequestSchema } from "@/lib/validation";
 
 export async function POST(
   request: Request,
@@ -33,14 +22,16 @@ export async function POST(
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const supabase = context.supabase;
+  const user = context.user;
   const { threadId, messageId } = await params;
-  const body = (await request.json()) as EditRequest;
-  const nextContent = body.content?.trim();
-  if (!nextContent) {
+  const parsedBody = editMessageRequestSchema.safeParse(await request.json());
+
+  if (!parsedBody.success) {
     return Response.json({ error: "Edited content is required." }, { status: 400 });
   }
 
-  const threadView = await getThreadGraphView(context.supabase, context.user.id, threadId);
+  const threadView = await getThreadGraphView(supabase, user.id, threadId);
   if (!threadView || !threadView.latestCheckpoint) {
     return Response.json({ error: "Thread not found." }, { status: 404 });
   }
@@ -53,10 +44,10 @@ export async function POST(
   }
 
   const [character, connection, persona] = await Promise.all([
-    getCharacterBundle(context.supabase, context.user.id, threadView.thread.character_id),
-    getConnection(context.supabase, context.user.id, threadView.thread.connection_id),
+    getCharacterBundle(supabase, user.id, threadView.thread.character_id),
+    getConnection(supabase, user.id, threadView.thread.connection_id),
     threadView.thread.persona_id
-      ? getPersona(context.supabase, context.user.id, threadView.thread.persona_id)
+      ? getPersona(supabase, user.id, threadView.thread.persona_id)
       : Promise.resolve(null),
   ]);
 
@@ -67,21 +58,26 @@ export async function POST(
   const latestCheckpoint = threadView.latestCheckpoint;
   const parentCheckpointId = latestCheckpoint.parent_checkpoint_id;
   const priorSnapshot = parentCheckpointId
-    ? await getSnapshot(context.supabase, parentCheckpointId)
+    ? await getSnapshot(supabase, parentCheckpointId)
     : null;
-  const branch = await createBranch(context.supabase, {
+
+  const branch = await createBranch(supabase, {
     threadId,
     name: `edit-${threadView.branches.length + 1}`,
-    createdBy: context.user.id,
+    createdBy: user.id,
     parentBranchId: threadView.activeBranch.id,
     forkCheckpointId: parentCheckpointId,
     headCheckpointId: null,
   });
 
-  const contextMessages = threadView.canonicalMessages.slice(0, -2);
+  const contextMessages = threadView.modelContextMessages.slice(0, -2);
   const editedUserMessage = createTextMessage({
     role: "user",
-    text: nextContent,
+    text: parsedBody.data.content,
+  });
+  const generationSettings = resolveThreadGenerationSettings({
+    character: character.character,
+    thread: threadView.thread,
   });
 
   const result = await generateText({
@@ -96,9 +92,9 @@ export async function POST(
         : [],
     }),
     messages: await convertToModelMessages([...contextMessages, editedUserMessage]),
-    temperature: 0.92,
-    topP: 0.94,
-    maxOutputTokens: 750,
+    temperature: generationSettings.temperature,
+    topP: generationSettings.topP,
+    maxOutputTokens: generationSettings.maxOutputTokens,
   });
 
   const assistantMessage = createTextMessage({
@@ -114,71 +110,36 @@ export async function POST(
     },
   });
 
-  const storedUser = await persistMessage(context.supabase, threadId, editedUserMessage);
-  const storedAssistant = await persistMessage(context.supabase, threadId, assistantMessage);
-  const checkpoint = await createCheckpoint(context.supabase, {
-    thread_id: threadId,
-    branch_id: branch.id,
-    parent_checkpoint_id: parentCheckpointId,
-    user_message_id: storedUser.id,
-    assistant_message_id: storedAssistant.id,
-    choice_group_key: `choice:${crypto.randomUUID()}`,
-    feedback_rating: null,
-    created_by: context.user.id,
+  const { checkpoint } = await finalizeAssistantTurn({
+    supabase,
+    userId: user.id,
+    thread: threadView.thread,
+    branchId: branch.id,
+    parentCheckpointId,
+    userMessage: editedUserMessage,
+    assistantMessage,
+    choiceGroupKey: `choice:${crypto.randomUUID()}`,
+    previousSnapshot: priorSnapshot,
+    connection,
+    character,
+    modelId: threadView.thread.model_id,
+    recentMessages: [...contextMessages, editedUserMessage, assistantMessage],
   });
 
-  await updateBranchHead(context.supabase, branch.id, checkpoint.id);
-  await switchActiveBranch(context.supabase, context.user.id, {
+  await switchActiveBranch(supabase, user.id, {
     threadId,
     branchId: branch.id,
   });
-  await updateThreadTitle(
-    context.supabase,
-    context.user.id,
-    threadId,
-    nextContent.slice(0, 60),
-  );
 
-  const reconciliation = await reconcileTurnState({
-    connection,
-    modelId: threadView.thread.model_id,
-    character,
-    previousSnapshot: priorSnapshot,
-    recentMessages: [...contextMessages, editedUserMessage, assistantMessage].slice(-16),
-  });
-
-  await saveSnapshot(
-    context.supabase,
-    buildSnapshotFromReconciliation({
-      checkpointId: checkpoint.id,
-      threadId,
-      branchId: branch.id,
-      previousSnapshot: priorSnapshot,
-      reconciliation,
-    }),
-  );
-
-  await insertTimelineEvent(context.supabase, {
+  await insertTimelineEvent(supabase, {
     thread_id: threadId,
     branch_id: branch.id,
     checkpoint_id: checkpoint.id,
-    source_message_id: storedAssistant.id,
+    source_message_id: checkpoint.assistant_message_id,
     title: "Edited reply branch",
     detail: "Forked a new branch from the edited latest user turn.",
     importance: 3,
   });
-
-  if (reconciliation.timelineEvent) {
-    await insertTimelineEvent(context.supabase, {
-      thread_id: threadId,
-      branch_id: branch.id,
-      checkpoint_id: checkpoint.id,
-      source_message_id: storedAssistant.id,
-      title: reconciliation.timelineEvent.title,
-      detail: reconciliation.timelineEvent.detail,
-      importance: reconciliation.timelineEvent.importance,
-    });
-  }
 
   return Response.json({ ok: true, branchId: branch.id, checkpointId: checkpoint.id });
 }

@@ -13,6 +13,54 @@ import {
 import { ConfirmSubmitButton } from "@/components/forms/confirm-submit-button";
 import { SubmitButton } from "@/components/forms/submit-button";
 
+type ThreadSetupStep = {
+  id: "persona" | "provider";
+  label: string;
+  ctaLabel: string;
+  href: string;
+  ready: boolean;
+  detail: string;
+};
+
+function buildThreadSetupSteps(options: {
+  hasDefaultPersona: boolean;
+  hasUsableConnection: boolean;
+  connectionsCount: number;
+}) {
+  const steps: ThreadSetupStep[] = [
+    {
+      id: "persona",
+      label: "Default persona",
+      ctaLabel: options.hasDefaultPersona ? "Persona ready" : "Set default persona",
+      href: "/app/personas?reason=default",
+      ready: options.hasDefaultPersona,
+      detail: options.hasDefaultPersona
+        ? "New threads know which version of you to use."
+        : "Pick one persona as the default voice for new scenes.",
+    },
+    {
+      id: "provider",
+      label: "Provider lane",
+      ctaLabel:
+        options.hasUsableConnection || options.connectionsCount > 0
+          ? "Refresh models"
+          : "Configure provider",
+      href: "/app/settings/providers?reason=connection",
+      ready: options.hasUsableConnection,
+      detail: options.hasUsableConnection
+        ? "A tested model is ready for thread creation."
+        : options.connectionsCount > 0
+          ? "The lane exists, but it still needs a successful test and model refresh."
+          : "Add a provider, test it, then refresh the available models.",
+    },
+  ];
+
+  return {
+    steps,
+    missing: steps.filter((step) => !step.ready),
+  };
+}
+
 export default async function CharactersPage({
   searchParams,
 }: {
@@ -29,9 +77,16 @@ export default async function CharactersPage({
   const hasUsableConnection = connections.some(
     (connection) => connection.enabled && connection.model_cache.length > 0,
   );
+  const threadSetup = buildThreadSetupSteps({
+    hasDefaultPersona: Boolean(defaultPersona),
+    hasUsableConnection,
+    connectionsCount: connections.length,
+  });
+  const canStartThread = threadSetup.missing.length === 0;
+  const primarySetupStep = threadSetup.missing[0] ?? null;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" data-testid="characters-page">
       <section className="paper-panel rounded-[2rem] p-8">
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
@@ -47,22 +102,51 @@ export default async function CharactersPage({
             </p>
           </div>
 
-          {!defaultPersona ? (
-            <Link
-              href="/app/personas"
-              className="inline-flex items-center gap-2 rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white transition hover:opacity-90"
-            >
-              Create a default persona first
-              <WandSparkles suppressHydrationWarning className="h-4 w-4" />
-            </Link>
-          ) : !hasUsableConnection ? (
-            <Link
-              href="/app/settings/providers"
-              className="inline-flex items-center gap-2 rounded-full bg-accent px-5 py-3 text-sm font-semibold text-white transition hover:opacity-90"
-            >
-              Configure a provider first
-              <WandSparkles suppressHydrationWarning className="h-4 w-4" />
-            </Link>
+          {!canStartThread ? (
+            <div className="w-full max-w-md rounded-[1.6rem] border border-border bg-white/70 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs uppercase tracking-[0.2em] text-ink-soft">
+                    Thread launch checklist
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-foreground">
+                    Finish these two prerequisites once, then every saved character can start a thread.
+                  </p>
+                </div>
+                {primarySetupStep ? (
+                  <Link
+                    href={primarySetupStep.href}
+                    className="inline-flex items-center gap-2 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+                  >
+                    {threadSetup.missing.length > 1 ? "Finish setup" : primarySetupStep.ctaLabel}
+                    <WandSparkles className="h-4 w-4" />
+                  </Link>
+                ) : null}
+              </div>
+              <div className="mt-4 grid gap-2">
+                {threadSetup.steps.map((step) => (
+                  <Link
+                    key={step.id}
+                    href={step.href}
+                    className="flex items-start justify-between gap-4 rounded-[1.1rem] border border-border bg-paper px-4 py-3 transition hover:border-brand"
+                  >
+                    <div>
+                      <p className="text-sm font-semibold text-foreground">{step.label}</p>
+                      <p className="mt-1 text-xs leading-6 text-ink-soft">{step.detail}</p>
+                    </div>
+                    <span
+                      className={
+                        step.ready
+                          ? "rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700"
+                          : "rounded-full bg-amber-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-700"
+                      }
+                    >
+                      {step.ready ? "ready" : "needed"}
+                    </span>
+                  </Link>
+                ))}
+              </div>
+            </div>
           ) : null}
         </div>
 
@@ -133,7 +217,7 @@ export default async function CharactersPage({
                         character.greeting}
                     </p>
                   </div>
-                  <Plus suppressHydrationWarning className="h-5 w-5 text-brand" />
+                  <Plus className="h-5 w-5 text-brand" />
                 </div>
 
                 <div className="mt-6 flex flex-wrap gap-3">
@@ -144,15 +228,21 @@ export default async function CharactersPage({
                     Edit sheet
                   </Link>
 
-                  <form action={startThreadAction}>
-                    <input type="hidden" name="characterId" value={character.id} />
-                    <SubmitButton
-                      className="px-4 py-2 text-sm"
-                      disabled={!defaultPersona || !hasUsableConnection}
+                  {canStartThread ? (
+                    <form action={startThreadAction}>
+                      <input type="hidden" name="characterId" value={character.id} />
+                      <SubmitButton className="px-4 py-2 text-sm">
+                        Start thread
+                      </SubmitButton>
+                    </form>
+                  ) : primarySetupStep ? (
+                    <Link
+                      href={primarySetupStep.href}
+                      className="inline-flex items-center justify-center rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-strong"
                     >
-                      Start thread
-                    </SubmitButton>
-                  </form>
+                      {threadSetup.missing.length > 1 ? "Finish setup" : primarySetupStep.ctaLabel}
+                    </Link>
+                  ) : null}
 
                   <form action={deleteCharacterAction}>
                     <input type="hidden" name="characterId" value={character.id} />
@@ -164,6 +254,20 @@ export default async function CharactersPage({
                     </ConfirmSubmitButton>
                   </form>
                 </div>
+
+                {!canStartThread ? (
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {threadSetup.missing.map((step) => (
+                      <Link
+                        key={`${character.id}-${step.id}`}
+                        href={step.href}
+                        className="rounded-full border border-border bg-paper px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft transition hover:border-brand hover:text-brand"
+                      >
+                        {step.ctaLabel}
+                      </Link>
+                    ))}
+                  </div>
+                ) : null}
               </article>
             ))
           ) : (
