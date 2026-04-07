@@ -172,7 +172,7 @@ export default async function ChatThreadPage({
             </p>
           </div>
           <div className="flex flex-col gap-3 lg:items-end">
-            <div className="rounded-[1.5rem] bg-white/70 px-5 py-4 text-sm text-ink-soft">
+            <div className="rounded-[1.5rem] bg-white/5 px-5 py-4 text-sm text-ink-soft">
               <p className="text-xs uppercase tracking-[0.22em]">Current lane</p>
               <p className="mt-2 font-medium text-foreground">
                 {currentConnection?.label ?? "No connection"}
@@ -184,7 +184,7 @@ export default async function ChatThreadPage({
               <input type="hidden" name="threadId" value={threadView.thread.id} />
               <ConfirmSubmitButton
                 confirmMessage="Delete this thread and all of its branches, messages, snapshots, and pins?"
-                className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                className="border border-red-900/40 bg-red-950/40 text-red-400 hover:bg-red-900/50"
               >
                 Delete thread
               </ConfirmSubmitButton>

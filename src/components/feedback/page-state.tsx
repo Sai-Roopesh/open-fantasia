@@ -20,7 +20,7 @@ export function LoadingState({
         <Skeleton className="h-10 w-72" />
         <Skeleton className="h-5 w-full max-w-2xl" />
       </div>
-      <Card className="rounded-[2rem] border-border/70 bg-white/70">
+      <Card className="rounded-[2rem] border-white/8 bg-white/5">
         <CardHeader>
           <CardTitle>{title}</CardTitle>
           <CardDescription>{description}</CardDescription>
@@ -49,13 +49,13 @@ export function ErrorState({
   backHref?: string;
 }) {
   return (
-    <Card className="rounded-[2rem] border-red-200 bg-red-50/90" data-testid="route-error-state">
+    <Card className="rounded-[2rem] border-red-900/40 bg-red-950/40" data-testid="route-error-state">
       <CardHeader>
-        <div className="flex items-center gap-3 text-red-700">
+        <div className="flex items-center gap-3 text-red-400">
           <AlertTriangle className="h-5 w-5" />
           <CardTitle>{title}</CardTitle>
         </div>
-        <CardDescription className="text-red-700/85">{description}</CardDescription>
+        <CardDescription className="text-red-400/80">{description}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-wrap gap-3">
         {onRetry ? (
@@ -86,7 +86,7 @@ export function NotFoundState({
   backHref?: string;
 }) {
   return (
-    <Card className="rounded-[2rem] border-border/80 bg-white/80" data-testid="route-not-found-state">
+    <Card className="rounded-[2rem] border-white/8 bg-white/5" data-testid="route-not-found-state">
       <CardHeader>
         <div className="flex items-center gap-3 text-foreground">
           <Search className="h-5 w-5 text-brand" />

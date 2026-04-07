@@ -26,15 +26,15 @@ function humanizeProviderReason(reason: string) {
 
 function healthBadge(status: string) {
   if (status === "healthy") {
-    return "bg-emerald-100 text-emerald-700";
+    return "bg-emerald-950/40 text-emerald-400";
   }
   if (status === "untested") {
-    return "bg-slate-200 text-slate-700";
+    return "bg-slate-800/50 text-slate-400";
   }
   if (status === "rate_limited") {
-    return "bg-amber-100 text-amber-700";
+    return "bg-amber-950/40 text-amber-400";
   }
-  return "bg-rose-100 text-rose-700";
+  return "bg-rose-950/40 text-rose-400";
 }
 
 export default async function ProviderSettingsPage({
@@ -65,17 +65,17 @@ export default async function ProviderSettingsPage({
         </p>
 
         {reason ? (
-          <div className="mt-5 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          <div className="mt-5 rounded-2xl bg-amber-950/40 px-4 py-3 text-sm text-amber-400">
             {humanizeProviderReason(reason)}
           </div>
         ) : null}
         {saved ? (
-          <div className="mt-5 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          <div className="mt-5 rounded-2xl bg-emerald-950/40 px-4 py-3 text-sm text-emerald-400">
             Provider lane saved. Test it next so the workspace knows whether it is actually usable.
           </div>
         ) : null}
         {deleted ? (
-          <div className="mt-5 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          <div className="mt-5 rounded-2xl bg-emerald-950/40 px-4 py-3 text-sm text-emerald-400">
             Provider lane removed from the workspace.
           </div>
         ) : null}
@@ -128,7 +128,7 @@ export default async function ProviderSettingsPage({
                   <ProviderHealthActions connectionId={connection.id} />
                 </div>
 
-                <div className="mt-6 rounded-2xl border border-border bg-white/70 p-4">
+                <div className="mt-6 rounded-2xl border border-border bg-white/5 p-4">
                   <p className="text-xs uppercase tracking-[0.22em] text-ink-soft">
                     Cached models
                   </p>
@@ -150,7 +150,7 @@ export default async function ProviderSettingsPage({
                   )}
                 </div>
 
-                <div className="mt-6 rounded-[1.6rem] border border-border bg-[#fffaf4] p-5">
+                <div className="mt-6 rounded-[1.6rem] border border-border bg-white/3 p-5">
                   <p className="text-xs uppercase tracking-[0.22em] text-ink-soft">Edit lane</p>
                   <div className="mt-4">
                     <ProviderConnectionForm
@@ -175,7 +175,7 @@ export default async function ProviderSettingsPage({
                   <input type="hidden" name="id" value={connection.id} />
                   <ConfirmSubmitButton
                     confirmMessage="Delete this provider lane and remove it from all future thread selection?"
-                    className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                    className="border border-red-900/40 bg-red-950/40 text-red-400 hover:bg-red-900/50"
                   >
                     Delete connection
                   </ConfirmSubmitButton>

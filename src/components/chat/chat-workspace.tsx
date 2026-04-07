@@ -203,7 +203,7 @@ export function ChatWorkspace({
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full border border-border bg-white px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-soft">
+                <span className="rounded-full border border-border bg-white/8 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-soft">
                   {currentConnectionLabel}
                 </span>
                 <span className="rounded-full bg-brand/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-brand">
@@ -212,7 +212,7 @@ export function ChatWorkspace({
                 <button
                   type="button"
                   onClick={() => setShowModelPicker((open) => !open)}
-                  className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-4 py-2 text-sm font-semibold text-foreground transition hover:border-brand hover:text-brand"
+                  className="inline-flex items-center gap-2 rounded-full border border-border bg-white/8 px-4 py-2 text-sm font-semibold text-foreground transition hover:border-brand hover:text-brand"
                 >
                   <RefreshCcw className="h-4 w-4" />
                   Switch model
@@ -221,7 +221,7 @@ export function ChatWorkspace({
             </div>
 
             <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <label className="rounded-[1.4rem] border border-border bg-white/75 p-4 text-sm text-foreground">
+              <label className="rounded-[1.4rem] border border-border bg-white/5 p-4 text-sm text-foreground">
                 <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-ink-soft">
                   <GitBranchPlus className="h-4 w-4" />
                   Active branch
@@ -251,7 +251,7 @@ export function ChatWorkspace({
                 </select>
               </label>
 
-              <label className="rounded-[1.4rem] border border-border bg-white/75 p-4 text-sm text-foreground">
+              <label className="rounded-[1.4rem] border border-border bg-white/5 p-4 text-sm text-foreground">
                 <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-ink-soft">
                   <UserRound className="h-4 w-4" />
                   Active persona

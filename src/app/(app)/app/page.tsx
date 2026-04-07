@@ -173,7 +173,7 @@ export default async function AppIndexPage() {
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
                 href={readiness.completedSteps === readiness.totalSteps ? "/app/threads" : readiness.nextHref}
-                className="inline-flex items-center gap-2 rounded-full bg-[#f2d2b6] px-6 py-3 text-sm font-semibold text-[#2b170e] transition hover:bg-[#f7dfca]"
+                className="inline-flex items-center gap-2 rounded-full bg-brand px-6 py-3 text-sm font-semibold text-white transition hover:bg-brand-strong"
               >
                 {readiness.nextLabel}
                 <ArrowRight className="h-4 w-4" />
@@ -201,7 +201,7 @@ export default async function AppIndexPage() {
             </div>
             <div className="mt-5 h-2 overflow-hidden rounded-full bg-white/10">
               <div
-                className="h-full rounded-full bg-[#f0cba9]"
+                className="h-full rounded-full bg-brand"
                 style={{
                   width: `${(readiness.completedSteps / readiness.totalSteps) * 100}%`,
                 }}
@@ -281,7 +281,7 @@ export default async function AppIndexPage() {
                   <Link
                     key={thread.id}
                     href={`/app/chats/${thread.id}`}
-                    className="block rounded-[1.7rem] border border-border bg-white/72 px-5 py-4 transition hover:border-brand hover:bg-white"
+                    className="block rounded-[1.7rem] border border-border bg-white/5 px-5 py-4 transition hover:border-brand hover:bg-white/8"
                   >
                     <div className="flex items-center gap-2">
                       <p className="truncate text-sm font-semibold text-foreground">{thread.title}</p>
@@ -301,7 +301,7 @@ export default async function AppIndexPage() {
                   </Link>
                 ))
               ) : (
-                <div className="rounded-[1.7rem] border border-dashed border-border bg-white/60 px-5 py-6 text-sm leading-7 text-ink-soft">
+                <div className="rounded-[1.7rem] border border-dashed border-border bg-white/3 px-5 py-6 text-sm leading-7 text-ink-soft">
                   No thread history yet. As soon as a character gets a real scene, it will land
                   here with timestamps and quick-open access.
                 </div>
@@ -351,7 +351,7 @@ export default async function AppIndexPage() {
                 connections.map((connection) => (
                   <div
                     key={connection.id}
-                    className="rounded-[1.6rem] border border-border bg-white/72 px-4 py-4"
+                    className="rounded-[1.6rem] border border-border bg-white/5 px-4 py-4"
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div>
@@ -363,12 +363,12 @@ export default async function AppIndexPage() {
                       <span
                         className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] ${
                           connection.health_status === "healthy"
-                            ? "bg-emerald-100 text-emerald-700"
+                            ? "bg-emerald-950/40 text-emerald-400"
                             : connection.health_status === "untested"
-                              ? "bg-slate-200 text-slate-700"
+                              ? "bg-slate-800/50 text-slate-400"
                               : connection.health_status === "rate_limited"
-                                ? "bg-amber-100 text-amber-700"
-                                : "bg-rose-100 text-rose-700"
+                                ? "bg-amber-950/40 text-amber-400"
+                                : "bg-rose-950/40 text-rose-400"
                         }`}
                       >
                         {connection.health_status.replaceAll("_", " ")}
@@ -385,7 +385,7 @@ export default async function AppIndexPage() {
                   </div>
                 ))
               ) : (
-                <div className="rounded-[1.6rem] border border-dashed border-border bg-white/60 px-5 py-6 text-sm leading-7 text-ink-soft">
+                <div className="rounded-[1.6rem] border border-dashed border-border bg-white/3 px-5 py-6 text-sm leading-7 text-ink-soft">
                   No provider lanes yet. Add one, verify it, then refresh models so the chat
                   workspace has something real to switch between.
                 </div>

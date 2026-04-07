@@ -37,7 +37,7 @@ function TextField({
         rows={rows}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="min-h-[6.5rem] w-full rounded-3xl border border-border bg-white px-4 py-3 text-sm leading-7 outline-none transition focus:border-brand"
+        className="min-h-[6.5rem] w-full rounded-3xl border border-border bg-white/5 px-4 py-3 text-sm leading-7 outline-none transition focus:border-brand"
       />
       {helper ? <span className="mt-2 block text-xs leading-6 text-ink-soft">{helper}</span> : null}
     </label>
@@ -121,7 +121,7 @@ export function PersonaStudioForm({
       ) : null}
 
       {restoredFromDraft ? (
-        <div aria-live="polite" className="rounded-[1.6rem] bg-emerald-50 px-5 py-4 text-sm text-emerald-700">
+        <div aria-live="polite" className="rounded-[1.6rem] bg-emerald-950/40 px-5 py-4 text-sm text-emerald-400">
           Local persona draft restored. Save when it feels right.
         </div>
       ) : null}
@@ -140,7 +140,7 @@ export function PersonaStudioForm({
           required
           value={draft.name}
           onChange={(event) => update("name", event.target.value)}
-          className="w-full rounded-full border border-border bg-white px-4 py-3 outline-none transition focus:border-brand"
+          className="w-full rounded-full border border-border bg-white/5 px-4 py-3 outline-none transition focus:border-brand"
           placeholder="Late-night version of me"
         />
       </label>
@@ -188,7 +188,7 @@ export function PersonaStudioForm({
         onChange={(value) => update("private_notes", value)}
       />
 
-      <label className="flex items-center gap-3 rounded-2xl border border-border bg-white/70 px-4 py-3 text-sm text-foreground">
+      <label className="flex items-center gap-3 rounded-2xl border border-border bg-white/5 px-4 py-3 text-sm text-foreground">
         <input
           type="checkbox"
           name="is_default"
@@ -199,7 +199,7 @@ export function PersonaStudioForm({
         Make this the default persona for new threads
       </label>
 
-      <div className="sticky bottom-24 z-20 rounded-[1.8rem] border border-border bg-[#fff8ef]/96 px-5 py-4 shadow-[0_18px_40px_rgba(36,20,12,0.12)] backdrop-blur">
+      <div className="sticky bottom-24 z-20 rounded-[1.8rem] border border-white/10 bg-[#1a1412]/96 px-5 py-4 shadow-[0_18px_40px_rgba(0,0,0,0.3)] backdrop-blur">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm font-semibold text-foreground">

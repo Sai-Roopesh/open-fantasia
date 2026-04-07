@@ -65,7 +65,7 @@ export function ProviderHealthActions({
         type="button"
         disabled={testing || refreshing}
         onClick={() => runRequest("/api/providers/test", "test")}
-        className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-4 py-2 text-xs font-semibold text-foreground transition hover:border-brand hover:text-brand disabled:opacity-60"
+        className="inline-flex items-center gap-2 rounded-full border border-border bg-white/8 px-4 py-2 text-xs font-semibold text-foreground transition hover:border-brand hover:text-brand disabled:opacity-60"
         data-testid="provider-test-connection"
       >
         <ShieldCheck className="h-3.5 w-3.5" />
@@ -76,7 +76,7 @@ export function ProviderHealthActions({
         type="button"
         disabled={testing || refreshing}
         onClick={() => runRequest("/api/providers/discover", "refresh")}
-        className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-4 py-2 text-xs font-semibold text-foreground transition hover:border-brand hover:text-brand disabled:opacity-60"
+        className="inline-flex items-center gap-2 rounded-full border border-border bg-white/8 px-4 py-2 text-xs font-semibold text-foreground transition hover:border-brand hover:text-brand disabled:opacity-60"
         data-testid="provider-refresh-models"
       >
         <RefreshCw

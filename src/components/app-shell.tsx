@@ -53,7 +53,7 @@ export function AppShell({
   return (
     <div className="min-h-screen bg-transparent">
       <div className="mx-auto min-h-screen max-w-[1600px] lg:grid lg:grid-cols-[18rem_minmax(0,1fr)]">
-        <aside className="hidden min-h-screen border-r border-border/90 bg-[#f6eee2]/94 px-5 py-6 backdrop-blur xl:block">
+        <aside className="hidden min-h-screen border-r border-white/8 bg-[#161110]/94 px-5 py-6 backdrop-blur xl:block">
           <div className="flex items-center gap-3">
             <div className="h-11 w-11 rounded-full bg-brand/90 p-0.5">
               <div className="flex h-full w-full items-center justify-center rounded-full bg-paper text-brand">
@@ -81,7 +81,7 @@ export function AppShell({
                     "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition",
                     active
                       ? "bg-brand text-white shadow-lg"
-                      : "text-ink-soft hover:bg-black/5 hover:text-foreground",
+                      : "text-ink-soft hover:bg-white/5 hover:text-foreground",
                   )}
                 >
                   <Icon className="h-4 w-4" />
@@ -115,19 +115,19 @@ export function AppShell({
                       className={cn(
                         "block rounded-2xl px-4 py-3 text-sm transition",
                         active
-                          ? "bg-accent text-white"
-                          : "bg-white/70 text-foreground hover:bg-white",
+                          ? "bg-brand/20 text-foreground"
+                          : "bg-white/5 text-foreground hover:bg-white/8",
                       )}
                     >
                       <div className="flex items-center gap-2">
                         <p className="truncate font-medium">{thread.title}</p>
                         {thread.pinned_at ? (
-                          <span className="rounded-full bg-brand/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-brand">
+                          <span className="rounded-full bg-brand/15 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-brand">
                             pinned
                           </span>
                         ) : null}
                       </div>
-                      <p className={cn("mt-1 truncate text-xs", active ? "text-white/76" : "text-ink-soft")}>
+                      <p className={cn("mt-1 truncate text-xs", active ? "text-foreground/70" : "text-ink-soft")}>
                         {thread.characters?.name ?? "Unknown character"}
                         {thread.user_personas?.name ? ` • ${thread.user_personas.name}` : ""}
                       </p>
@@ -135,14 +135,14 @@ export function AppShell({
                   );
                 })
               ) : (
-                <p className="rounded-2xl bg-white/60 px-4 py-3 text-sm leading-7 text-ink-soft">
+                <p className="rounded-2xl bg-white/5 px-4 py-3 text-sm leading-7 text-ink-soft">
                   Threads you touch most often will stay within easy reach here.
                 </p>
               )}
             </div>
           </div>
 
-          <div className="mt-10 rounded-[1.75rem] bg-black/5 px-4 py-4 text-sm text-ink-soft">
+          <div className="mt-10 rounded-[1.75rem] bg-white/5 px-4 py-4 text-sm text-ink-soft">
             <p className="font-medium text-foreground">Signed in</p>
             <p className="mt-1 break-all">{email}</p>
             <SignOutButton className="mt-4" compact />
@@ -150,7 +150,7 @@ export function AppShell({
         </aside>
 
         <div className="min-h-screen pb-24 xl:pb-0">
-          <header className="sticky top-0 z-40 border-b border-border/80 bg-[#f5ede2]/90 px-4 py-4 backdrop-blur xl:hidden">
+          <header className="sticky top-0 z-40 border-b border-white/8 bg-[#141010]/90 px-4 py-4 backdrop-blur xl:hidden">
             <div className="flex items-center justify-between gap-3">
               <Link href="/app" className="flex items-center gap-3">
                 <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand text-white">
@@ -167,7 +167,7 @@ export function AppShell({
               <button
                 type="button"
                 onClick={() => setMoreOpen(true)}
-                className="inline-flex items-center gap-2 rounded-full border border-border bg-white px-4 py-2 text-sm font-semibold text-foreground transition hover:border-brand hover:text-brand"
+                className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/8 px-4 py-2 text-sm font-semibold text-foreground transition hover:border-brand hover:text-brand"
               >
                 <Menu className="h-4 w-4" />
                 More
@@ -181,7 +181,7 @@ export function AppShell({
         </div>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-border/80 bg-[#f7efe4]/94 px-3 pb-[calc(env(safe-area-inset-bottom)+0.65rem)] pt-3 backdrop-blur xl:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/8 bg-[#141010]/94 px-3 pb-[calc(env(safe-area-inset-bottom)+0.65rem)] pt-3 backdrop-blur xl:hidden">
         <div className="mx-auto grid max-w-xl grid-cols-4 gap-2">
           {mobileNavItems.map((item) => {
             const Icon = item.icon;
@@ -195,7 +195,7 @@ export function AppShell({
                   "flex flex-col items-center justify-center gap-1 rounded-2xl px-3 py-2 text-[11px] font-semibold transition",
                   active
                     ? "bg-brand text-white"
-                    : "text-ink-soft hover:bg-white hover:text-foreground",
+                    : "text-ink-soft hover:bg-white/8 hover:text-foreground",
                 )}
               >
                 <Icon className="h-4 w-4" />
@@ -207,7 +207,7 @@ export function AppShell({
           <button
             type="button"
             onClick={() => setMoreOpen(true)}
-            className="flex flex-col items-center justify-center gap-1 rounded-2xl px-3 py-2 text-[11px] font-semibold text-ink-soft transition hover:bg-white hover:text-foreground"
+            className="flex flex-col items-center justify-center gap-1 rounded-2xl px-3 py-2 text-[11px] font-semibold text-ink-soft transition hover:bg-white/8 hover:text-foreground"
           >
             <Settings2 className="h-4 w-4" />
             More
@@ -221,9 +221,9 @@ export function AppShell({
             type="button"
             aria-label="Close more menu"
             onClick={() => setMoreOpen(false)}
-            className="absolute inset-0 bg-[#120d09]/44"
+            className="absolute inset-0 bg-black/50"
           />
-          <div className="absolute inset-x-3 bottom-24 rounded-[2rem] border border-border bg-[#fff8ef] p-5 shadow-[0_30px_80px_rgba(34,20,12,0.18)]">
+          <div className="absolute inset-x-3 bottom-24 rounded-[2rem] border border-white/10 bg-[#1a1412] p-5 shadow-[0_30px_80px_rgba(0,0,0,0.4)]">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs uppercase tracking-[0.2em] text-ink-soft">More</p>
@@ -232,7 +232,7 @@ export function AppShell({
               <button
                 type="button"
                 onClick={() => setMoreOpen(false)}
-                className="rounded-full border border-border p-2 text-foreground transition hover:border-brand hover:text-brand"
+                className="rounded-full border border-white/12 p-2 text-foreground transition hover:border-brand hover:text-brand"
               >
                 <X className="h-4 w-4" />
               </button>
@@ -246,7 +246,7 @@ export function AppShell({
                     key={item.href}
                     href={item.href}
                     onClick={() => setMoreOpen(false)}
-                    className="flex items-center justify-between rounded-2xl border border-border bg-white px-4 py-3 text-sm font-medium text-foreground transition hover:border-brand hover:text-brand"
+                    className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-foreground transition hover:border-brand hover:text-brand"
                   >
                     <span className="flex items-center gap-3">
                       <Icon className="h-4 w-4" />
@@ -260,7 +260,7 @@ export function AppShell({
               })}
             </div>
 
-            <div className="mt-5 rounded-[1.5rem] bg-black/5 px-4 py-4 text-sm text-ink-soft">
+            <div className="mt-5 rounded-[1.5rem] bg-white/5 px-4 py-4 text-sm text-ink-soft">
               <p className="font-medium text-foreground">Signed in</p>
               <p className="mt-1 break-all">{email}</p>
               <SignOutButton className="mt-4" compact />

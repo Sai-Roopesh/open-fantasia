@@ -259,7 +259,7 @@ export function JsonPortabilityPanel(props: JsonPortabilityPanelProps) {
   }
 
   return (
-    <section className="rounded-[1.8rem] border border-border bg-white/72 p-5">
+    <section className="rounded-[1.8rem] border border-border bg-white/5 p-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <p className="text-xs uppercase tracking-[0.22em] text-ink-soft">Import and export</p>
@@ -282,8 +282,8 @@ export function JsonPortabilityPanel(props: JsonPortabilityPanelProps) {
         aria-live="polite"
         className={cn(
           "mt-5 rounded-[1.4rem] border px-4 py-3 text-sm leading-7",
-          notice.tone === "success" && "border-emerald-200 bg-emerald-50/80 text-emerald-900",
-          notice.tone === "error" && "border-rose-200 bg-rose-50/90 text-rose-900",
+          notice.tone === "success" && "border-emerald-800/40 bg-emerald-950/40 text-emerald-400",
+          notice.tone === "error" && "border-rose-800/40 bg-rose-950/40 text-rose-400",
           notice.tone === "neutral" && "border-border bg-paper text-foreground",
         )}
       >
@@ -368,7 +368,7 @@ export function JsonPortabilityPanel(props: JsonPortabilityPanelProps) {
           </div>
           <label
             htmlFor={inputId}
-            className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-border bg-white px-4 py-2 text-sm font-semibold text-foreground transition hover:border-brand hover:text-brand"
+            className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-border bg-white/8 px-4 py-2 text-sm font-semibold text-foreground transition hover:border-brand hover:text-brand"
           >
             <Upload className="h-4 w-4" />
             Upload file
@@ -395,7 +395,7 @@ export function JsonPortabilityPanel(props: JsonPortabilityPanelProps) {
           value={rawImport}
           onChange={(event) => syncImportText(event.target.value)}
           placeholder={`Paste openfantasia.${props.kind} JSON here...`}
-          className="mt-4 w-full rounded-[1.5rem] border border-border bg-white px-4 py-4 text-sm leading-7 outline-none transition focus:border-brand"
+          className="mt-4 w-full rounded-[1.5rem] border border-border bg-white/5 px-4 py-4 text-sm leading-7 outline-none transition focus:border-brand"
         />
 
         <div className="mt-4 flex flex-wrap gap-2">
@@ -414,7 +414,7 @@ export function JsonPortabilityPanel(props: JsonPortabilityPanelProps) {
               "rounded-full px-4 py-2 text-sm font-semibold transition",
               hasImportValue
                 ? "bg-brand text-white hover:bg-brand-strong"
-                : "cursor-not-allowed bg-[#e9dfd4] text-ink-soft",
+                : "cursor-not-allowed bg-white/5 text-ink-soft",
             )}
           >
             Load into draft
@@ -426,8 +426,8 @@ export function JsonPortabilityPanel(props: JsonPortabilityPanelProps) {
             className={cn(
               "rounded-full border px-4 py-2 text-sm font-semibold transition",
               hasImportValue
-                ? "border-border bg-white text-foreground hover:border-brand hover:text-brand"
-                : "cursor-not-allowed border-border bg-white/60 text-ink-soft",
+                ? "border-border bg-white/8 text-foreground hover:border-brand hover:text-brand"
+                : "cursor-not-allowed border-border bg-white/3 text-ink-soft",
             )}
           >
             Clear pasted JSON
@@ -437,7 +437,7 @@ export function JsonPortabilityPanel(props: JsonPortabilityPanelProps) {
         <ImportFeedbackCard feedback={importFeedback} />
 
         {previewData ? (
-          <div className="mt-5 rounded-[1.4rem] border border-border bg-white px-4 py-4">
+          <div className="mt-5 rounded-[1.4rem] border border-border bg-white/5 px-4 py-4">
             <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">Import preview</p>
             <div className="mt-3 space-y-2 text-sm leading-7 text-foreground">
               {props.kind === "character" ? (
@@ -498,8 +498,8 @@ function PanelActionButton({
       className={cn(
         "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition",
         disabled
-          ? "cursor-not-allowed border-border bg-white/60 text-ink-soft"
-          : "border-border bg-white text-foreground hover:border-brand hover:text-brand",
+          ? "cursor-not-allowed border-border bg-white/3 text-ink-soft"
+          : "border-border bg-white/8 text-foreground hover:border-brand hover:text-brand",
       )}
     >
       <Icon className="h-4 w-4" />
@@ -518,9 +518,9 @@ function ImportFeedbackCard({
       aria-live="polite"
       className={cn(
         "mt-4 rounded-[1.4rem] border px-4 py-3",
-        feedback.tone === "success" && "border-emerald-200 bg-emerald-50/80 text-emerald-900",
-        feedback.tone === "error" && "border-rose-200 bg-rose-50/90 text-rose-900",
-        feedback.tone === "neutral" && "border-border bg-[#fff8ef] text-foreground",
+        feedback.tone === "success" && "border-emerald-800/40 bg-emerald-950/40 text-emerald-400",
+        feedback.tone === "error" && "border-rose-800/40 bg-rose-950/40 text-rose-400",
+        feedback.tone === "neutral" && "border-border bg-[#1a1412] text-foreground",
       )}
     >
       <div className="flex items-start gap-3">

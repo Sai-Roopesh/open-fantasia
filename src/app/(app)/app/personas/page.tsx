@@ -52,27 +52,27 @@ export default async function PersonasPage({
         </p>
 
         {reason ? (
-          <div className="mt-5 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          <div className="mt-5 rounded-2xl bg-amber-950/40 px-4 py-3 text-sm text-amber-400">
             {reasonCopy(reason)}
           </div>
         ) : null}
         {params.saved === "1" ? (
-          <div className="mt-5 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          <div className="mt-5 rounded-2xl bg-emerald-950/40 px-4 py-3 text-sm text-emerald-400">
             Persona saved. New threads can use it immediately.
           </div>
         ) : null}
         {params.defaulted === "1" ? (
-          <div className="mt-5 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          <div className="mt-5 rounded-2xl bg-emerald-950/40 px-4 py-3 text-sm text-emerald-400">
             Default persona updated.
           </div>
         ) : null}
         {params.duplicated === "1" ? (
-          <div className="mt-5 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          <div className="mt-5 rounded-2xl bg-emerald-950/40 px-4 py-3 text-sm text-emerald-400">
             Persona duplicated. Adjust it and save when the new version feels distinct.
           </div>
         ) : null}
         {params.deleted === "1" ? (
-          <div className="mt-5 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          <div className="mt-5 rounded-2xl bg-emerald-950/40 px-4 py-3 text-sm text-emerald-400">
             Persona removed from the library.
           </div>
         ) : null}
@@ -166,7 +166,7 @@ export default async function PersonasPage({
                       <input type="hidden" name="personaId" value={persona.id} />
                       <ConfirmSubmitButton
                         confirmMessage="Delete this persona? Threads using it will be reassigned if another persona exists."
-                        className="border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700 hover:bg-red-100"
+                        className="border border-red-900/40 bg-red-950/40 px-4 py-2 text-sm text-red-400 hover:bg-red-900/50"
                       >
                         Delete
                       </ConfirmSubmitButton>

@@ -51,7 +51,7 @@ export default async function ThreadsPage({
         </div>
 
         {deleted ? (
-          <div className="mt-5 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          <div className="mt-5 rounded-2xl bg-emerald-950/40 px-4 py-3 text-sm text-emerald-400">
             Thread removed from the library.
           </div>
         ) : null}
@@ -64,7 +64,7 @@ export default async function ThreadsPage({
               name="q"
               defaultValue={query}
               placeholder="Search by thread, character, or persona..."
-              className="w-full rounded-full border border-border bg-white px-4 py-3 outline-none transition focus:border-brand"
+              className="w-full rounded-full border border-border bg-white/5 px-4 py-3 outline-none transition focus:border-brand"
             />
           </label>
 
@@ -73,7 +73,7 @@ export default async function ThreadsPage({
             <select
               name="status"
               defaultValue={status}
-              className="w-full rounded-full border border-border bg-white px-4 py-3 outline-none transition focus:border-brand"
+              className="w-full rounded-full border border-border bg-white/5 px-4 py-3 outline-none transition focus:border-brand"
             >
               <option value="active">Active only</option>
               <option value="archived">Archived only</option>
@@ -84,7 +84,7 @@ export default async function ThreadsPage({
           <div className="flex items-end">
             <button
               type="submit"
-              className="inline-flex w-full items-center justify-center rounded-full border border-border bg-white px-4 py-3 text-sm font-semibold text-foreground transition hover:border-brand hover:text-brand"
+              className="inline-flex w-full items-center justify-center rounded-full border border-border bg-white/8 px-4 py-3 text-sm font-semibold text-foreground transition hover:border-brand hover:text-brand"
             >
               Apply filters
             </button>
@@ -106,7 +106,7 @@ export default async function ThreadsPage({
                       </span>
                     ) : null}
                     {thread.status === "archived" ? (
-                      <span className="rounded-full bg-slate-200 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-700">
+                      <span className="rounded-full bg-slate-800/50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
                         archived
                       </span>
                     ) : null}
@@ -168,7 +168,7 @@ export default async function ThreadsPage({
                 </div>
               </div>
 
-              <details className="mt-5 rounded-[1.5rem] border border-border bg-white/72 px-4 py-4">
+              <details className="mt-5 rounded-[1.5rem] border border-border bg-white/5 px-4 py-4">
                 <summary className="cursor-pointer list-none text-sm font-semibold text-foreground">
                   <span className="inline-flex items-center gap-2">
                     <PencilLine className="h-4 w-4 text-brand" />
@@ -182,7 +182,7 @@ export default async function ThreadsPage({
                     <input
                       name="title"
                       defaultValue={thread.title}
-                      className="min-w-0 flex-1 rounded-full border border-border bg-white px-4 py-3 text-sm outline-none transition focus:border-brand"
+                      className="min-w-0 flex-1 rounded-full border border-border bg-white/5 px-4 py-3 text-sm outline-none transition focus:border-brand"
                     />
                     <button
                       type="submit"
@@ -196,7 +196,7 @@ export default async function ThreadsPage({
                     <input type="hidden" name="threadId" value={thread.id} />
                     <ConfirmSubmitButton
                       confirmMessage="Delete this thread and all of its branches, messages, snapshots, and pins?"
-                      className="border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+                      className="border border-red-900/40 bg-red-950/40 text-red-400 hover:bg-red-900/50"
                     >
                       Delete thread
                     </ConfirmSubmitButton>

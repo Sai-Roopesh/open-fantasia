@@ -104,7 +104,7 @@ async function LoginCard({
                 name="email"
                 required
                 placeholder="you@example.com"
-                className="w-full rounded-2xl border border-border bg-white px-4 py-3 outline-none transition focus:border-brand"
+                className="w-full rounded-2xl border border-border bg-white/5 px-4 py-3 outline-none transition focus:border-brand"
                 data-testid="login-email-input"
               />
             </label>

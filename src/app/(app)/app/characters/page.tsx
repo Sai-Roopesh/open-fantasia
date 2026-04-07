@@ -103,7 +103,7 @@ export default async function CharactersPage({
           </div>
 
           {!canStartThread ? (
-            <div className="w-full max-w-md rounded-[1.6rem] border border-border bg-white/70 p-4">
+            <div className="w-full max-w-md rounded-[1.6rem] border border-border bg-white/5 p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs uppercase tracking-[0.2em] text-ink-soft">
@@ -137,8 +137,8 @@ export default async function CharactersPage({
                     <span
                       className={
                         step.ready
-                          ? "rounded-full bg-emerald-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-700"
-                          : "rounded-full bg-amber-100 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-700"
+                          ? "rounded-full bg-emerald-950/40 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-400"
+                          : "rounded-full bg-amber-950/40 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-400"
                       }
                     >
                       {step.ready ? "ready" : "needed"}
@@ -151,17 +151,17 @@ export default async function CharactersPage({
         </div>
 
         {reason === "name" ? (
-          <div className="mt-5 rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          <div className="mt-5 rounded-2xl bg-amber-950/40 px-4 py-3 text-sm text-amber-400">
             Every character sheet needs a name before it can be saved or reused inside threads.
           </div>
         ) : null}
         {params.saved === "1" ? (
-          <div className="mt-5 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          <div className="mt-5 rounded-2xl bg-emerald-950/40 px-4 py-3 text-sm text-emerald-400">
             Character saved. You can start a thread now or keep shaping the voice.
           </div>
         ) : null}
         {params.deleted === "1" ? (
-          <div className="mt-5 rounded-2xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          <div className="mt-5 rounded-2xl bg-emerald-950/40 px-4 py-3 text-sm text-emerald-400">
             Character removed from the studio.
           </div>
         ) : null}

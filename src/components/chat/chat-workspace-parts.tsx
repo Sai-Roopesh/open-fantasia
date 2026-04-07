@@ -82,7 +82,7 @@ export function ContextCard({
   footer?: React.ReactNode;
 }) {
   return (
-    <div className="rounded-[1.6rem] border border-border bg-white/75 p-4">
+    <div className="rounded-[1.6rem] border border-border bg-white/5 p-4">
       <p className="text-xs uppercase tracking-[0.2em] text-ink-soft">{eyebrow}</p>
       <p className="mt-2 text-lg font-semibold text-foreground">{title}</p>
       <p className="mt-2 text-sm leading-6 text-ink-soft">{helper}</p>
@@ -122,7 +122,7 @@ export function EmptyStateGuide({
     : starterScaffolds.map((item) => item.text);
 
   return (
-    <div className="mt-5 rounded-[1.75rem] border border-border bg-white/72 p-5">
+    <div className="mt-5 rounded-[1.75rem] border border-border bg-white/5 p-5">
       <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.22em] text-ink-soft">
         <WandSparkles className="h-4 w-4 text-brand" />
         First turn guidance
@@ -152,7 +152,7 @@ export function EmptyStateGuide({
                 "rounded-[1.5rem] border border-border bg-paper px-4 py-4 text-left transition",
                 disabled
                   ? "cursor-not-allowed opacity-60"
-                  : "hover:border-brand hover:bg-white",
+                  : "hover:border-brand hover:bg-white/10",
               )}
             >
               <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">{title}</p>
@@ -179,7 +179,7 @@ export function ModelPicker({
   onSelectModel: (connectionId: string, modelId: string) => Promise<void>;
 }) {
   return (
-    <div className="mt-5 rounded-[1.6rem] border border-border bg-white/75 p-4">
+    <div className="mt-5 rounded-[1.6rem] border border-border bg-white/5 p-4">
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs uppercase tracking-[0.22em] text-ink-soft">
@@ -192,7 +192,7 @@ export function ModelPicker({
         <button
           type="button"
           onClick={onClose}
-          className="rounded-full border border-border px-4 py-2 text-xs font-semibold text-foreground transition hover:border-brand hover:text-brand"
+          className="rounded-full border border-border bg-paper/8 px-3 py-1.5 font-semibold text-foreground transition hover:border-brand hover:text-brand disabled:opacity-60"
         >
           Close
         </button>
@@ -219,7 +219,7 @@ export function ModelPicker({
                       "rounded-full border px-3 py-2 text-xs transition",
                       model.id === currentModel
                         ? "border-brand bg-brand text-white"
-                        : "border-border bg-white text-foreground hover:border-brand hover:text-brand",
+                        : "border-border bg-white/8 text-foreground hover:border-brand hover:text-brand",
                     )}
                   >
                     {model.name}
@@ -287,7 +287,7 @@ export function ErrorBanner({
             <button
               type="button"
               onClick={() => onEditDraft(failedDraft)}
-              className="rounded-full border border-brand/25 bg-white px-4 py-2 text-xs font-semibold text-brand transition hover:border-brand"
+              className="rounded-full border border-brand/25 bg-white/8 px-4 py-2 text-xs font-semibold text-brand transition hover:border-brand"
             >
               Edit draft
             </button>
@@ -296,7 +296,7 @@ export function ErrorBanner({
         <button
           type="button"
           onClick={onShowModelPicker}
-          className="rounded-full border border-brand/25 bg-white px-4 py-2 text-xs font-semibold text-brand transition hover:border-brand"
+          className="rounded-full border border-brand/25 bg-white/8 px-4 py-2 text-xs font-semibold text-brand transition hover:border-brand"
         >
           Switch model
         </button>
@@ -307,7 +307,7 @@ export function ErrorBanner({
           {fallbackModels.map((option) => (
             <span
               key={`${option.connectionId}-${option.model.id}`}
-              className="rounded-full border border-brand/18 bg-white px-3 py-1 text-xs"
+              className="rounded-full border border-brand/18 bg-white/8 px-3 py-1 text-xs"
             >
               {option.label}: {option.model.name}
             </span>
@@ -351,7 +351,7 @@ export function ChatComposer({
           onChange={(event) => onDraftChange(event.target.value)}
           placeholder="Enter the next beat, confession, interruption, or scene turn..."
           data-testid="chat-composer-input"
-          className="w-full rounded-[1.75rem] border border-border bg-white px-5 py-4 text-sm leading-7 outline-none transition focus:border-brand"
+          className="w-full rounded-[1.75rem] border border-border bg-white/5 px-5 py-4 text-sm leading-7 outline-none transition focus:border-brand"
         />
       </label>
       <button
@@ -403,7 +403,7 @@ export function InspectorPanel({
               "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
               activeInspectorTab === tab.id
                 ? "border-brand bg-brand text-white"
-                : "border-border bg-white text-foreground hover:border-brand hover:text-brand",
+                : "border-border bg-white/8 text-foreground hover:border-brand hover:text-brand",
             )}
           >
             {tab.label}
@@ -427,7 +427,7 @@ export function InspectorPanel({
             {inspectorView.continuity.map((section) => (
               <div
                 key={section.label}
-                className="rounded-[1.5rem] border border-border bg-white/75 p-4"
+                className="rounded-[1.5rem] border border-border bg-white/5 p-4"
               >
                 <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">
                   {section.label}
@@ -447,7 +447,7 @@ export function InspectorPanel({
               inspectorView.pins.map((pin) => (
                 <div
                   key={pin.id}
-                  className="rounded-[1.5rem] border border-border bg-white/75 p-4"
+                  className="rounded-[1.5rem] border border-border bg-white/5 p-4"
                 >
                   <p className="text-sm leading-7 text-foreground">{pin.body}</p>
                   <div className="mt-3 text-xs leading-6 text-ink-soft">
@@ -479,7 +479,7 @@ export function InspectorPanel({
               inspectorView.timeline.map((event) => (
                 <div
                   key={event.id}
-                  className="rounded-[1.5rem] border border-border bg-white/75 p-4"
+                  className="rounded-[1.5rem] border border-border bg-white/5 p-4"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <p className="font-semibold text-foreground">{event.title}</p>
@@ -597,9 +597,9 @@ export function ActionSheet({
         type="button"
         aria-label="Close action sheet"
         onClick={onClose}
-        className="absolute inset-0 bg-[#160f0b]/46"
+        className="absolute inset-0 bg-black/50"
       />
-      <div className="absolute inset-x-3 bottom-5 mx-auto max-w-2xl rounded-[2rem] border border-border bg-[#fff8ef] p-6 shadow-[0_30px_100px_rgba(34,20,12,0.22)]">
+      <div className="absolute inset-x-3 bottom-5 mx-auto max-w-2xl rounded-[2rem] border border-white/10 bg-[#1a1412] p-6 shadow-[0_30px_100px_rgba(0,0,0,0.4)]">
         {sheet.kind === "alternates" ? (
           <>
             <p className="text-xs uppercase tracking-[0.22em] text-ink-soft">

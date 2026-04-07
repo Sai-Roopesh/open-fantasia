@@ -45,7 +45,7 @@ function TextField({
         rows={rows}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="min-h-[6.5rem] w-full rounded-3xl border border-border bg-white px-4 py-3 text-sm leading-7 outline-none transition focus:border-brand"
+        className="min-h-[6.5rem] w-full rounded-3xl border border-border bg-white/5 px-4 py-3 text-sm leading-7 outline-none transition focus:border-brand"
       />
       {helper ? <span className="mt-2 block text-xs leading-6 text-ink-soft">{helper}</span> : null}
     </label>
@@ -151,7 +151,7 @@ export function CharacterStudioForm({
       ) : null}
 
       {restoredFromDraft ? (
-        <div aria-live="polite" className="rounded-[1.6rem] bg-emerald-50 px-5 py-4 text-sm text-emerald-700">
+        <div aria-live="polite" className="rounded-[1.6rem] bg-emerald-950/40 px-5 py-4 text-sm text-emerald-400">
           Your locally restored draft is back in the editor. Save when you are ready.
         </div>
       ) : null}
@@ -163,7 +163,7 @@ export function CharacterStudioForm({
         onImport={importCharacterData}
       />
 
-      <div className="rounded-[1.8rem] border border-border bg-white/72 p-3">
+      <div className="rounded-[1.8rem] border border-border bg-white/5 p-3">
         <div className="flex flex-wrap gap-2">
           {tabs.map((tab) => (
             <button
@@ -200,7 +200,7 @@ export function CharacterStudioForm({
             required
             value={draft.name}
             onChange={(event) => update("name", event.target.value)}
-            className="w-full rounded-full border border-border bg-white px-4 py-3 outline-none transition focus:border-brand"
+            className="w-full rounded-full border border-border bg-white/5 px-4 py-3 outline-none transition focus:border-brand"
             placeholder="Captain Mirelle"
           />
           <span className="mt-2 block text-xs leading-6 text-ink-soft">
@@ -214,7 +214,7 @@ export function CharacterStudioForm({
             name="tagline"
             value={draft.tagline}
             onChange={(event) => update("tagline", event.target.value)}
-            className="w-full rounded-full border border-border bg-white px-4 py-3 outline-none transition focus:border-brand"
+            className="w-full rounded-full border border-border bg-white/5 px-4 py-3 outline-none transition focus:border-brand"
             placeholder="A lighthouse keeper who speaks like the sea remembers her."
           />
         </label>
@@ -308,7 +308,7 @@ export function CharacterStudioForm({
                   ),
                 )
               }
-              className="flex-1 rounded-full border border-border bg-white px-4 py-3 text-sm outline-none transition focus:border-brand"
+              className="flex-1 rounded-full border border-border bg-white/5 px-4 py-3 text-sm outline-none transition focus:border-brand"
               placeholder="Walk into the storm with me."
             />
             <button
@@ -341,7 +341,7 @@ export function CharacterStudioForm({
           Example dialogue teaches cadence better than summary text. Use short, high-signal exchanges that reveal rhythm, warmth, and tension.
         </p>
         {draft.examples.map((example, index) => (
-          <div key={`example-${index}`} className="rounded-[1.5rem] border border-border bg-white/70 p-4">
+          <div key={`example-${index}`} className="rounded-[1.5rem] border border-border bg-white/5 p-4">
             <div className="grid gap-4 md:grid-cols-2">
               <TextField
                 label="User line"
@@ -399,7 +399,7 @@ export function CharacterStudioForm({
         </button>
       </div>
 
-      <div className="sticky bottom-24 z-20 rounded-[1.8rem] border border-border bg-[#fff8ef]/96 px-5 py-4 shadow-[0_18px_40px_rgba(36,20,12,0.12)] backdrop-blur">
+      <div className="sticky bottom-24 z-20 rounded-[1.8rem] border border-white/10 bg-[#1a1412]/96 px-5 py-4 shadow-[0_18px_40px_rgba(0,0,0,0.3)] backdrop-blur">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-sm font-semibold text-foreground">

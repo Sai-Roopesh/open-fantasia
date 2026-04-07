@@ -147,7 +147,7 @@ export function PretextTranscript({
     <div className="relative">
       <div
         ref={scrollRef}
-        className="relative h-[68vh] min-h-[28rem] overflow-y-auto rounded-[2rem] border border-border bg-[#f8f1e8]/75 px-3 py-4"
+        className="relative h-[68vh] min-h-[28rem] overflow-y-auto rounded-[2rem] border border-white/8 bg-[#141010]/75 px-3 py-4"
       >
         <div className="mx-auto flex max-w-4xl flex-col gap-5 py-1">
           {messages.map((message) => {
@@ -172,8 +172,8 @@ export function PretextTranscript({
                   className={cn(
                     "w-full rounded-[1.8rem] px-5 py-4 shadow-[0_14px_40px_rgba(35,23,16,0.08)]",
                     isUser
-                      ? "max-w-[min(54ch,92%)] bg-[#f1decb] text-[#21130b]"
-                      : "max-w-[min(72ch,100%)] bg-[#231710] text-[#fff6ef]",
+                      ? "max-w-[min(54ch,92%)] bg-[#2a1f18] text-[#f0e0cf]"
+                      : "max-w-[min(72ch,100%)] bg-[#0f0c0a] text-[#e8ddd2]",
                   )}
                 >
                   <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.24em] opacity-65">
@@ -260,7 +260,7 @@ export function PretextTranscript({
                           type="button"
                           disabled={pendingAction !== null}
                           onClick={() => onOpenAlternates(controls)}
-                          className="rounded-full border border-border bg-white px-3 py-1.5 font-semibold text-foreground transition hover:border-brand hover:text-brand disabled:opacity-60"
+                          className="rounded-full border border-border bg-white/8 px-3 py-1.5 font-semibold text-foreground transition hover:border-brand hover:text-brand disabled:opacity-60"
                         >
                           {controls.alternates.find((option) => option.selected)?.label ?? "Choose"}{" "}
                           selected
@@ -284,7 +284,7 @@ export function PretextTranscript({
                             disabled={pendingAction !== null}
                             onClick={() => onRateCheckpoint(controls.checkpointId, rating)}
                             className={cn(
-                              "rounded-full border border-border bg-white px-3 py-1.5 font-semibold text-foreground transition disabled:opacity-60",
+                              "rounded-full border border-border bg-white/8 px-3 py-1.5 font-semibold text-foreground transition disabled:opacity-60",
                               controls.feedbackRating === rating
                                 ? "border-brand bg-brand/8 text-brand"
                                 : "hover:border-brand hover:text-brand",
@@ -317,7 +317,7 @@ export function PretextTranscript({
               behavior: "smooth",
             });
           }}
-          className="absolute bottom-4 right-4 inline-flex items-center gap-2 rounded-full border border-border bg-white px-4 py-2 text-sm font-semibold text-foreground shadow-lg transition hover:border-brand hover:text-brand"
+          className="absolute bottom-4 right-4 inline-flex items-center gap-2 rounded-full border border-white/12 bg-[#1a1412] px-4 py-2 text-sm font-semibold text-foreground shadow-lg transition hover:border-brand hover:text-brand"
         >
           <ArrowDown className="h-4 w-4" />
           Jump to latest

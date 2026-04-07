@@ -64,7 +64,7 @@ export default async function Home() {
               <div className="mt-10 flex flex-wrap gap-3">
                 <Link
                   href={user && isAllowed ? "/app" : "/login"}
-                  className="inline-flex items-center gap-2 rounded-full bg-[#f2d2b6] px-6 py-3 text-sm font-semibold text-[#2b170e] transition hover:bg-[#f7dfca]"
+                  className="inline-flex items-center gap-2 rounded-full bg-brand px-6 py-3 text-sm font-semibold text-white transition hover:bg-brand-strong"
                 >
                   {user && isAllowed ? "Continue your workspace" : "Start in 2 minutes"}
                   <ArrowRight className="h-4 w-4" />
@@ -120,7 +120,7 @@ export default async function Home() {
               </div>
 
                 <div className="mt-8 space-y-4">
-                  <div className="ml-auto max-w-[75%] rounded-[1.75rem] rounded-br-md bg-[#f0e0cf] px-5 py-4 text-sm leading-7 text-[#24140c] shadow-lg">
+                  <div className="ml-auto max-w-[75%] rounded-[1.75rem] rounded-br-md bg-[#2a1f18] px-5 py-4 text-sm leading-7 text-[#f0e0cf] shadow-lg">
                     Keep the scene warm, but make the tension sharper. Don&apos;t let
                     her forget the promise from the station platform.
                   </div>

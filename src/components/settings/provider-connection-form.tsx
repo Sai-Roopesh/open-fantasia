@@ -77,7 +77,7 @@ export function ProviderConnectionForm({
           value={label}
           onChange={(event) => setLabel(event.target.value)}
           placeholder="Groq free lane"
-          className="w-full rounded-full border border-border bg-white px-4 py-3 outline-none transition focus:border-brand"
+          className="w-full rounded-full border border-border bg-white/5 px-4 py-3 outline-none transition focus:border-brand"
         />
       </label>
 
@@ -87,7 +87,7 @@ export function ProviderConnectionForm({
           name="provider"
           value={provider}
           onChange={(event) => setProvider(event.target.value as ProviderId)}
-          className="w-full rounded-full border border-border bg-white px-4 py-3 outline-none transition focus:border-brand"
+          className="w-full rounded-full border border-border bg-white/5 px-4 py-3 outline-none transition focus:border-brand"
         >
           {Object.values(providerCatalog).map((item) => (
             <option key={item.id} value={item.id}>
@@ -111,7 +111,7 @@ export function ProviderConnectionForm({
               ? providerCatalog.ollama.defaultBaseUrl
               : "Usually leave blank unless this provider is self-hosted"
           }
-          className="w-full rounded-full border border-border bg-white px-4 py-3 outline-none transition focus:border-brand"
+          className="w-full rounded-full border border-border bg-white/5 px-4 py-3 outline-none transition focus:border-brand"
         />
         <span className="mt-2 block text-xs leading-6 text-ink-soft">
           {provider === "ollama"
@@ -128,7 +128,7 @@ export function ProviderConnectionForm({
           value={apiKey}
           onChange={(event) => setApiKey(event.target.value)}
           placeholder={keyPlaceholder}
-          className="w-full rounded-full border border-border bg-white px-4 py-3 outline-none transition focus:border-brand"
+          className="w-full rounded-full border border-border bg-white/5 px-4 py-3 outline-none transition focus:border-brand"
         />
         <span className="mt-2 block text-xs leading-6 text-ink-soft">
           {provider === "ollama"
@@ -137,7 +137,7 @@ export function ProviderConnectionForm({
         </span>
       </label>
 
-      <label className="flex items-center gap-3 rounded-full border border-border bg-white px-4 py-3 text-sm text-foreground">
+      <label className="flex items-center gap-3 rounded-full border border-border bg-white/5 px-4 py-3 text-sm text-foreground">
         <input
           type="checkbox"
           name="enabled"
@@ -149,12 +149,12 @@ export function ProviderConnectionForm({
 
       <div aria-live="polite" className="space-y-2">
         {validationMessage ? (
-          <p className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          <p className="rounded-2xl bg-amber-950/40 px-4 py-3 text-sm text-amber-400">
             {validationMessage}
           </p>
         ) : null}
         {localError ? (
-          <p className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-700">
+          <p className="rounded-2xl bg-rose-950/40 px-4 py-3 text-sm text-rose-400">
             {localError}
           </p>
         ) : null}
