@@ -203,124 +203,83 @@ export function ChatWorkspace({
     });
   }
 
-  /* ── Shared transcript + composer block (used in both normal and focus views) ── */
-  const transcriptBlock = (
-    <>
-      {!messages.length ? (
-        <EmptyStateGuide
-          disabled={composerBusy}
-          suggestedStarters={suggestedStarters}
-          onSelectStarter={(starter) =>
-            void runAction("starter", async () => {
-              const response = await fetch(`/api/chats/${threadId}/starter`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ starter }),
-              });
-              await throwIfFailed(response, "Starter generation failed.");
-              setDraft("");
-            })
-          }
-        />
-      ) : null}
+  /* ── Transcript + callbacks (shared props, used in both views) ── */
+  const transcriptProps = {
+    messages,
+    assistantLabel: characterName,
+    controlsByMessageId,
+    pendingAction,
+    onRegenerate: (checkpointId: string) =>
+      runAction("regenerate", async () => {
+        const response = await fetch(`/api/chats/${threadId}/regenerate`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ checkpointId }),
+        });
+        await throwIfFailed(response, "Regenerate failed.");
+      }),
+    onOpenAlternates: openAlternates,
+    onOpenEditMessage: (messageId: string, currentText: string) =>
+      setSheet({ kind: "edit", messageId, value: currentText }),
+    onOpenBranchFromCheckpoint: openBranchSheet,
+    onRewindCheckpoint: async (checkpointId: string, currentText: string) => {
+      if (
+        typeof window !== "undefined" &&
+        !window.confirm(
+          "Rewind this branch to before this user turn? Everything after it on the current branch will disappear from the active path.",
+        )
+      ) {
+        return;
+      }
+      await runAction("rewind", async () => {
+        const response = await fetch(
+          `/api/chats/${threadId}/checkpoints/${checkpointId}/rewind`,
+          { method: "POST" },
+        );
+        await throwIfFailed(response, "Rewind failed.");
+        setDraft(currentText);
+        requestAnimationFrame(() => composerRef.current?.focus());
+      });
+    },
+    onOpenPinMessage: (messageId: string, currentText: string) =>
+      setSheet({ kind: "pin", messageId, value: currentText }),
+    onRateCheckpoint: (checkpointId: string, rating: number) =>
+      runAction("rate", async () => {
+        const response = await fetch(
+          `/api/chats/${threadId}/checkpoints/${checkpointId}/rate`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ rating }),
+          },
+        );
+        await throwIfFailed(response, "Rating failed.");
+      }),
+  } as const;
 
-      <div className={focusMode ? "min-h-0 flex-1" : "mt-5"}>
-        <PretextTranscript
-          messages={messages}
-          assistantLabel={characterName}
-          controlsByMessageId={controlsByMessageId}
-          pendingAction={pendingAction}
-          focusMode={focusMode}
-          onRegenerate={(checkpointId) =>
-            runAction("regenerate", async () => {
-              const response = await fetch(`/api/chats/${threadId}/regenerate`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ checkpointId }),
-              });
-              await throwIfFailed(response, "Regenerate failed.");
-            })
-          }
-          onOpenAlternates={openAlternates}
-          onOpenEditMessage={(messageId, currentText) =>
-            setSheet({
-              kind: "edit",
-              messageId,
-              value: currentText,
-            })
-          }
-          onOpenBranchFromCheckpoint={openBranchSheet}
-          onRewindCheckpoint={async (checkpointId, currentText) => {
-            if (
-              typeof window !== "undefined" &&
-              !window.confirm(
-                "Rewind this branch to before this user turn? Everything after it on the current branch will disappear from the active path.",
-              )
-            ) {
-              return;
-            }
+  const composerProps = {
+    composerBusy,
+    composerRef,
+    draft,
+    status,
+    onDraftChange: setDraft,
+    onSubmit: () => submitCurrentDraft(draft),
+  } as const;
 
-            await runAction("rewind", async () => {
-              const response = await fetch(
-                `/api/chats/${threadId}/checkpoints/${checkpointId}/rewind`,
-                {
-                  method: "POST",
-                },
-              );
-              await throwIfFailed(response, "Rewind failed.");
-              setDraft(currentText);
-              requestAnimationFrame(() => composerRef.current?.focus());
-            });
-          }}
-          onOpenPinMessage={(messageId, currentText) =>
-            setSheet({
-              kind: "pin",
-              messageId,
-              value: currentText,
-            })
-          }
-          onRateCheckpoint={(checkpointId, rating) =>
-            runAction("rate", async () => {
-              const response = await fetch(
-                `/api/chats/${threadId}/checkpoints/${checkpointId}/rate`,
-                {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ rating }),
-                },
-              );
-              await throwIfFailed(response, "Rating failed.");
-            })
-          }
-        />
-      </div>
-
-      {activeError ? (
-        <ErrorBanner
-          activeError={activeError}
-          composerBusy={composerBusy}
-          failedDraft={failedDraft}
-          fallbackModels={fallbackModels}
-          onEditDraft={(value) => {
-            setDraft(value);
-            requestAnimationFrame(() => composerRef.current?.focus());
-          }}
-          onRetry={(value) => void submitCurrentDraft(value)}
-          onShowModelPicker={() => setShowModelPicker(true)}
-        />
-      ) : null}
-
-      <ChatComposer
-        composerBusy={composerBusy}
-        composerRef={composerRef}
-        draft={draft}
-        status={status}
-        onDraftChange={setDraft}
-        onSubmit={() => submitCurrentDraft(draft)}
-        focusMode={focusMode}
-      />
-    </>
-  );
+  const errorBannerBlock = activeError ? (
+    <ErrorBanner
+      activeError={activeError}
+      composerBusy={composerBusy}
+      failedDraft={failedDraft}
+      fallbackModels={fallbackModels}
+      onEditDraft={(value) => {
+        setDraft(value);
+        requestAnimationFrame(() => composerRef.current?.focus());
+      }}
+      onRetry={(value) => void submitCurrentDraft(value)}
+      onShowModelPicker={() => setShowModelPicker(true)}
+    />
+  ) : null;
 
   return (
     <>
@@ -330,7 +289,7 @@ export function ChatWorkspace({
           className="fixed inset-0 z-50 flex flex-col bg-[#0f0c0a]"
           data-testid="focus-mode-overlay"
         >
-          {/* Minimal top bar */}
+          {/* Top bar — fixed height */}
           <div className="flex shrink-0 items-center justify-between border-b border-white/8 px-4 py-3 md:px-6">
             <div className="flex items-center gap-3">
               <button
@@ -353,9 +312,15 @@ export function ChatWorkspace({
             </div>
           </div>
 
-          {/* Transcript fills remaining space */}
-          <div className="flex min-h-0 flex-1 flex-col px-3 py-3 md:px-6">
-            {transcriptBlock}
+          {/* Transcript — fills remaining space, scrollable */}
+          <div className="min-h-0 flex-1 overflow-hidden px-3 pt-3 md:px-6">
+            <PretextTranscript {...transcriptProps} focusMode />
+          </div>
+
+          {/* Error banner + Composer — pinned at bottom, never overlaps */}
+          <div className="shrink-0 border-t border-white/6 px-3 pb-3 md:px-6">
+            {errorBannerBlock}
+            <ChatComposer {...composerProps} focusMode />
           </div>
         </div>
       ) : null}
@@ -492,7 +457,31 @@ export function ChatWorkspace({
             />
           ) : null}
 
-          {transcriptBlock}
+          {!messages.length ? (
+            <EmptyStateGuide
+              disabled={composerBusy}
+              suggestedStarters={suggestedStarters}
+              onSelectStarter={(starter) =>
+                void runAction("starter", async () => {
+                  const response = await fetch(`/api/chats/${threadId}/starter`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ starter }),
+                  });
+                  await throwIfFailed(response, "Starter generation failed.");
+                  setDraft("");
+                })
+              }
+            />
+          ) : null}
+
+          <div className="mt-5">
+            <PretextTranscript {...transcriptProps} />
+          </div>
+
+          {errorBannerBlock}
+
+          <ChatComposer {...composerProps} />
         </section>
 
         <aside className="space-y-4 xl:sticky xl:top-6 xl:self-start">

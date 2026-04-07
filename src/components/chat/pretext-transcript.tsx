@@ -146,12 +146,14 @@ export function PretextTranscript({
   );
 
   return (
-    <div className="relative">
+    <div className={cn("relative", focusMode && "h-full")}>
       <div
         ref={scrollRef}
         className={cn(
-          "relative overflow-y-auto rounded-[2rem] border border-white/8 bg-[#141010]/75 px-3 py-4",
-          focusMode ? "h-full" : "h-[68vh] min-h-[28rem]",
+          "relative overflow-y-auto bg-[#141010]/75 px-3 py-4",
+          focusMode
+            ? "h-full rounded-xl border border-white/6"
+            : "h-[68vh] min-h-[28rem] rounded-[2rem] border border-white/8",
         )}
       >
         <div className="mx-auto flex max-w-4xl flex-col gap-5 py-1">
