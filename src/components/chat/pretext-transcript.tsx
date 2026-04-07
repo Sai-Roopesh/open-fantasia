@@ -85,6 +85,7 @@ export function PretextTranscript({
   assistantLabel,
   controlsByMessageId,
   pendingAction,
+  focusMode = false,
   onRegenerate,
   onOpenAlternates,
   onOpenEditMessage,
@@ -97,6 +98,7 @@ export function PretextTranscript({
   assistantLabel: string;
   controlsByMessageId: Record<string, TranscriptControl>;
   pendingAction: string | null;
+  focusMode?: boolean;
   onRegenerate: (checkpointId: string) => Promise<void>;
   onOpenAlternates: (control: TranscriptControl) => void;
   onOpenEditMessage: (messageId: string, currentText: string) => void;
@@ -147,7 +149,10 @@ export function PretextTranscript({
     <div className="relative">
       <div
         ref={scrollRef}
-        className="relative h-[68vh] min-h-[28rem] overflow-y-auto rounded-[2rem] border border-white/8 bg-[#141010]/75 px-3 py-4"
+        className={cn(
+          "relative overflow-y-auto rounded-[2rem] border border-white/8 bg-[#141010]/75 px-3 py-4",
+          focusMode ? "h-full" : "h-[68vh] min-h-[28rem]",
+        )}
       >
         <div className="mx-auto flex max-w-4xl flex-col gap-5 py-1">
           {messages.map((message) => {

@@ -325,6 +325,7 @@ export function ChatComposer({
   status,
   onDraftChange,
   onSubmit,
+  focusMode = false,
 }: {
   composerBusy: boolean;
   composerRef: React.RefObject<HTMLTextAreaElement | null>;
@@ -332,10 +333,14 @@ export function ChatComposer({
   status: "submitted" | "streaming" | "ready" | "error";
   onDraftChange: (value: string) => void;
   onSubmit: () => Promise<void>;
+  focusMode?: boolean;
 }) {
   return (
     <form
-      className="mt-5 flex flex-col gap-3 md:flex-row"
+      className={cn(
+        "flex flex-col gap-3 md:flex-row",
+        focusMode ? "mx-auto w-full max-w-3xl shrink-0 pt-3" : "mt-5",
+      )}
       data-testid="chat-composer"
       onSubmit={async (event) => {
         event.preventDefault();
@@ -346,7 +351,7 @@ export function ChatComposer({
         <span className="sr-only">Prompt</span>
         <textarea
           ref={composerRef}
-          rows={3}
+          rows={focusMode ? 2 : 3}
           value={draft}
           onChange={(event) => onDraftChange(event.target.value)}
           placeholder="Enter the next beat, confession, interruption, or scene turn..."
