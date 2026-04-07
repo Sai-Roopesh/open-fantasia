@@ -28,7 +28,7 @@ export function buildRoleplaySystemPrompt(args: {
     `Core persona: ${character.core_persona || "N/A"}`,
     `Style rules: ${character.style_rules || "N/A"}`,
     `Scenario seed: ${character.scenario_seed || "N/A"}`,
-    `Example dialogue: ${character.example_dialogue || "N/A"}`,
+    `Definition: ${character.definition || "N/A"}`,
     `Private author notes: ${character.author_notes || "N/A"}`,
     "",
     "Current continuity state:",
