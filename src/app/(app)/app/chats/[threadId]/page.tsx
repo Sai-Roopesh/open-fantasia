@@ -105,6 +105,22 @@ export default async function ChatThreadPage({
           "Open loops are the unresolved promises, questions, or consequences the system believes still matter.",
       },
       {
+        label: "Resolved loops",
+        value: continuitySnapshot?.resolved_loops?.length
+          ? continuitySnapshot.resolved_loops.map((item) => `• ${item}`).join("\n")
+          : "No loops have been resolved yet.",
+        helper:
+          "Resolved loops are narrative threads that have been settled. The character will not reopen them.",
+      },
+      {
+        label: "Narrative hooks",
+        value: continuitySnapshot?.narrative_hooks?.length
+          ? continuitySnapshot.narrative_hooks.map((hook) => `• ${hook}`).join("\n")
+          : "No forward-looking hooks have been generated yet.",
+        helper:
+          "These are organic, forward-looking story threads the character could pursue next.",
+      },
+      {
         label: "Scene goals and user facts",
         value: [
           continuitySnapshot?.scene_goals?.length

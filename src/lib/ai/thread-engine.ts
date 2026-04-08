@@ -40,6 +40,18 @@ export function buildSnapshotFromReconciliation(args: {
   previousSnapshot: ThreadStateSnapshot | null;
   reconciliation: ReconciliationOutput;
 }) {
+  // Accumulate resolved loops from previous snapshot + newly resolved ones
+  const allResolved = dedupeStrings([
+    ...(args.previousSnapshot?.resolved_loops ?? []),
+    ...args.reconciliation.resolvedLoops,
+  ]);
+
+  // Filter open loops to exclude anything the reconciler just resolved
+  const resolvedSet = new Set(allResolved.map((s) => s.toLowerCase().trim()));
+  const activeLoops = dedupeStrings(args.reconciliation.openLoops).filter(
+    (loop) => !resolvedSet.has(loop.toLowerCase().trim()),
+  );
+
   return {
     checkpoint_id: args.checkpointId,
     thread_id: args.threadId,
@@ -49,7 +61,9 @@ export function buildSnapshotFromReconciliation(args: {
     relationship_state: args.reconciliation.relationshipState,
     rolling_summary: args.reconciliation.rollingSummary,
     user_facts: dedupeStrings(args.reconciliation.userFacts),
-    open_loops: dedupeStrings(args.reconciliation.openLoops),
+    open_loops: activeLoops,
+    resolved_loops: allResolved,
+    narrative_hooks: dedupeStrings(args.reconciliation.narrativeHooks),
     scene_goals: dedupeStrings(args.reconciliation.sceneGoals),
     version: (args.previousSnapshot?.version ?? 0) + 1,
     updated_at: new Date().toISOString(),

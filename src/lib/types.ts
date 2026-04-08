@@ -87,10 +87,12 @@ export type StoredMessageRecord = Omit<
 
 export type ThreadStateSnapshot = Omit<
   DbRow<"chat_state_snapshots">,
-  "user_facts" | "open_loops" | "scene_goals"
+  "user_facts" | "open_loops" | "resolved_loops" | "narrative_hooks" | "scene_goals"
 > & {
   user_facts: string[];
   open_loops: string[];
+  resolved_loops: string[];
+  narrative_hooks: string[];
   scene_goals: string[];
 };
 
@@ -117,6 +119,8 @@ export const reconciliationSchema = z.object({
   rollingSummary: z.string().default(""),
   userFacts: z.array(z.string()).default([]),
   openLoops: z.array(z.string()).default([]),
+  resolvedLoops: z.array(z.string()).default([]),
+  narrativeHooks: z.array(z.string()).default([]),
   sceneGoals: z.array(z.string()).default([]),
   timelineEvent: z
     .object({

@@ -175,6 +175,8 @@ create table public.chat_state_snapshots (
   rolling_summary text not null default '',
   user_facts jsonb not null default '[]'::jsonb,
   open_loops jsonb not null default '[]'::jsonb,
+  resolved_loops jsonb not null default '[]'::jsonb,
+  narrative_hooks jsonb not null default '[]'::jsonb,
   scene_goals jsonb not null default '[]'::jsonb,
   version integer not null default 1,
   updated_at timestamptz not null default now()

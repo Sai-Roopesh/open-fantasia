@@ -16,6 +16,8 @@ const snapshotSelect = [
   "rolling_summary",
   "user_facts",
   "open_loops",
+  "resolved_loops",
+  "narrative_hooks",
   "scene_goals",
   "version",
   "updated_at",
@@ -26,6 +28,8 @@ function normalizeSnapshot(data: Record<string, unknown>) {
     ...(data as ThreadStateSnapshot),
     user_facts: Array.isArray(data.user_facts) ? (data.user_facts as string[]) : [],
     open_loops: Array.isArray(data.open_loops) ? (data.open_loops as string[]) : [],
+    resolved_loops: Array.isArray(data.resolved_loops) ? (data.resolved_loops as string[]) : [],
+    narrative_hooks: Array.isArray(data.narrative_hooks) ? (data.narrative_hooks as string[]) : [],
     scene_goals: Array.isArray(data.scene_goals) ? (data.scene_goals as string[]) : [],
   } satisfies ThreadStateSnapshot;
 }
@@ -73,6 +77,8 @@ export async function saveSnapshot(
     rolling_summary: snapshot.rolling_summary,
     user_facts: snapshot.user_facts as Json,
     open_loops: snapshot.open_loops as Json,
+    resolved_loops: snapshot.resolved_loops as Json,
+    narrative_hooks: snapshot.narrative_hooks as Json,
     scene_goals: snapshot.scene_goals as Json,
     version: snapshot.version,
     updated_at: snapshot.updated_at,

@@ -403,6 +403,8 @@ export interface Database {
           checkpoint_id: string;
           open_loops: Json;
           relationship_state: string;
+          resolved_loops: Json;
+          narrative_hooks: Json;
           rolling_summary: string;
           scenario_state: string;
           scene_goals: Json;
@@ -417,6 +419,8 @@ export interface Database {
           checkpoint_id: string;
           open_loops?: Json;
           relationship_state?: string;
+          resolved_loops?: Json;
+          narrative_hooks?: Json;
           rolling_summary?: string;
           scenario_state?: string;
           scene_goals?: Json;
@@ -431,6 +435,8 @@ export interface Database {
           checkpoint_id?: string;
           open_loops?: Json;
           relationship_state?: string;
+          resolved_loops?: Json;
+          narrative_hooks?: Json;
           rolling_summary?: string;
           scenario_state?: string;
           scene_goals?: Json;
