@@ -2,8 +2,8 @@
 
 import { DefaultChatTransport } from "ai";
 import { useChat } from "@ai-sdk/react";
-import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavTransition } from "@/components/transition-provider";
 import { Expand, GitBranchPlus, Minimize2, RefreshCcw, UserRound } from "lucide-react";
 import type {
   ChatBranchRecord,
@@ -72,7 +72,7 @@ export function ChatWorkspace({
     personaId: string;
   }) => Promise<void>;
 }) {
-  const router = useRouter();
+  const { isNavigating, refreshWithTransition } = useNavTransition();
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const attemptedDraftRef = useRef<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -84,6 +84,25 @@ export function ChatWorkspace({
   const [activeInspectorTab, setActiveInspectorTab] = useState<InspectorTab>("continuity");
   const [sheet, setSheet] = useState<ActionSheetState | null>(null);
   const [focusMode, setFocusMode] = useState(false);
+
+  // Optimistic state — shows the user's selection immediately while the server round-trip runs
+  const [optimisticBranchId, setOptimisticBranchId] = useState<string | null>(null);
+  const [optimisticPersonaId, setOptimisticPersonaId] = useState<string | null>(null);
+  const [optimisticModel, setOptimisticModel] = useState<{ modelId: string; label: string } | null>(null);
+
+  // Reset optimistic state when server props arrive (switchPending goes false)
+  useEffect(() => {
+    if (!switchPending) {
+      setOptimisticBranchId(null);
+      setOptimisticPersonaId(null);
+      setOptimisticModel(null);
+    }
+  }, [switchPending]);
+
+  const displayModel = optimisticModel?.modelId ?? currentModel;
+  const displayConnectionLabel = optimisticModel?.label ?? currentConnectionLabel;
+  const displayBranchId = optimisticBranchId ?? activeBranch.id;
+  const displayPersonaId = optimisticPersonaId ?? (currentPersona?.id ?? "");
 
   const toggleFocusMode = useCallback(() => setFocusMode((prev) => !prev), []);
 
@@ -117,7 +136,7 @@ export function ChatWorkspace({
       attemptedDraftRef.current = null;
       setFailedDraft(null);
       setSurfaceError(null);
-      startTransition(() => router.refresh());
+      refreshWithTransition();
     },
     onError(nextError) {
       const nextMessage = humanizeChatError(nextError.message);
@@ -149,7 +168,7 @@ export function ChatWorkspace({
 
   const activeError = surfaceError || (error ? humanizeChatError(error.message) : null);
   const composerBusy =
-    status === "streaming" || status === "submitted" || pendingAction !== null || switchPending;
+    status === "streaming" || status === "submitted" || pendingAction !== null || switchPending || isNavigating;
 
   async function runAction(label: string, callback: () => Promise<void>) {
     setPendingAction(label);
@@ -157,7 +176,7 @@ export function ChatWorkspace({
     try {
       await callback();
       setSheet(null);
-      startTransition(() => router.refresh());
+      refreshWithTransition();
     } catch (nextError) {
       setSurfaceError(
         nextError instanceof Error ? humanizeChatError(nextError.message) : "That action failed.",
@@ -304,10 +323,10 @@ export function ChatWorkspace({
             </div>
             <div className="flex items-center gap-2">
               <span className="hidden rounded-full border border-border bg-white/8 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-ink-soft sm:inline-flex">
-                {currentConnectionLabel}
+                {displayConnectionLabel}
               </span>
               <span className="rounded-full bg-brand/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-brand">
-                {currentModel}
+                {displayModel}
               </span>
             </div>
           </div>
@@ -346,10 +365,10 @@ export function ChatWorkspace({
 
               <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded-full border border-border bg-white/8 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-ink-soft">
-                  {currentConnectionLabel}
+                  {displayConnectionLabel}
                 </span>
                 <span className="rounded-full bg-brand/10 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-brand">
-                  {currentModel}
+                  {displayModel}
                 </span>
                 <button
                   type="button"
@@ -378,16 +397,18 @@ export function ChatWorkspace({
                   Active branch
                 </div>
                 <select
-                  value={activeBranch.id}
+                  value={displayBranchId}
                   disabled={switchPending}
                   onChange={async (event) => {
+                    const nextBranchId = event.target.value;
+                    setOptimisticBranchId(nextBranchId);
                     setSwitchPending(true);
                     try {
                       await switchBranchAction({
                         threadId,
-                        branchId: event.target.value,
+                        branchId: nextBranchId,
                       });
-                      startTransition(() => router.refresh());
+                      refreshWithTransition();
                     } finally {
                       setSwitchPending(false);
                     }
@@ -408,16 +429,18 @@ export function ChatWorkspace({
                   Active persona
                 </div>
                 <select
-                  value={currentPersona?.id ?? ""}
+                  value={displayPersonaId}
                   disabled={switchPending}
                   onChange={async (event) => {
+                    const nextPersonaId = event.target.value;
+                    setOptimisticPersonaId(nextPersonaId);
                     setSwitchPending(true);
                     try {
                       await switchPersonaAction({
                         threadId,
-                        personaId: event.target.value,
+                        personaId: nextPersonaId,
                       });
-                      startTransition(() => router.refresh());
+                      refreshWithTransition();
                     } finally {
                       setSwitchPending(false);
                     }
@@ -441,6 +464,8 @@ export function ChatWorkspace({
               switchPending={switchPending}
               onClose={() => setShowModelPicker(false)}
               onSelectModel={async (connectionId, modelId) => {
+                const matchedGroup = modelChoices.find((g) => g.connectionId === connectionId);
+                setOptimisticModel({ modelId, label: matchedGroup?.label ?? currentConnectionLabel });
                 setSwitchPending(true);
                 try {
                   await switchModelAction({
@@ -448,7 +473,7 @@ export function ChatWorkspace({
                     connectionId,
                     modelId,
                   });
-                  startTransition(() => router.refresh());
+                  refreshWithTransition();
                   setShowModelPicker(false);
                 } finally {
                   setSwitchPending(false);

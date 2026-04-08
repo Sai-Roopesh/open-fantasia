@@ -223,6 +223,26 @@ textarea {
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* Global loading bar animation */
+.loading-bar-fill {
+  animation: loading-grow 8s cubic-bezier(0.1, 0.5, 0.3, 1) forwards;
+}
+
+@keyframes loading-grow {
+  0% {
+    width: 0%;
+  }
+  20% {
+    width: 45%;
+  }
+  60% {
+    width: 72%;
+  }
+  100% {
+    width: 92%;
+  }
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

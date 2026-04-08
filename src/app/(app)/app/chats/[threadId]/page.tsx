@@ -22,18 +22,20 @@ export default async function ChatThreadPage({
 }) {
   const { threadId } = await params;
   const { supabase, user } = await requireAllowedUser();
-  const threadView = await getThreadGraphView(supabase, user.id, threadId);
+
+  // Parallelize independent fetches — connections and personas don't depend on threadView
+  const [threadView, connections, personas] = await Promise.all([
+    getThreadGraphView(supabase, user.id, threadId),
+    listConnections(supabase, user.id),
+    listPersonas(supabase, user.id),
+  ]);
 
   if (!threadView) {
     notFound();
   }
   const view = threadView;
 
-  const [character, connections, personas] = await Promise.all([
-    getCharacterBundle(supabase, user.id, view.thread.character_id),
-    listConnections(supabase, user.id),
-    listPersonas(supabase, user.id),
-  ]);
+  const character = await getCharacterBundle(supabase, user.id, view.thread.character_id);
 
   if (!character) {
     redirect("/app/characters");

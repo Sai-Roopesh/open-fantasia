@@ -1,8 +1,8 @@
 "use client";
 
-import { startTransition, useState } from "react";
+import { useState } from "react";
 import { RefreshCw, ShieldCheck } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useNavTransition } from "@/components/transition-provider";
 import { cn } from "@/lib/utils";
 
 type ProviderResponsePayload = {
@@ -16,7 +16,7 @@ export function ProviderHealthActions({
 }: {
   connectionId: string;
 }) {
-  const router = useRouter();
+  const { refreshWithTransition } = useNavTransition();
   const [message, setMessage] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
@@ -47,7 +47,7 @@ export function ProviderHealthActions({
           ? payload.message ?? `Loaded ${payload.count ?? 0} models`
           : payload.message ?? "Connection looks healthy.",
       );
-      startTransition(() => router.refresh());
+      refreshWithTransition();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Request failed.");
     } finally {
