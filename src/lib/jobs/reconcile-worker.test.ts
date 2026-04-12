@@ -87,6 +87,13 @@ vi.mock("@/lib/characters/portraits", () => ({
 
 import { drainPendingJobs, parseJobPayload } from "@/lib/jobs/reconcile-worker";
 
+type PortraitJobPayload = {
+  characterId: string;
+  prompt: string;
+  seed: number;
+  sourceHash: string;
+};
+
 function createJob(overrides?: Record<string, unknown>) {
   return {
     id: crypto.randomUUID(),
@@ -245,7 +252,7 @@ describe("reconcile worker", () => {
         seed: 42,
         sourceHash: "hash-1",
       },
-    });
+    }) as ReturnType<typeof createJob> & { payload: PortraitJobPayload };
     const portraitCharacter = createCharacterRecord({
       id: job.payload.characterId,
       user_id: job.user_id,
@@ -288,7 +295,7 @@ describe("reconcile worker", () => {
         seed: 99,
         sourceHash: "old-hash",
       },
-    });
+    }) as ReturnType<typeof createJob> & { payload: PortraitJobPayload };
     const { supabase, uploadMock } = createPortraitSupabase();
 
     claimPendingJobsMock.mockResolvedValue([job]);
@@ -323,7 +330,7 @@ describe("reconcile worker", () => {
         seed: 123,
         sourceHash: "hash-1",
       },
-    });
+    }) as ReturnType<typeof createJob> & { payload: PortraitJobPayload };
 
     claimPendingJobsMock.mockResolvedValue([job]);
     getCharacterMock.mockResolvedValue(
@@ -371,7 +378,7 @@ describe("reconcile worker", () => {
         seed: 456,
         sourceHash: "hash-1",
       },
-    });
+    }) as ReturnType<typeof createJob> & { payload: PortraitJobPayload };
 
     claimPendingJobsMock.mockResolvedValue([job]);
     getCharacterMock.mockResolvedValue(

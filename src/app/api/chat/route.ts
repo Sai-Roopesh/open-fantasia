@@ -59,7 +59,7 @@ export async function POST(request: Request) {
 
   const incomingMessages = (await validateUIMessages({
     messages: messages.map((message) => ({
-      ...(message as FantasiaUIMessage),
+      ...(message as unknown as FantasiaUIMessage),
       metadata:
         typeof message === "object" &&
         message !== null &&

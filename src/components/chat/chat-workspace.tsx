@@ -30,6 +30,7 @@ import {
 export function ChatWorkspace({
   threadId,
   characterName,
+  characterBackgroundUrl,
   currentModel,
   currentConnectionLabel,
   activeBranch,
@@ -47,6 +48,7 @@ export function ChatWorkspace({
 }: {
   threadId: string;
   characterName: string;
+  characterBackgroundUrl?: string | null;
   currentModel: string;
   currentConnectionLabel: string;
   activeBranch: ChatBranchRecord;
