@@ -11,6 +11,7 @@ import {
 
 export type CharacterDraft = {
   name: string;
+  appearance: string;
   tagline: string;
   short_description: string;
   long_description: string;
@@ -42,6 +43,7 @@ export function createCharacterDraft(editing: CharacterBundle | null): Character
     ...(editing
       ? {
           name: editing.character.name,
+          appearance: editing.character.appearance,
           tagline: editing.character.tagline,
           short_description: editing.character.short_description,
           long_description: editing.character.long_description,
@@ -71,6 +73,7 @@ export function characterDraftToPortableData(
 ): OpenFantasiaCharacterData {
   return {
     name: draft.name,
+    appearance: draft.appearance,
     tagline: draft.tagline,
     short_description: draft.short_description,
     long_description: draft.long_description,
@@ -94,6 +97,7 @@ export function portableCharacterDataToDraft(
 ): CharacterDraft {
   return {
     name: data.name,
+    appearance: data.appearance,
     tagline: data.tagline,
     short_description: data.short_description,
     long_description: data.long_description,

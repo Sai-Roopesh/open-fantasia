@@ -3,7 +3,16 @@ import { providerIds } from "@/lib/types";
 
 export const chatRequestSchema = z.object({
   threadId: z.string().uuid(),
-  messages: z.array(z.unknown()),
+  messages: z.array(
+    z.object({
+      id: z.string().min(1),
+      role: z.enum(["user", "assistant", "system", "data"]),
+      content: z.string(),
+      createdAt: z.union([z.string(), z.date()]).optional(),
+      annotations: z.array(z.unknown()).optional(),
+      data: z.unknown().optional(),
+    }).passthrough()
+  ),
 });
 
 export const regenerateRequestSchema = z.object({
@@ -65,6 +74,7 @@ export const savePersonaCommandSchema = z.object({
 export const saveCharacterCommandSchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().trim().min(1),
+  appearance: z.string().default(""),
   tagline: z.string().default(""),
   short_description: z.string().default(""),
   long_description: z.string().default(""),
@@ -136,7 +146,7 @@ export const switchThreadBranchSchema = z.object({
   branchId: z.string().uuid(),
 });
 
-export const jobPayloadSchema = z.object({
+export const reconcileCheckpointJobPayloadSchema = z.object({
   threadId: z.string().uuid(),
   branchId: z.string().uuid(),
   checkpointId: z.string().uuid(),
@@ -147,6 +157,15 @@ export const jobPayloadSchema = z.object({
   personaId: z.string().uuid().nullable(),
   recentMessageIds: z.array(z.string().min(1)),
 });
+
+export const generateCharacterPortraitJobPayloadSchema = z.object({
+  characterId: z.string().uuid(),
+  prompt: z.string().trim().min(1),
+  seed: z.number().int().nonnegative(),
+  sourceHash: z.string().trim().min(1),
+});
+
+export const jobPayloadSchema = reconcileCheckpointJobPayloadSchema;
 
 export const backgroundJobRecordSchema = z.object({
   id: z.string().uuid(),

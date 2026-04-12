@@ -48,9 +48,10 @@ describe("json portability panel helpers", () => {
       "character",
       JSON.stringify({
         format: "openfantasia.character",
-        version: 1,
+        version: 2,
         data: {
           name: "Captain Mirelle",
+          appearance: "",
         },
       }),
     );

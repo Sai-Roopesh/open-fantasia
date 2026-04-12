@@ -1,10 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
+  buildCharacterPortraitObjectPathMock,
   buildSnapshotFromReconciliationMock,
   claimPendingJobsMock,
   completeJobMock,
   failJobMock,
+  fetchCharacterPortraitFromPollinationsMock,
+  getCharacterMock,
   getCharacterBundleMock,
   getConnectionMock,
   getMessagesByIdsMock,
@@ -14,10 +17,14 @@ const {
   reconcileTurnStateMock,
   saveSnapshotMock,
   toUIMessagesMock,
+  updateCharacterPortraitMock,
 } = vi.hoisted(() => ({
+  buildCharacterPortraitObjectPathMock: vi.fn(),
   claimPendingJobsMock: vi.fn(),
   completeJobMock: vi.fn(),
   failJobMock: vi.fn(),
+  fetchCharacterPortraitFromPollinationsMock: vi.fn(),
+  getCharacterMock: vi.fn(),
   getConnectionMock: vi.fn(),
   getCharacterBundleMock: vi.fn(),
   getMessagesByIdsMock: vi.fn(),
@@ -27,6 +34,7 @@ const {
   saveSnapshotMock: vi.fn(),
   insertTimelineEventMock: vi.fn(),
   reconcileTurnStateMock: vi.fn(),
+  updateCharacterPortraitMock: vi.fn(),
   buildSnapshotFromReconciliationMock: vi.fn(() => ({
     checkpoint_id: crypto.randomUUID(),
   })),
@@ -43,7 +51,9 @@ vi.mock("@/lib/data/connections", () => ({
 }));
 
 vi.mock("@/lib/data/characters", () => ({
+  getCharacter: getCharacterMock,
   getCharacterBundle: getCharacterBundleMock,
+  updateCharacterPortrait: updateCharacterPortraitMock,
 }));
 
 vi.mock("@/lib/data/messages", () => ({
@@ -67,6 +77,12 @@ vi.mock("@/lib/data/timeline", () => ({
 vi.mock("@/lib/ai/thread-engine", () => ({
   reconcileTurnState: reconcileTurnStateMock,
   buildSnapshotFromReconciliation: buildSnapshotFromReconciliationMock,
+}));
+
+vi.mock("@/lib/characters/portraits", () => ({
+  CHARACTER_PORTRAITS_BUCKET: "character-portraits",
+  buildCharacterPortraitObjectPath: buildCharacterPortraitObjectPathMock,
+  fetchCharacterPortraitFromPollinations: fetchCharacterPortraitFromPollinationsMock,
 }));
 
 import { drainPendingJobs, parseJobPayload } from "@/lib/jobs/reconcile-worker";
@@ -99,6 +115,76 @@ function createJob(overrides?: Record<string, unknown>) {
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
     ...overrides,
+  };
+}
+
+function createCharacterRecord(overrides?: Record<string, unknown>) {
+  return {
+    id: crypto.randomUUID(),
+    user_id: crypto.randomUUID(),
+    name: "Ari",
+    appearance: "Sharp features, silver braid, midnight coat",
+    tagline: "A haunted navigator",
+    short_description: "Keeps one hand on the stars and one on a knife.",
+    long_description: "",
+    greeting: "",
+    core_persona: "",
+    style_rules: "",
+    scenario_seed: "",
+    author_notes: "",
+    definition: "",
+    negative_guidance: "",
+    portrait_status: "pending",
+    portrait_path: "",
+    portrait_prompt: "",
+    portrait_seed: null,
+    portrait_source_hash: "hash-1",
+    portrait_last_error: "",
+    portrait_generated_at: null,
+    temperature: 0.92,
+    top_p: 0.94,
+    max_output_tokens: 750,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    ...overrides,
+  };
+}
+
+function createPortraitSupabase(options?: {
+  maybeSingleResult?: { data: { id: string } | null; error: null };
+}) {
+  const maybeSingleMock = vi
+    .fn()
+    .mockResolvedValue(options?.maybeSingleResult ?? { data: { id: "char-1" }, error: null });
+  const selectMock = vi.fn(() => ({ maybeSingle: maybeSingleMock }));
+  const eqSourceHashMock = vi.fn(() => ({ select: selectMock }));
+  const eqUserMock = vi.fn(() => ({ eq: eqSourceHashMock }));
+  const eqIdMock = vi.fn(() => ({ eq: eqUserMock }));
+  const updateMock = vi.fn(() => ({ eq: eqIdMock }));
+  const fromMock = vi.fn((table: string) => {
+    if (table === "characters") {
+      return { update: updateMock };
+    }
+
+    throw new Error(`Unexpected table ${table}`);
+  });
+  const uploadMock = vi.fn().mockResolvedValue({ data: { path: "ok" }, error: null });
+  const removeMock = vi.fn().mockResolvedValue({ data: [], error: null });
+  const storageFromMock = vi.fn(() => ({
+    upload: uploadMock,
+    remove: removeMock,
+  }));
+
+  return {
+    supabase: {
+      from: fromMock,
+      storage: {
+        from: storageFromMock,
+      },
+    } as never,
+    maybeSingleMock,
+    removeMock,
+    uploadMock,
   };
 }
 
@@ -143,6 +229,178 @@ describe("reconcile worker", () => {
       {} as never,
       job,
       expect.stringContaining("threadId"),
+    );
+    expect(completeJobMock).not.toHaveBeenCalled();
+  });
+
+  it("uploads generated portraits and marks portrait jobs complete", async () => {
+    const job = createJob({
+      type: "generate_character_portrait",
+      thread_id: null,
+      branch_id: null,
+      checkpoint_id: null,
+      payload: {
+        characterId: crypto.randomUUID(),
+        prompt: "Ari, sharp features, silver braid. cinematic fantasy character portrait",
+        seed: 42,
+        sourceHash: "hash-1",
+      },
+    });
+    const portraitCharacter = createCharacterRecord({
+      id: job.payload.characterId,
+      user_id: job.user_id,
+      portrait_source_hash: "hash-1",
+    });
+    const { supabase, maybeSingleMock, removeMock, uploadMock } = createPortraitSupabase();
+
+    claimPendingJobsMock.mockResolvedValue([job]);
+    getCharacterMock.mockResolvedValue(portraitCharacter);
+    fetchCharacterPortraitFromPollinationsMock.mockResolvedValue({
+      buffer: Buffer.from("portrait"),
+      contentType: "image/jpeg",
+    });
+    buildCharacterPortraitObjectPathMock.mockReturnValue("user/character/hash-1-42.jpg");
+    completeJobMock.mockResolvedValue(undefined);
+
+    const processed = await drainPendingJobs(supabase, 1);
+
+    expect(processed).toBe(1);
+    expect(fetchCharacterPortraitFromPollinationsMock).toHaveBeenCalledWith({
+      prompt: job.payload.prompt,
+      seed: job.payload.seed,
+    });
+    expect(uploadMock).toHaveBeenCalled();
+    expect(maybeSingleMock).toHaveBeenCalled();
+    expect(removeMock).not.toHaveBeenCalled();
+    expect(completeJobMock).toHaveBeenCalledWith(supabase, job.id);
+    expect(failJobMock).not.toHaveBeenCalled();
+  });
+
+  it("skips stale portrait jobs without uploading over newer source hashes", async () => {
+    const job = createJob({
+      type: "generate_character_portrait",
+      thread_id: null,
+      branch_id: null,
+      checkpoint_id: null,
+      payload: {
+        characterId: crypto.randomUUID(),
+        prompt: "Ari portrait prompt",
+        seed: 99,
+        sourceHash: "old-hash",
+      },
+    });
+    const { supabase, uploadMock } = createPortraitSupabase();
+
+    claimPendingJobsMock.mockResolvedValue([job]);
+    getCharacterMock.mockResolvedValue(
+      createCharacterRecord({
+        id: job.payload.characterId,
+        user_id: job.user_id,
+        portrait_source_hash: "new-hash",
+      }),
+    );
+    completeJobMock.mockResolvedValue(undefined);
+
+    await drainPendingJobs(supabase, 1);
+
+    expect(fetchCharacterPortraitFromPollinationsMock).not.toHaveBeenCalled();
+    expect(uploadMock).not.toHaveBeenCalled();
+    expect(completeJobMock).toHaveBeenCalledWith(supabase, job.id);
+    expect(failJobMock).not.toHaveBeenCalled();
+  });
+
+  it("records portrait errors on the character while retries remain", async () => {
+    const job = createJob({
+      type: "generate_character_portrait",
+      thread_id: null,
+      branch_id: null,
+      checkpoint_id: null,
+      attempts: 2,
+      max_attempts: 5,
+      payload: {
+        characterId: crypto.randomUUID(),
+        prompt: "Ari portrait prompt",
+        seed: 123,
+        sourceHash: "hash-1",
+      },
+    });
+
+    claimPendingJobsMock.mockResolvedValue([job]);
+    getCharacterMock.mockResolvedValue(
+      createCharacterRecord({
+        id: job.payload.characterId,
+        user_id: job.user_id,
+        portrait_source_hash: "hash-1",
+      }),
+    );
+    fetchCharacterPortraitFromPollinationsMock.mockRejectedValue(
+      new Error("Pollinations image request failed with 429."),
+    );
+    failJobMock.mockResolvedValue(undefined);
+
+    await drainPendingJobs({} as never, 1);
+
+    expect(updateCharacterPortraitMock).toHaveBeenCalledWith(
+      {} as never,
+      job.user_id,
+      job.payload.characterId,
+      {
+        portrait_status: "pending",
+        portrait_last_error: "Pollinations image request failed with 429.",
+      },
+    );
+    expect(failJobMock).toHaveBeenCalledWith(
+      {} as never,
+      job,
+      "Pollinations image request failed with 429.",
+    );
+    expect(completeJobMock).not.toHaveBeenCalled();
+  });
+
+  it("marks portrait jobs failed on the character after the last attempt", async () => {
+    const job = createJob({
+      type: "generate_character_portrait",
+      thread_id: null,
+      branch_id: null,
+      checkpoint_id: null,
+      attempts: 5,
+      max_attempts: 5,
+      payload: {
+        characterId: crypto.randomUUID(),
+        prompt: "Ari portrait prompt",
+        seed: 456,
+        sourceHash: "hash-1",
+      },
+    });
+
+    claimPendingJobsMock.mockResolvedValue([job]);
+    getCharacterMock.mockResolvedValue(
+      createCharacterRecord({
+        id: job.payload.characterId,
+        user_id: job.user_id,
+        portrait_source_hash: "hash-1",
+      }),
+    );
+    fetchCharacterPortraitFromPollinationsMock.mockRejectedValue(
+      new Error("Pollinations image request failed with 500."),
+    );
+    failJobMock.mockResolvedValue(undefined);
+
+    await drainPendingJobs({} as never, 1);
+
+    expect(updateCharacterPortraitMock).toHaveBeenCalledWith(
+      {} as never,
+      job.user_id,
+      job.payload.characterId,
+      {
+        portrait_status: "failed",
+        portrait_last_error: "Pollinations image request failed with 500.",
+      },
+    );
+    expect(failJobMock).toHaveBeenCalledWith(
+      {} as never,
+      job,
+      "Pollinations image request failed with 500.",
     );
     expect(completeJobMock).not.toHaveBeenCalled();
   });

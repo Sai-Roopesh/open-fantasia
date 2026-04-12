@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { Plus, WandSparkles } from "lucide-react";
 import { requireAllowedUser } from "@/lib/auth";
+import { resolveCharacterPortraitPublicUrl } from "@/lib/characters/portraits";
 import { CharacterStudioForm } from "@/components/characters/character-studio-form";
 import { getCharacterBundle, listCharacters } from "@/lib/data/characters";
 import { listConnections } from "@/lib/data/connections";
 import { getDefaultPersona } from "@/lib/data/personas";
 import {
   deleteCharacterAction,
+  regenerateCharacterPortraitAction,
   saveCharacterAction,
   startThreadAction,
 } from "@/app/(app)/app/characters/actions";
@@ -73,6 +75,9 @@ export default async function CharactersPage({
   const defaultPersona = await getDefaultPersona(supabase, user.id);
   const editId = typeof params.edit === "string" ? params.edit : null;
   const editing = editId ? await getCharacterBundle(supabase, user.id, editId) : null;
+  const editingPortraitUrl = editing
+    ? resolveCharacterPortraitPublicUrl(supabase, editing.character.portrait_path)
+    : null;
   const reason = typeof params.reason === "string" ? params.reason : null;
   const hasUsableConnection = connections.some(
     (connection) => connection.enabled && connection.model_cache.length > 0,
@@ -84,6 +89,10 @@ export default async function CharactersPage({
   });
   const canStartThread = threadSetup.missing.length === 0;
   const primarySetupStep = threadSetup.missing[0] ?? null;
+  const characterCards = characters.map((character) => ({
+    ...character,
+    portraitUrl: resolveCharacterPortraitPublicUrl(supabase, character.portrait_path),
+  }));
 
   return (
     <div className="space-y-8" data-testid="characters-page">
@@ -191,16 +200,18 @@ export default async function CharactersPage({
           <CharacterStudioForm
             editing={editing}
             action={saveCharacterAction}
+            portraitPreviewUrl={editingPortraitUrl}
+            regeneratePortraitAction={regenerateCharacterPortraitAction}
             saved={params.saved === "1"}
           />
         </section>
 
         <section className="space-y-4">
-          {characters.length ? (
-            characters.map((character) => (
+          {characterCards.length ? (
+            characterCards.map((character) => (
               <article key={character.id} className="paper-panel rounded-[2rem] p-6">
                 <div className="flex items-start justify-between gap-4">
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <p className="text-xs uppercase tracking-[0.22em] text-ink-soft">
                       Character
                     </p>
@@ -217,7 +228,17 @@ export default async function CharactersPage({
                         character.greeting}
                     </p>
                   </div>
-                  <Plus className="h-5 w-5 text-brand" />
+                  {character.portraitUrl ? (
+                    <img
+                      src={character.portraitUrl}
+                      alt={`${character.name} portrait`}
+                      className="h-20 w-20 shrink-0 rounded-[1.4rem] border border-border object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-[1.4rem] border border-dashed border-border bg-white/5">
+                      <Plus className="h-5 w-5 text-brand" />
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-6 flex flex-wrap gap-3">
