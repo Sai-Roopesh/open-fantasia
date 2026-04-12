@@ -7,7 +7,6 @@ export const chatRequestSchema = z.object({
     z.object({
       id: z.string().min(1),
       role: z.enum(["user", "assistant", "system", "data"]),
-      content: z.string(),
       createdAt: z.union([z.string(), z.date()]).optional(),
       annotations: z.array(z.unknown()).optional(),
       data: z.unknown().optional(),
