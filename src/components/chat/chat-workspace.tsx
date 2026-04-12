@@ -30,6 +30,7 @@ import {
 export function ChatWorkspace({
   threadId,
   characterName,
+  characterBackgroundUrl,
   currentModel,
   currentConnectionLabel,
   activeBranch,
@@ -47,6 +48,7 @@ export function ChatWorkspace({
 }: {
   threadId: string;
   characterName: string;
+  characterBackgroundUrl?: string | null;
   currentModel: string;
   currentConnectionLabel: string;
   activeBranch: ChatBranchRecord;
@@ -305,11 +307,21 @@ export function ChatWorkspace({
       {/* ── Focus mode overlay ── */}
       {focusMode ? (
         <div
-          className="fixed inset-0 z-50 flex flex-col bg-[#0f0c0a]"
+          className="fixed inset-0 z-50 flex flex-col overflow-hidden bg-[#0f0c0a]"
           data-testid="focus-mode-overlay"
         >
+          {characterBackgroundUrl ? (
+            <>
+              <div
+                className="absolute inset-0 bg-cover bg-center"
+                style={{ backgroundImage: `url(${characterBackgroundUrl})` }}
+              />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(28,22,18,0.18),rgba(10,8,7,0.72)_48%,rgba(7,6,5,0.92)_100%)] backdrop-blur-[10px]" />
+            </>
+          ) : null}
+
           {/* Top bar — fixed height */}
-          <div className="flex shrink-0 items-center justify-between border-b border-white/8 px-4 py-3 md:px-6">
+          <div className="relative z-10 flex shrink-0 items-center justify-between border-b border-white/8 px-4 py-3 md:px-6">
             <div className="flex items-center gap-3">
               <button
                 type="button"
@@ -332,12 +344,14 @@ export function ChatWorkspace({
           </div>
 
           {/* Transcript — fills remaining space, scrollable */}
-          <div className="min-h-0 flex-1 overflow-hidden px-3 pt-3 md:px-6">
+          <div className="relative z-10 min-h-0 flex-1 overflow-hidden px-3 pt-3 md:px-6">
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-8 bg-gradient-to-b from-[#0f0c0a] to-transparent" />
             <PretextTranscript {...transcriptProps} focusMode />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-8 bg-gradient-to-t from-[#0f0c0a] to-transparent" />
           </div>
 
           {/* Error banner + Composer — pinned at bottom, never overlaps */}
-          <div className="shrink-0 border-t border-white/6 px-3 pb-3 md:px-6">
+          <div className="relative z-10 shrink-0 border-t border-white/6 bg-[#0f0c0a]/72 px-3 pb-3 md:px-6">
             {errorBannerBlock}
             <ChatComposer {...composerProps} focusMode />
           </div>

@@ -16,6 +16,7 @@ const characterSelect = [
   "id",
   "user_id",
   "name",
+  "appearance",
   "tagline",
   "short_description",
   "long_description",
@@ -26,6 +27,13 @@ const characterSelect = [
   "author_notes",
   "definition",
   "negative_guidance",
+  "portrait_status",
+  "portrait_path",
+  "portrait_prompt",
+  "portrait_seed",
+  "portrait_source_hash",
+  "portrait_last_error",
+  "portrait_generated_at",
   "temperature",
   "top_p",
   "max_output_tokens",
@@ -103,6 +111,22 @@ export async function getCharacterBundle(
   } satisfies CharacterBundle;
 }
 
+export async function getCharacter(
+  supabase: DatabaseClient,
+  userId: string,
+  characterId: string,
+) {
+  const { data, error } = await supabase
+    .from("characters")
+    .select(characterSelect)
+    .eq("user_id", userId)
+    .eq("id", characterId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data ? castRow<CharacterRecord>(data) : null;
+}
+
 export async function upsertCharacterBundle(
   supabase: DatabaseClient,
   userId: string,
@@ -117,6 +141,7 @@ export async function upsertCharacterBundle(
     id: payload.id,
     user_id: userId,
     name: payload.name,
+    appearance: payload.appearance ?? "",
     tagline: payload.tagline ?? "",
     short_description: payload.short_description ?? "",
     long_description: payload.long_description ?? "",
@@ -127,6 +152,13 @@ export async function upsertCharacterBundle(
     author_notes: payload.author_notes ?? "",
     definition: payload.definition ?? "",
     negative_guidance: payload.negative_guidance ?? "",
+    portrait_status: payload.portrait_status ?? "idle",
+    portrait_path: payload.portrait_path ?? "",
+    portrait_prompt: payload.portrait_prompt ?? "",
+    portrait_seed: payload.portrait_seed ?? null,
+    portrait_source_hash: payload.portrait_source_hash ?? "",
+    portrait_last_error: payload.portrait_last_error ?? "",
+    portrait_generated_at: payload.portrait_generated_at ?? null,
     temperature: payload.temperature ?? 0.92,
     top_p: payload.top_p ?? 0.94,
     max_output_tokens: payload.max_output_tokens ?? 750,
@@ -204,6 +236,38 @@ export async function upsertCharacterBundle(
   }
 
   return bundle;
+}
+
+export async function updateCharacterPortrait(
+  supabase: DatabaseClient,
+  userId: string,
+  characterId: string,
+  updates: Partial<
+    Pick<
+      CharacterRecord,
+      | "portrait_status"
+      | "portrait_path"
+      | "portrait_prompt"
+      | "portrait_seed"
+      | "portrait_source_hash"
+      | "portrait_last_error"
+      | "portrait_generated_at"
+    >
+  >,
+) {
+  const { data, error } = await supabase
+    .from("characters")
+    .update({
+      ...updates,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", characterId)
+    .eq("user_id", userId)
+    .select(characterSelect)
+    .single();
+
+  if (error) throw error;
+  return castRow<CharacterRecord>(data);
 }
 
 export async function deleteCharacter(

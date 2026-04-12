@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { buildCharacterPortraitStatusCopy } from "@/lib/characters/portraits";
 import type { CharacterBundle } from "@/lib/data/characters";
 import { cn } from "@/lib/utils";
 import { SubmitButton } from "@/components/forms/submit-button";
@@ -55,10 +56,14 @@ function TextField({
 export function CharacterStudioForm({
   editing,
   action,
+  portraitPreviewUrl,
+  regeneratePortraitAction,
   saved = false,
 }: {
   editing: CharacterBundle | null;
   action: (formData: FormData) => Promise<void>;
+  portraitPreviewUrl: string | null;
+  regeneratePortraitAction?: (formData: FormData) => Promise<void>;
   saved?: boolean;
 }) {
   const initialDraft = useMemo(() => createCharacterDraft(editing), [editing]);
@@ -109,6 +114,16 @@ export function CharacterStudioForm({
   } as const;
 
   const completedSections = Object.values(sectionProgress).filter(Boolean).length;
+  const portraitStatus = editing?.character.portrait_status ?? "idle";
+  const portraitStatusLabel = buildCharacterPortraitStatusCopy(portraitStatus);
+  const savedAppearance = editing?.character.appearance.trim() ?? "";
+  const draftAppearance = draft.appearance.trim();
+  const hasUnsavedPortraitInputs =
+    Boolean(editing) &&
+    (draft.name.trim() !== editing?.character.name.trim() ||
+      draftAppearance !== savedAppearance ||
+      draft.tagline.trim() !== editing?.character.tagline.trim() ||
+      draft.short_description.trim() !== editing?.character.short_description.trim());
 
   function update<K extends keyof CharacterDraft>(key: K, nextValue: CharacterDraft[K]) {
     setDraft((current) => ({
@@ -220,6 +235,15 @@ export function CharacterStudioForm({
         </label>
 
         <TextField
+          label="Appearance"
+          name="appearance"
+          value={draft.appearance}
+          rows={4}
+          helper="Describe the visible look the portrait generator should lock onto: age cues, face, hair, build, clothing, accessories, and overall silhouette."
+          onChange={(value) => update("appearance", value)}
+        />
+
+        <TextField
           label="Short description"
           name="short_description"
           value={draft.short_description}
@@ -242,6 +266,64 @@ export function CharacterStudioForm({
           helper="This becomes the very first voice impression the user hears."
           onChange={(value) => update("greeting", value)}
         />
+
+        <section className="rounded-[1.6rem] border border-border bg-white/5 p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-xs uppercase tracking-[0.2em] text-ink-soft">Portrait</p>
+              <h3 className="mt-2 font-serif text-2xl text-foreground">{portraitStatusLabel}</h3>
+              <p className="mt-2 max-w-2xl text-sm leading-7 text-ink-soft">
+                {!draftAppearance
+                  ? "Add an appearance description and save the character to queue a portrait for focus mode."
+                  : !editing
+                    ? "Save this character once and Fantasia will queue the first portrait automatically."
+                    : portraitStatus === "pending"
+                      ? "A portrait job is queued or running. Refresh after a moment if the preview has not appeared yet."
+                      : portraitStatus === "failed"
+                        ? editing.character.portrait_last_error || "The portrait job failed. Try regenerating after checking the appearance prompt."
+                        : portraitStatus === "ready"
+                          ? "This saved portrait will be used as the focus-mode chat background."
+                          : "No portrait has been generated yet. Saving this character will queue one."}
+              </p>
+              {editing && hasUnsavedPortraitInputs ? (
+                <p className="mt-2 text-xs leading-6 text-amber-300">
+                  Unsaved name, appearance, tagline, or short description changes will not affect the portrait until you save.
+                </p>
+              ) : null}
+            </div>
+
+            {editing && regeneratePortraitAction ? (
+              <button
+                type="submit"
+                formAction={regeneratePortraitAction}
+                disabled={!savedAppearance}
+                className="inline-flex shrink-0 items-center justify-center rounded-full border border-border bg-white/8 px-4 py-2 text-sm font-semibold text-foreground transition hover:border-brand hover:text-brand disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Regenerate portrait
+              </button>
+            ) : null}
+          </div>
+
+          <div className="mt-5 overflow-hidden rounded-[1.5rem] border border-border bg-[#14100e]">
+            {portraitPreviewUrl && portraitStatus === "ready" ? (
+              <img
+                src={portraitPreviewUrl}
+                alt={`${((editing?.character.name ?? draft.name) || "Character")} portrait`}
+                className="aspect-square w-full object-cover"
+              />
+            ) : (
+              <div className="flex aspect-square items-center justify-center px-8 text-center text-sm leading-7 text-ink-soft">
+                {!draftAppearance
+                  ? "No appearance prompt yet."
+                  : portraitStatus === "pending"
+                    ? "Generating a painterly portrait for focus mode..."
+                    : portraitStatus === "failed"
+                      ? "Portrait generation failed."
+                      : "The next save will queue a portrait."}
+              </div>
+            )}
+          </div>
+        </section>
       </div>
 
       <div className={cn(activeTab !== "definition" && "hidden", "space-y-5")}>

@@ -197,6 +197,7 @@ export interface Database {
       };
       characters: {
         Row: {
+          appearance: string;
           author_notes: string;
           core_persona: string;
           created_at: string;
@@ -207,6 +208,13 @@ export interface Database {
           max_output_tokens: number;
           name: string;
           negative_guidance: string;
+          portrait_generated_at: string | null;
+          portrait_last_error: string;
+          portrait_path: string;
+          portrait_prompt: string;
+          portrait_seed: number | null;
+          portrait_source_hash: string;
+          portrait_status: "idle" | "pending" | "ready" | "failed";
           scenario_seed: string;
           short_description: string;
           style_rules: string;
@@ -217,6 +225,7 @@ export interface Database {
           user_id: string;
         };
         Insert: {
+          appearance?: string;
           author_notes?: string;
           core_persona?: string;
           created_at?: string;
@@ -227,6 +236,13 @@ export interface Database {
           max_output_tokens?: number;
           name: string;
           negative_guidance?: string;
+          portrait_generated_at?: string | null;
+          portrait_last_error?: string;
+          portrait_path?: string;
+          portrait_prompt?: string;
+          portrait_seed?: number | null;
+          portrait_source_hash?: string;
+          portrait_status?: "idle" | "pending" | "ready" | "failed";
           scenario_seed?: string;
           short_description?: string;
           style_rules?: string;
@@ -237,6 +253,7 @@ export interface Database {
           user_id: string;
         };
         Update: {
+          appearance?: string;
           author_notes?: string;
           core_persona?: string;
           created_at?: string;
@@ -247,6 +264,13 @@ export interface Database {
           max_output_tokens?: number;
           name?: string;
           negative_guidance?: string;
+          portrait_generated_at?: string | null;
+          portrait_last_error?: string;
+          portrait_path?: string;
+          portrait_prompt?: string;
+          portrait_seed?: number | null;
+          portrait_source_hash?: string;
+          portrait_status?: "idle" | "pending" | "ready" | "failed";
           scenario_seed?: string;
           short_description?: string;
           style_rules?: string;
