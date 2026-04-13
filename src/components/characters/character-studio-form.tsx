@@ -18,8 +18,8 @@ import {
 import type { OpenFantasiaCharacterData } from "@/lib/portability/openfantasia-json";
 
 const tabs = [
-  { id: "profile", label: "Profile" },
-  { id: "definition", label: "Definition" },
+  { id: "story", label: "Story" },
+  { id: "voice", label: "Voice" },
   { id: "starters", label: "Starters" },
   { id: "examples", label: "Examples" },
 ] as const;
@@ -59,7 +59,7 @@ export function CharacterStudioForm({
   action,
   portraitPreviewUrl,
   regeneratePortraitAction,
-  saved = false,
+  saved,
 }: {
   editing: CharacterBundle | null;
   action: (formData: FormData) => Promise<void>;
@@ -83,7 +83,7 @@ export function CharacterStudioForm({
     initialValue: initialDraft,
   });
   const [activeTab, setActiveTab] =
-    useState<(typeof tabs)[number]["id"]>("profile");
+    useState<(typeof tabs)[number]["id"]>("story");
 
   useUnsavedChangesGuard(
     isDirty,
@@ -97,14 +97,12 @@ export function CharacterStudioForm({
   }, [clearDraft, saved]);
 
   const sectionProgress = {
-    profile: Number(Boolean(draft.name.trim() && (draft.greeting.trim() || draft.short_description.trim()))),
-    definition: Number(
+    story: Number(Boolean(draft.name.trim() && (draft.story.trim() || draft.core_persona.trim() || draft.greeting.trim()))),
+    voice: Number(
       Boolean(
-        draft.world_context.trim() ||
-        draft.core_persona.trim() ||
-          draft.style_rules.trim() ||
-          draft.scenario_seed.trim() ||
-          draft.definition.trim(),
+        draft.style_rules.trim() ||
+          draft.definition.trim() ||
+          draft.negative_guidance.trim(),
       ),
     ),
     starters: Number(draft.starters.some((starter) => starter.trim())),
@@ -124,8 +122,7 @@ export function CharacterStudioForm({
     Boolean(editing) &&
     (draft.name.trim() !== editing?.character.name.trim() ||
       draftAppearance !== savedAppearance ||
-      draft.tagline.trim() !== editing?.character.tagline.trim() ||
-      draft.short_description.trim() !== editing?.character.short_description.trim());
+      draft.core_persona.trim() !== editing?.character.core_persona.trim());
 
   function update<K extends keyof CharacterDraft>(key: K, nextValue: CharacterDraft[K]) {
     setDraft((current) => ({
@@ -209,7 +206,8 @@ export function CharacterStudioForm({
         </div>
       </div>
 
-      <div className={cn(activeTab !== "profile" && "hidden", "space-y-5")}>
+      {/* ── Tab 1: Story ── */}
+      <div className={cn(activeTab !== "story" && "hidden", "space-y-5")}>
         <label className="block">
           <span className="mb-2 block text-sm font-medium text-foreground">Name</span>
           <input
@@ -221,52 +219,44 @@ export function CharacterStudioForm({
             placeholder="Captain Mirelle"
           />
           <span className="mt-2 block text-xs leading-6 text-ink-soft">
-            Make the name unmistakable. This is the label users will keep seeing in thread history.
+            The name the model will use in every response. Make it distinct.
           </span>
         </label>
 
-        <label className="block">
-          <span className="mb-2 block text-sm font-medium text-foreground">Tagline</span>
-          <input
-            name="tagline"
-            value={draft.tagline}
-            onChange={(event) => update("tagline", event.target.value)}
-            className="w-full rounded-full border border-border bg-white/5 px-4 py-3 outline-none transition focus:border-brand"
-            placeholder="A lighthouse keeper who speaks like the sea remembers her."
-          />
-        </label>
+        <TextField
+          label="Story"
+          name="story"
+          value={draft.story}
+          rows={8}
+          helper="The complete story setup: the world, the setting, what's happening right now, and the character's relationship to the user. This is the most important field — it tells the AI what kind of scene to play."
+          onChange={(value) => update("story", value)}
+        />
+
+        <TextField
+          label="Personality"
+          name="core_persona"
+          value={draft.core_persona}
+          rows={5}
+          helper="Who they are underneath — values, contradictions, fears, humor, warmth. The emotional texture the model should sustain."
+          onChange={(value) => update("core_persona", value)}
+        />
+
+        <TextField
+          label="Greeting"
+          name="greeting"
+          value={draft.greeting}
+          rows={4}
+          helper="The opening line that sets the scene. This is the very first impression."
+          onChange={(value) => update("greeting", value)}
+        />
 
         <TextField
           label="Appearance"
           name="appearance"
           value={draft.appearance}
           rows={4}
-          helper="Describe the visible look the portrait generator should lock onto: age cues, face, hair, build, clothing, accessories, and overall silhouette."
+          helper="Describe the character's look for portrait generation: face, hair, build, clothing, accessories. Not sent to the AI."
           onChange={(value) => update("appearance", value)}
-        />
-
-        <TextField
-          label="Short description"
-          name="short_description"
-          value={draft.short_description}
-          rows={3}
-          helper="Use this like the character’s quick-read pitch."
-          onChange={(value) => update("short_description", value)}
-        />
-        <TextField
-          label="Long description"
-          name="long_description"
-          value={draft.long_description}
-          rows={5}
-          helper="Give the emotional temperature, history, and texture the model should keep carrying."
-          onChange={(value) => update("long_description", value)}
-        />
-        <TextField
-          label="Greeting"
-          name="greeting"
-          value={draft.greeting}
-          helper="This becomes the very first voice impression the user hears."
-          onChange={(value) => update("greeting", value)}
         />
 
         <section className="rounded-[1.6rem] border border-border bg-white/5 p-5">
@@ -278,18 +268,18 @@ export function CharacterStudioForm({
                 {!draftAppearance
                   ? "Add an appearance description and save the character to queue a portrait for focus mode."
                   : !editing
-                    ? "Save this character once and Fantasia will queue the first portrait automatically."
+                    ? "Save this character first to queue portrait generation."
                     : portraitStatus === "pending"
-                      ? "A portrait job is queued or running. Refresh after a moment if the preview has not appeared yet."
-                      : portraitStatus === "failed"
-                        ? editing.character.portrait_last_error || "The portrait job failed. Try regenerating after checking the appearance prompt."
-                        : portraitStatus === "ready"
-                          ? "This saved portrait will be used as the focus-mode chat background."
-                          : "No portrait has been generated yet. Saving this character will queue one."}
+                      ? "A portrait is being generated. Refresh the page to check progress."
+                      : portraitStatus === "ready"
+                        ? "Your character portrait is ready and will appear in focus mode."
+                        : portraitStatus === "failed"
+                          ? "Portrait generation failed. You can try regenerating below."
+                          : "Save any changes to appearance or personality to generate a new portrait."}
               </p>
-              {editing && hasUnsavedPortraitInputs ? (
+              {hasUnsavedPortraitInputs ? (
                 <p className="mt-2 text-xs leading-6 text-amber-300">
-                  Unsaved name, appearance, tagline, or short description changes will not affect the portrait until you save.
+                  Unsaved name, appearance, or personality changes will not affect the portrait until you save.
                 </p>
               ) : null}
             </div>
@@ -321,71 +311,45 @@ export function CharacterStudioForm({
                 {!draftAppearance
                   ? "No appearance prompt yet."
                   : portraitStatus === "pending"
-                    ? "Generating a painterly portrait for focus mode..."
+                    ? "Generating a portrait for focus mode..."
                     : portraitStatus === "failed"
-                      ? "Portrait generation failed."
-                      : "The next save will queue a portrait."}
+                      ? "Last generation attempt failed."
+                      : "Portrait will generate after save."}
               </div>
             )}
           </div>
         </section>
       </div>
 
-      <div className={cn(activeTab !== "definition" && "hidden", "space-y-5")}>
+      {/* ── Tab 2: Voice ── */}
+      <div className={cn(activeTab !== "voice" && "hidden", "space-y-5")}>
         <TextField
-          label="Story / setting"
-          name="world_context"
-          value={draft.world_context}
-          rows={6}
-          helper="Persistent world context: setting truths, factions, history, magic, social rules, or any ongoing reality the model should keep carrying."
-          onChange={(value) => update("world_context", value)}
-        />
-        <TextField
-          label="Core persona"
-          name="core_persona"
-          value={draft.core_persona}
-          helper="Who they are when the scene gets quiet and honest."
-          onChange={(value) => update("core_persona", value)}
-        />
-        <TextField
-          label="Style rules"
+          label="Writing style"
           name="style_rules"
           value={draft.style_rules}
-          helper="Cadence, formatting, humor, intimacy, restraint, or any repeated voice rule."
+          rows={5}
+          helper="Prose cadence, formatting habits, humor, restraint, or any repeated voice rule the model should follow."
           onChange={(value) => update("style_rules", value)}
         />
         <TextField
-          label="Scenario seed"
-          name="scenario_seed"
-          value={draft.scenario_seed}
-          helper="The starting room temperature of the story: where, when, and what is already in motion."
-          onChange={(value) => update("scenario_seed", value)}
-        />
-        <TextField
-          label="Behavior contract"
+          label="Behavior rules"
           name="definition"
           value={draft.definition}
           rows={8}
-          helper="Use this for durable behavioral rules, priorities, and constraints that should survive long chats."
+          helper="Hard behavioral constraints that should survive long chats: priorities, habits, reactions that never change."
           onChange={(value) => update("definition", value)}
         />
         <TextField
-          label="Negative guidance"
+          label="Boundaries"
           name="negative_guidance"
           value={draft.negative_guidance}
           rows={5}
-          helper="What the character should avoid doing, sounding like, or collapsing into."
+          helper="What the character must never do, say, or collapse into. Hard limits the model should respect."
           onChange={(value) => update("negative_guidance", value)}
-        />
-        <TextField
-          label="Private author notes"
-          name="author_notes"
-          value={draft.author_notes}
-          helper="Private notes for your own editing memory. These stay out of the AI prompt."
-          onChange={(value) => update("author_notes", value)}
         />
       </div>
 
+      {/* ── Tab 3: Starters ── */}
       <div className={cn(activeTab !== "starters" && "hidden", "space-y-4")}>
         <p className="text-sm leading-7 text-ink-soft">
           One-tap starters should feel like scene-openers, not generic greetings. Give the user a specific emotional or narrative move to make.
@@ -431,6 +395,7 @@ export function CharacterStudioForm({
         </button>
       </div>
 
+      {/* ── Tab 4: Examples ── */}
       <div className={cn(activeTab !== "examples" && "hidden", "space-y-4")}>
         <p className="text-sm leading-7 text-ink-soft">
           Example dialogue teaches cadence better than summary text. Use short, high-signal exchanges that reveal rhythm, warmth, and tension.

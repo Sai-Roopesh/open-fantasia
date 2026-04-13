@@ -198,13 +198,11 @@ export interface Database {
       characters: {
         Row: {
           appearance: string;
-          author_notes: string;
           core_persona: string;
           created_at: string;
           definition: string;
           greeting: string;
           id: string;
-          long_description: string;
           max_output_tokens: number;
           name: string;
           negative_guidance: string;
@@ -215,25 +213,20 @@ export interface Database {
           portrait_seed: number | null;
           portrait_source_hash: string;
           portrait_status: "idle" | "pending" | "ready" | "failed";
-          scenario_seed: string;
-          short_description: string;
+          story: string;
           style_rules: string;
-          tagline: string;
           temperature: number;
           top_p: number;
           updated_at: string;
           user_id: string;
-          world_context: string;
         };
         Insert: {
           appearance?: string;
-          author_notes?: string;
           core_persona?: string;
           created_at?: string;
           definition?: string;
           greeting?: string;
           id?: string;
-          long_description?: string;
           max_output_tokens?: number;
           name: string;
           negative_guidance?: string;
@@ -244,25 +237,20 @@ export interface Database {
           portrait_seed?: number | null;
           portrait_source_hash?: string;
           portrait_status?: "idle" | "pending" | "ready" | "failed";
-          scenario_seed?: string;
-          short_description?: string;
+          story?: string;
           style_rules?: string;
-          tagline?: string;
           temperature?: number;
           top_p?: number;
           updated_at?: string;
           user_id: string;
-          world_context?: string;
         };
         Update: {
           appearance?: string;
-          author_notes?: string;
           core_persona?: string;
           created_at?: string;
           definition?: string;
           greeting?: string;
           id?: string;
-          long_description?: string;
           max_output_tokens?: number;
           name?: string;
           negative_guidance?: string;
@@ -273,15 +261,12 @@ export interface Database {
           portrait_seed?: number | null;
           portrait_source_hash?: string;
           portrait_status?: "idle" | "pending" | "ready" | "failed";
-          scenario_seed?: string;
-          short_description?: string;
+          story?: string;
           style_rules?: string;
-          tagline?: string;
           temperature?: number;
           top_p?: number;
           updated_at?: string;
           user_id?: string;
-          world_context?: string;
         };
         Relationships: [];
       };

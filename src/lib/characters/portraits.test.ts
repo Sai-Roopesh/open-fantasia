@@ -8,8 +8,7 @@ import {
 const baseInput = {
   name: "Captain Mirelle",
   appearance: "Sea-dark curls, weathered bronze skin, long navy coat, brass spyglass",
-  tagline: "A lighthouse keeper who speaks like the tide remembers her.",
-  short_description: "Carries stormlight in her posture and a map in every silence.",
+  core_persona: "A lighthouse keeper who speaks like the tide remembers her.",
 };
 
 describe("character portraits", () => {
@@ -54,16 +53,11 @@ describe("character portraits", () => {
         id: "char-1",
         user_id: "user-1",
         name: baseInput.name,
-        appearance: "Old appearance",
-        tagline: baseInput.tagline,
-        short_description: baseInput.short_description,
-        long_description: "",
+        story: "",
+        core_persona: baseInput.core_persona,
         greeting: "",
-        world_context: "",
-        core_persona: "",
+        appearance: "Old appearance",
         style_rules: "",
-        scenario_seed: "",
-        author_notes: "",
         definition: "",
         negative_guidance: "",
         portrait_status: "ready",

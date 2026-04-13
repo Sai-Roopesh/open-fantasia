@@ -318,9 +318,8 @@ export default async function AppIndexPage() {
             </h2>
             <p className="mt-4 text-sm leading-7 text-ink-soft">
               {latestCharacter
-                ? latestCharacter.short_description ||
+                ? latestCharacter.story ||
                   latestCharacter.core_persona ||
-                  latestCharacter.scenario_seed ||
                   latestCharacter.greeting
                 : "Create one character sheet with a clear voice, a greeting, and at least one scene direction."}
             </p>

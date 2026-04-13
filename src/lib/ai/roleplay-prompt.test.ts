@@ -8,16 +8,11 @@ const mockCharacter: CharacterBundle = {
     id: "char_1",
     user_id: "user_1",
     name: "Alex",
-    appearance: "Lean mechanic with oil-streaked hands and a weathered jacket",
-    tagline: "A witty mechanic",
-    short_description: "Fixes things",
-    long_description: "Fixes things well and likes coffee",
-    greeting: "Hey there.",
-    world_context: "A salvaged shipyard orbiting a dead moon",
+    story: "A salvaged shipyard orbiting a dead moon. A broken down spaceship needs repair.",
     core_persona: "Gruff but kind",
+    greeting: "Hey there.",
+    appearance: "Lean mechanic with oil-streaked hands and a weathered jacket",
     style_rules: "Use slang",
-    scenario_seed: "A broken down spaceship",
-    author_notes: "Don't make him too mean",
     definition: "An expert",
     negative_guidance: "Do not flirt",
     portrait_status: "idle",
@@ -53,7 +48,7 @@ const mockPersona: UserPersonaRecord = {
 };
 
 describe("buildRoleplaySystemPrompt", () => {
-  it("should handle empty or null snapshot data gracefully", () => {
+  it("should include story as the primary context block", () => {
     const prompt = buildRoleplaySystemPrompt({
       character: mockCharacter,
       persona: mockPersona,
@@ -63,13 +58,30 @@ describe("buildRoleplaySystemPrompt", () => {
     });
 
     expect(prompt).toContain("You are roleplaying as Alex.");
-    expect(prompt).toContain("Story / setting: A salvaged shipyard orbiting a dead moon");
-    expect(prompt).toContain("Scenario: Unknown");
-    expect(prompt).toContain("- No major beats recorded yet.");
-    expect(prompt).toContain("- No starter prompts defined.");
-    expect(prompt).toContain("- No manual branch pins yet.");
+    expect(prompt).toContain("── STORY AND SETTING ──");
+    expect(prompt).toContain("A salvaged shipyard orbiting a dead moon");
+    expect(prompt).toContain("Current scenario: Unknown");
+    expect(prompt).toContain("── CHARACTER ──");
+    expect(prompt).toContain("── NARRATIVE STATE ──");
+    expect(prompt).toContain("── DIRECTIVES ──");
     expect(prompt).toContain("- None active."); // open loops
-    expect(prompt).not.toContain("Private author notes");
+  });
+
+  it("should omit story section when story is empty", () => {
+    const emptyStoryChar = {
+      ...mockCharacter,
+      character: { ...mockCharacter.character, story: "" },
+    };
+    const prompt = buildRoleplaySystemPrompt({
+      character: emptyStoryChar,
+      persona: mockPersona,
+      snapshot: null,
+      pins: [],
+      timeline: [],
+    });
+
+    expect(prompt).not.toContain("── STORY AND SETTING ──");
+    expect(prompt).toContain("── CHARACTER ──");
   });
 
   it("should format timeline events correctly", () => {
@@ -112,7 +124,7 @@ describe("buildRoleplaySystemPrompt", () => {
       timeline: [],
     });
 
-    expect(prompt).toContain("Scenario: Stranded");
+    expect(prompt).toContain("Current scenario: Stranded");
     expect(prompt).toContain("Relationship: Wary");
     expect(prompt).toContain("What happened so far: Ship is broken.");
     expect(prompt).toContain("Known facts about the user: Is a pilot; Needs help");

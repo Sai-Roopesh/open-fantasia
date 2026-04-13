@@ -11,18 +11,13 @@ import {
 
 export type CharacterDraft = {
   name: string;
-  appearance: string;
-  tagline: string;
-  short_description: string;
-  long_description: string;
-  greeting: string;
-  world_context: string;
+  story: string;
   core_persona: string;
+  greeting: string;
+  appearance: string;
   style_rules: string;
-  scenario_seed: string;
   definition: string;
   negative_guidance: string;
-  author_notes: string;
   starters: string[];
   examples: Array<{ user: string; character: string }>;
 };
@@ -44,18 +39,13 @@ export function createCharacterDraft(editing: CharacterBundle | null): Character
     ...(editing
       ? {
           name: editing.character.name,
-          appearance: editing.character.appearance,
-          tagline: editing.character.tagline,
-          short_description: editing.character.short_description,
-          long_description: editing.character.long_description,
-          greeting: editing.character.greeting,
-          world_context: editing.character.world_context,
+          story: editing.character.story,
           core_persona: editing.character.core_persona,
+          greeting: editing.character.greeting,
+          appearance: editing.character.appearance,
           style_rules: editing.character.style_rules,
-          scenario_seed: editing.character.scenario_seed,
           definition: editing.character.definition,
           negative_guidance: editing.character.negative_guidance,
-          author_notes: editing.character.author_notes,
         }
       : {}),
     starters: editing?.starters.length
@@ -75,18 +65,13 @@ export function characterDraftToPortableData(
 ): OpenFantasiaCharacterData {
   return {
     name: draft.name,
-    appearance: draft.appearance,
-    tagline: draft.tagline,
-    short_description: draft.short_description,
-    long_description: draft.long_description,
-    greeting: draft.greeting,
-    world_context: draft.world_context,
+    story: draft.story,
     core_persona: draft.core_persona,
+    greeting: draft.greeting,
+    appearance: draft.appearance,
     style_rules: draft.style_rules,
-    scenario_seed: draft.scenario_seed,
     definition: draft.definition,
     negative_guidance: draft.negative_guidance,
-    author_notes: draft.author_notes,
     suggested_starters: draft.starters,
     example_conversations: draft.examples.map((example) => ({
       user_line: example.user,
@@ -100,18 +85,13 @@ export function portableCharacterDataToDraft(
 ): CharacterDraft {
   return {
     name: data.name,
-    appearance: data.appearance,
-    tagline: data.tagline,
-    short_description: data.short_description,
-    long_description: data.long_description,
-    greeting: data.greeting,
-    world_context: data.world_context,
+    story: data.story,
     core_persona: data.core_persona,
+    greeting: data.greeting,
+    appearance: data.appearance,
     style_rules: data.style_rules,
-    scenario_seed: data.scenario_seed,
     definition: data.definition,
     negative_guidance: data.negative_guidance,
-    author_notes: data.author_notes,
     starters: [...data.suggested_starters],
     examples: data.example_conversations.map((example) => ({
       user: example.user_line,

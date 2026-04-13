@@ -28,17 +28,13 @@ export function buildRoleplaySystemPrompt(args: {
 }) {
   const { character, persona, snapshot, pins, timeline } = args;
   const charName = character.character.name;
+
   const characterLines = compactLabeledLines([
-    ["Tagline", character.character.tagline],
-    ["Short description", character.character.short_description],
-    ["Long description", character.character.long_description],
-    ["Greeting", character.character.greeting],
-    ["Story / setting", character.character.world_context],
-    ["Core persona", character.character.core_persona],
-    ["Style rules", character.character.style_rules],
-    ["Scenario seed", character.character.scenario_seed],
-    ["Behavior contract", character.character.definition],
-    ["Negative guidance", character.character.negative_guidance],
+    ["Personality", character.character.core_persona],
+    ["Opening line", character.character.greeting],
+    ["Writing style", character.character.style_rules],
+    ["Behavior rules", character.character.definition],
+    ["Boundaries", character.character.negative_guidance],
   ]);
   const personaLines = compactLabeledLines([
     ["Name", persona.name],
@@ -56,11 +52,7 @@ export function buildRoleplaySystemPrompt(args: {
             `- [${event.importance}/5] ${event.title}: ${event.detail}`,
         )
         .join("\n")
-    : "- No major beats recorded yet.";
-
-  const starterText = character.starters.length
-    ? character.starters.map((starter) => `- ${starter.text}`).join("\n")
-    : "- No starter prompts defined.";
+    : "";
 
   const populatedExamples = character.exampleConversations.filter(
     (example) => example.user_line.trim() || example.character_line.trim(),
@@ -72,11 +64,11 @@ export function buildRoleplaySystemPrompt(args: {
             `Example ${index + 1}\nUSER: ${example.user_line || "(left blank)"}\n${charName.toUpperCase()}: ${example.character_line || "(left blank)"}`,
         )
         .join("\n\n")
-    : "No structured example conversations yet.";
+    : "";
 
   const pinText = pins.length
     ? pins.map((pin) => `- ${pin.body}`).join("\n")
-    : "- No manual branch pins yet.";
+    : "";
 
   // --- Build active narrative threads ---
   const openLoopsText = bulletList(snapshot?.open_loops ?? [], "- None active.");
@@ -90,46 +82,85 @@ export function buildRoleplaySystemPrompt(args: {
 
   const sceneGoalsText = bulletList(snapshot?.scene_goals ?? [], "- None set.");
 
-  return [
+  const sections: string[] = [
     `You are roleplaying as ${charName}.`,
+  ];
+
+  // ── STORY AND SETTING ──
+  const storyText = character.character.story?.trim();
+  if (storyText) {
+    sections.push(
+      "",
+      "── STORY AND SETTING ──",
+      storyText,
+    );
+  }
+
+  // ── CHARACTER ──
+  sections.push(
     "",
-    "Character card:",
+    "── CHARACTER ──",
     ...(characterLines.length ? characterLines : ["No character guidance has been filled in yet."]),
+  );
+
+  // ── USER PERSONA ──
+  sections.push(
     "",
-    "Selected user persona:",
+    "── USER PERSONA ──",
     ...personaLines,
+  );
+
+  // ── NARRATIVE STATE ──
+  sections.push(
     "",
-    "Suggested starters:",
-    starterText,
-    "",
-    "Example conversations:",
-    exampleConversationText,
-    "",
-    "Active narrative state:",
-    `Scenario: ${snapshot?.scenario_state || "Unknown"}`,
+    "── NARRATIVE STATE ──",
+    `Current scenario: ${snapshot?.scenario_state || "Unknown"}`,
     `Relationship: ${snapshot?.relationship_state || "Unestablished"}`,
     `What happened so far: ${snapshot?.rolling_summary || "No summary yet."}`,
     `Known facts about the user: ${snapshot?.user_facts.join("; ") || "None yet."}`,
+  );
+
+  // ── ACTIVE THREADS ──
+  sections.push(
     "",
-    "Unresolved story threads (context only — do not re-raise if already addressed in the conversation):",
+    "── ACTIVE THREADS ──",
+    "Unresolved story threads (do not re-raise if already addressed):",
     openLoopsText,
     "",
-    "Scene goals (retire naturally once achieved — do not repeat the same beat):",
+    "Scene goals (retire naturally once achieved):",
     sceneGoalsText,
     "",
     "Narrative hooks (optional future directions — only pursue if natural):",
     narrativeHooksText,
     "",
-    "Resolved threads (for reference only — do not reopen these):",
+    "Resolved threads (reference only — do not reopen):",
     resolvedLoopsText,
+  );
+
+  // ── PINS & TIMELINE ──
+  if (pinText || timelineText) {
+    sections.push("", "── PINS & TIMELINE ──");
+    if (pinText) {
+      sections.push("Pinned branch facts:", pinText);
+    }
+    if (timelineText) {
+      sections.push("Important timeline beats:", timelineText);
+    }
+  }
+
+  // ── EXAMPLES ──
+  if (exampleConversationText) {
+    sections.push(
+      "",
+      "── EXAMPLE CONVERSATIONS ──",
+      exampleConversationText,
+    );
+  }
+
+  // ── DIRECTIVES ──
+  sections.push(
     "",
-    "Pinned branch facts:",
-    pinText,
-    "",
-    "Important timeline beats:",
-    timelineText,
-    "",
-    "Roleplay directives:",
+    "── DIRECTIVES ──",
     `- You are a dynamic co-protagonist with your own motivations, opinions, and agency. Pursue ${charName}'s goals actively, even when they conflict with the user's current path.`,
     "- Be proactive. If the scene stagnates, take initiative: propose plans, introduce obstacles, shift the emotional register, or ask questions that force the story in a new direction.",
     "- React meaningfully to what the user just said or did, then move the scene forward. Every response should leave the story in a different place than where it started.",
@@ -139,13 +170,15 @@ export function buildRoleplaySystemPrompt(args: {
     "- End your response at a natural narrative beat that gives the user a clear opening to respond.",
     "- Focus on what happens NEXT in the scene. The conversation history shows what already occurred — build on it, do not echo it.",
     "",
-    "Anti-repetition rules (critical):",
+    "── ANTI-REPETITION ──",
     "- NEVER re-ask a question the user has already answered. If the user revealed a secret, confirmed a fact, or made a promise, ACCEPT it and move on.",
     "- If a story thread listed under 'Unresolved story threads' was clearly addressed in the last few messages, treat it as resolved. Do not loop back to it.",
     "- Vary your emotional register. If the last 2-3 responses shared the same tone (e.g., intense questioning), shift to something different (relief, humor, planning, vulnerability).",
-    "- Track what your character has already said and done. Do not repeat the same physical gestures (e.g., 'fingers tightening'), expressions (e.g., 'eyes searching yours'), or dialogue patterns across consecutive responses.",
+    "- Track what your character has already said and done. Do not repeat the same physical gestures, expressions, or dialogue patterns across consecutive responses.",
     "- When the user gives you new information, your response must show genuine progression: new understanding, changed behavior, a new question about a DIFFERENT topic, or a shift in the scene's direction.",
-  ].join("\n");
+  );
+
+  return sections.join("\n");
 }
 
 export function buildReconciliationMessages(args: {
