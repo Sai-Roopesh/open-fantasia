@@ -46,8 +46,8 @@ export default async function PersonasPage({
           Define who the user is before the story asks for a choice.
         </h1>
         <p className="mt-4 max-w-3xl text-sm leading-7 text-ink-soft">
-          Personas are reusable self-profiles for roleplay. Keep one default for new threads, but
-          keep alternates nearby when the same character needs a different version of you.
+          Personas are reusable self-profiles for roleplay. Keep one default for new threads, and
+          duplicate intentionally when the same character needs a distinctly different version of you.
         </p>
 
         {reason ? (

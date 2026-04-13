@@ -107,11 +107,6 @@ export type TranscriptControl = {
   canPin: boolean;
   canRate: boolean;
   feedbackRating: number | null;
-  alternates: Array<{
-    checkpointId: string;
-    selected: boolean;
-    label: string;
-  }>;
 };
 
 export const reconciliationSchema = z.object({
@@ -168,7 +163,7 @@ export type PersonaUsageSummary = {
 export type ContinuityInspectorView = {
   continuityStatus:
     | {
-        tone: "pending";
+        tone: "pending" | "error";
         title: string;
         detail: string;
       }
@@ -200,7 +195,6 @@ export type ContinuityInspectorView = {
     headCheckpointId: string | null;
     totalBranches: number;
     totalCheckpoints: number;
-    alternateCount: number;
   };
 };
 

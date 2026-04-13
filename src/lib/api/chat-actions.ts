@@ -40,14 +40,6 @@ export async function rateCheckpoint(threadId: string, checkpointId: string, rat
   await throwIfFailed(response, "Rating failed.");
 }
 
-export async function selectAlternate(threadId: string, checkpointId: string) {
-  const response = await fetch(
-    `/api/chats/${threadId}/checkpoints/${checkpointId}/select`,
-    { method: "POST" },
-  );
-  await throwIfFailed(response, "Alternate selection failed.");
-}
-
 export async function editMessage(threadId: string, messageId: string, content: string) {
   const response = await fetch(
     `/api/chats/${threadId}/messages/${messageId}/edit`,

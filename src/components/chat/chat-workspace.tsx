@@ -94,7 +94,6 @@ export function ChatWorkspace({
     regenerate,
     rewind,
     rate,
-    selectAlternate,
     editMessage,
     createBranch,
     createPin,
@@ -188,8 +187,16 @@ export function ChatWorkspace({
   );
 
   const activeError = surfaceError || (error ? humanizeChatError(error.message) : null);
+  const continuityBlocked =
+    inspectorView.continuityStatus?.tone === "pending" ||
+    inspectorView.continuityStatus?.tone === "error";
   const composerBusy =
-    status === "streaming" || status === "submitted" || pendingAction !== null || switchPending || isNavigating;
+    status === "streaming" ||
+    status === "submitted" ||
+    pendingAction !== null ||
+    switchPending ||
+    isNavigating ||
+    continuityBlocked;
 
   async function submitCurrentDraft(value: string) {
     const nextValue = value.trim();
@@ -215,10 +222,6 @@ export function ChatWorkspace({
     }
   }
 
-  function openAlternates(control: TranscriptControl) {
-    setSheet({ kind: "alternates", control });
-  }
-
   function openBranchSheet(checkpointId: string) {
     setSheet({
       kind: "branch",
@@ -233,22 +236,21 @@ export function ChatWorkspace({
     assistantLabel: characterName,
     controlsByMessageId,
     pendingAction,
+    continuityBlocked,
     onRegenerate: regenerate,
-    onOpenAlternates: openAlternates,
     onOpenEditMessage: (messageId: string, currentText: string) =>
       setSheet({ kind: "edit", messageId, value: currentText }),
     onOpenBranchFromCheckpoint: openBranchSheet,
-    onRewindCheckpoint: async (checkpointId: string, currentText: string) => {
+    onRewindCheckpoint: async (checkpointId: string) => {
       if (
         typeof window !== "undefined" &&
         !window.confirm(
-          "Rewind this branch to before this user turn? Everything after it on the current branch will disappear from the active path.",
+          "Rewind to this turn? This keeps the selected checkpoint as the branch head and permanently deletes every descendant path below it.",
         )
       ) {
         return;
       }
       rewind(checkpointId, () => {
-        setDraft(currentText);
         requestAnimationFrame(() => composerRef.current?.focus());
       });
     },
@@ -496,9 +498,7 @@ export function ChatWorkspace({
       {sheet ? (
         <ActionSheet
           key={
-            sheet.kind === "alternates"
-              ? `alternates-${sheet.control.checkpointId}`
-              : sheet.kind === "branch"
+            sheet.kind === "branch"
                 ? `branch-${sheet.checkpointId}`
                 : sheet.kind === "edit"
                   ? `edit-${sheet.messageId}`
@@ -507,12 +507,8 @@ export function ChatWorkspace({
           sheet={sheet}
           pendingAction={pendingAction}
           onClose={() => setSheet(null)}
-          onSubmit={async (value, alternateCheckpointId) => {
-            if (sheet.kind === "alternates") {
-              if (alternateCheckpointId) {
-                await selectAlternate(alternateCheckpointId);
-              }
-            } else if (sheet.kind === "edit") {
+          onSubmit={async (value) => {
+            if (sheet.kind === "edit") {
               await editMessage(sheet.messageId, value);
             } else if (sheet.kind === "branch") {
               await createBranch({ checkpointId: sheet.checkpointId, name: value });

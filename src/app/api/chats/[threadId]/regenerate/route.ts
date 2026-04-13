@@ -1,13 +1,13 @@
 import { convertToModelMessages, generateText } from "ai";
 import { getCurrentUser } from "@/lib/auth";
-import { finalizeAssistantTurn } from "@/lib/ai/turn-finalizer";
+import { rewriteCheckpointTurnInPlace } from "@/lib/ai/turn-finalizer";
 import { resolveThreadGenerationSettings } from "@/lib/ai/generation-settings";
 import { getCharacterBundle } from "@/lib/data/characters";
 import { getConnection } from "@/lib/data/connections";
 import { getPersona } from "@/lib/data/personas";
 import { getSnapshot } from "@/lib/data/snapshots";
 import { createTextMessage, getThreadGraphView } from "@/lib/data/threads";
-import { insertTimelineEvent } from "@/lib/data/timeline";
+import { scheduleBackgroundWorker } from "@/lib/jobs/kick-worker";
 import { createLanguageModel } from "@/lib/ai/provider-factory";
 import { buildRoleplaySystemPrompt } from "@/lib/ai/roleplay-prompt";
 import { regenerateRequestSchema } from "@/lib/validation";
@@ -32,6 +32,17 @@ export async function POST(
   const threadView = await getThreadGraphView(supabase, user.id, threadId);
   if (!threadView || !threadView.latestCheckpoint) {
     return Response.json({ error: "Thread not found." }, { status: 404 });
+  }
+  if (threadView.headSnapshotPending || threadView.headSnapshotFailed) {
+    return Response.json(
+      {
+        error: threadView.headSnapshotFailed
+          ? threadView.headSnapshotFailureMessage ??
+            "The latest continuity reconciliation failed. Rewind or edit the latest turn before retrying."
+          : "The latest continuity reconciliation is still running. Wait for it to finish before regenerating.",
+      },
+      { status: 409 },
+    );
   }
 
   const [character, connection, persona] = await Promise.all([
@@ -82,6 +93,7 @@ export async function POST(
   });
 
   const assistantMessage = createTextMessage({
+    id: latestCheckpoint.assistant_message_id,
     role: "assistant",
     text: result.text,
     metadata: {
@@ -94,32 +106,16 @@ export async function POST(
     },
   });
 
-  const { checkpoint } = await finalizeAssistantTurn({
+  const { checkpoint } = await rewriteCheckpointTurnInPlace({
     supabase,
     userId: user.id,
     thread: threadView.thread,
     branchId: threadView.activeBranch.id,
-    parentCheckpointId: latestCheckpoint.parent_checkpoint_id,
-    userMessage: null,
-    existingUserMessageId: latestCheckpoint.user_message_id,
+    checkpoint: latestCheckpoint,
     assistantMessage,
-    choiceGroupKey: latestCheckpoint.choice_group_key,
-    previousSnapshot: priorSnapshot,
-    connection,
-    character,
-    modelId: threadView.thread.model_id,
     recentMessages: [...contextMessages, assistantMessage],
   });
-
-  await insertTimelineEvent(supabase, {
-    thread_id: threadId,
-    branch_id: threadView.activeBranch.id,
-    checkpoint_id: checkpoint.id,
-    source_message_id: checkpoint.assistant_message_id,
-    title: "Alternate reply generated",
-    detail: "Saved a sibling assistant reply for the latest user turn.",
-    importance: 2,
-  });
+  scheduleBackgroundWorker(1);
 
   return Response.json({ ok: true, checkpointId: checkpoint.id });
 }

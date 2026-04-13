@@ -24,10 +24,16 @@ export async function POST(
     return Response.json({ error: "Thread not found." }, { status: 404 });
   }
 
-  const baseCheckpoint =
-    threadView.checkpoints.find(
-      (checkpoint) => checkpoint.id === parsedBody.data.checkpointId,
-    ) ?? threadView.latestCheckpoint;
+  const baseCheckpoint = threadView.checkpoints.find(
+    (checkpoint) => checkpoint.id === parsedBody.data.checkpointId,
+  );
+
+  if (!baseCheckpoint) {
+    return Response.json(
+      { error: "Branches can only be created from a visible user turn on the active path." },
+      { status: 404 },
+    );
+  }
 
   const branch = await createBranch(context.supabase, {
     threadId,
@@ -48,10 +54,10 @@ export async function POST(
   await insertTimelineEvent(context.supabase, {
     thread_id: threadId,
     branch_id: branch.id,
-    checkpoint_id: baseCheckpoint?.id ?? null,
-    source_message_id: baseCheckpoint?.assistant_message_id ?? null,
+    checkpoint_id: baseCheckpoint.id,
+    source_message_id: baseCheckpoint.user_message_id,
     title: "Branch created",
-    detail: `Created ${branch.name}${baseCheckpoint ? " from this checkpoint" : ""}.`,
+    detail: `Created ${branch.name} from this user turn.`,
     importance: 2,
   });
 

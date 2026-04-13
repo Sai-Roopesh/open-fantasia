@@ -91,4 +91,39 @@ describe("buildCheckpointPath", () => {
     expect(resolved.resolvedSnapshot).toEqual(headSnapshot);
     expect(resolved.headSnapshotPending).toBe(false);
   });
+
+  it("marks the head as failed when the latest reconcile job failed", () => {
+    const rootId = crypto.randomUUID();
+    const headId = crypto.randomUUID();
+    const previousSnapshot = {
+      checkpoint_id: rootId,
+      scenario_state: "library",
+    };
+
+    const resolved = resolveSnapshotState(
+      [
+        {
+          id: rootId,
+          parent_checkpoint_id: null,
+        },
+        {
+          id: headId,
+          parent_checkpoint_id: rootId,
+        },
+      ] as never,
+      new Map([[rootId, previousSnapshot as never]]),
+      {
+        status: "failed",
+        last_error: "Worker crashed while reconciling.",
+      },
+    );
+
+    expect(resolved.headSnapshot).toBeNull();
+    expect(resolved.resolvedSnapshot).toEqual(previousSnapshot);
+    expect(resolved.headSnapshotPending).toBe(false);
+    expect(resolved.headSnapshotFailed).toBe(true);
+    expect(resolved.headSnapshotFailureMessage).toBe(
+      "Worker crashed while reconciling.",
+    );
+  });
 });

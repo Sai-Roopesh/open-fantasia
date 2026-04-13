@@ -11,6 +11,7 @@ import { getCharacterBundle } from "@/lib/data/characters";
 import { getConnection } from "@/lib/data/connections";
 import { getPersona } from "@/lib/data/personas";
 import { getThreadGraphView } from "@/lib/data/threads";
+import { scheduleBackgroundWorker } from "@/lib/jobs/kick-worker";
 import { createLanguageModel } from "@/lib/ai/provider-factory";
 import { ensureMessageId } from "@/lib/ai/message-utils";
 import { buildRoleplaySystemPrompt } from "@/lib/ai/roleplay-prompt";
@@ -74,11 +75,14 @@ export async function POST(request: Request) {
   }
 
   const continuitySnapshot = threadView.latestCheckpoint ? threadView.headSnapshot : null;
-  if (threadView.latestCheckpoint && !continuitySnapshot) {
+  if (threadView.headSnapshotPending || threadView.headSnapshotFailed) {
     return Response.json(
       {
         error:
-          "This thread is missing the latest continuity snapshot. Repair the thread state before sending a new turn.",
+          threadView.headSnapshotFailed
+            ? threadView.headSnapshotFailureMessage ??
+              "The latest continuity reconciliation failed. Rewind or retry from the latest turn before continuing."
+            : "The latest continuity reconciliation is still running. Wait for it to finish before sending a new turn.",
       },
       { status: 409 },
     );
@@ -147,12 +151,9 @@ export async function POST(request: Request) {
         userMessage: stableUserMessage,
         assistantMessage,
         choiceGroupKey: `choice:${crypto.randomUUID()}`,
-        previousSnapshot: continuitySnapshot,
-        connection,
-        character,
-        modelId: threadView.thread.model_id,
         recentMessages: [...streamMessages, assistantMessage],
       });
+      scheduleBackgroundWorker(1);
     },
   });
 }

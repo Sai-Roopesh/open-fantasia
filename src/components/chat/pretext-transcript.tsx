@@ -87,8 +87,8 @@ export function PretextTranscript({
   controlsByMessageId,
   pendingAction,
   focusMode = false,
+  continuityBlocked = false,
   onRegenerate,
-  onOpenAlternates,
   onOpenEditMessage,
   onOpenBranchFromCheckpoint,
   onRewindCheckpoint,
@@ -100,11 +100,11 @@ export function PretextTranscript({
   controlsByMessageId: Record<string, TranscriptControl>;
   pendingAction: string | null;
   focusMode?: boolean;
+  continuityBlocked?: boolean;
   onRegenerate: (checkpointId: string) => Promise<void>;
-  onOpenAlternates: (control: TranscriptControl) => void;
   onOpenEditMessage: (messageId: string, currentText: string) => void;
   onOpenBranchFromCheckpoint: (checkpointId: string) => void;
-  onRewindCheckpoint: (checkpointId: string, currentText: string) => Promise<void>;
+  onRewindCheckpoint: (checkpointId: string) => Promise<void>;
   onOpenPinMessage: (messageId: string, currentText: string) => void;
   onRateCheckpoint: (checkpointId: string, rating: number) => Promise<void>;
 }) {
@@ -212,7 +212,7 @@ export function PretextTranscript({
                     <div className={cn("flex flex-wrap gap-2", isUser && "justify-end")}>
                       {controls.canEdit ? (
                         <ActionButton
-                          disabled={pendingAction !== null}
+                          disabled={pendingAction !== null || continuityBlocked}
                           onClick={() => onOpenEditMessage(message.id, messageText)}
                           icon={PencilLine}
                         >
@@ -222,7 +222,7 @@ export function PretextTranscript({
                       {controls.canRewind ? (
                         <ActionButton
                           disabled={pendingAction !== null}
-                          onClick={() => void onRewindCheckpoint(controls.checkpointId, messageText)}
+                          onClick={() => void onRewindCheckpoint(controls.checkpointId)}
                           icon={RotateCcw}
                         >
                           Rewind here
@@ -230,7 +230,7 @@ export function PretextTranscript({
                       ) : null}
                       {controls.canRegenerate ? (
                         <ActionButton
-                          disabled={pendingAction !== null}
+                          disabled={pendingAction !== null || continuityBlocked}
                           onClick={() => onRegenerate(controls.checkpointId)}
                           icon={RefreshCcw}
                         >
@@ -256,27 +256,6 @@ export function PretextTranscript({
                         </ActionButton>
                       ) : null}
                     </div>
-
-                    {controls.alternates.length > 1 ? (
-                      <div
-                        className={cn(
-                          "flex flex-wrap items-center gap-2 text-xs text-foreground/70",
-                          isUser && "justify-end",
-                        )}
-                      >
-                        <span className="uppercase tracking-[0.18em]">Alternates</span>
-                        <button
-                          type="button"
-                          disabled={pendingAction !== null}
-                          onClick={() => onOpenAlternates(controls)}
-                          className="rounded-full border border-border bg-white/8 px-3 py-1.5 font-semibold text-foreground transition hover:border-brand hover:text-brand disabled:opacity-60"
-                        >
-                          {controls.alternates.find((option) => option.selected)?.label ?? "Choose"}{" "}
-                          selected
-                        </button>
-                        <span>{controls.alternates.length} variants saved on this checkpoint</span>
-                      </div>
-                    ) : null}
 
                     {controls.canRate ? (
                       <div

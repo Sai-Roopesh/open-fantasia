@@ -7,6 +7,7 @@ import { getConnection } from "@/lib/data/connections";
 import { getPersona } from "@/lib/data/personas";
 import { createTextMessage, getThreadGraphView } from "@/lib/data/threads";
 import { insertTimelineEvent } from "@/lib/data/timeline";
+import { scheduleBackgroundWorker } from "@/lib/jobs/kick-worker";
 import { createLanguageModel } from "@/lib/ai/provider-factory";
 import { buildRoleplaySystemPrompt } from "@/lib/ai/roleplay-prompt";
 import { starterSeedRequestSchema } from "@/lib/validation";
@@ -116,16 +117,13 @@ export async function POST(
     userMessage: starterMessage,
     assistantMessage,
     choiceGroupKey: `choice:${crypto.randomUUID()}`,
-    previousSnapshot: threadView.headSnapshot,
-    connection,
-    character,
-    modelId: threadView.thread.model_id,
     recentMessages: [
       ...threadView.modelContextMessages,
       starterMessage,
       assistantMessage,
     ],
   });
+  scheduleBackgroundWorker(1);
 
   await insertTimelineEvent(supabase, {
     thread_id: threadId,
