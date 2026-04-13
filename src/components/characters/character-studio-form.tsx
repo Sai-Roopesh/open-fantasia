@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
-import { buildCharacterPortraitStatusCopy } from "@/lib/characters/portraits";
+import { buildCharacterPortraitStatusCopy } from "@/lib/characters/portrait-status";
 import type { CharacterBundle } from "@/lib/data/characters";
 import { cn } from "@/lib/utils";
 import { SubmitButton } from "@/components/forms/submit-button";
