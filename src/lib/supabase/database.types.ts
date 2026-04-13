@@ -631,6 +631,65 @@ export interface Database {
         Args: { limit_count?: number };
         Returns: Database["public"]["Tables"]["background_jobs"]["Row"][];
       };
+      create_thread_with_main_branch: {
+        Args: {
+          p_character_id: string;
+          p_connection_id: string;
+          p_model_id: string;
+          p_persona_id: string;
+          p_title: string;
+          p_user_id: string;
+        };
+        Returns: Database["public"]["Tables"]["chat_threads"]["Row"];
+      };
+      finalize_turn_and_enqueue_reconcile: {
+        Args: {
+          p_assistant_message_content_text: string;
+          p_assistant_message_id: string;
+          p_assistant_message_metadata: Json;
+          p_assistant_message_parts: Json;
+          p_autotitle_text?: string | null;
+          p_branch_id: string;
+          p_choice_group_key: string;
+          p_parent_checkpoint_id: string | null;
+          p_reconcile_payload: Json;
+          p_thread_id: string;
+          p_user_id: string;
+          p_user_message_content_text: string;
+          p_user_message_id: string;
+          p_user_message_metadata: Json;
+          p_user_message_parts: Json;
+        };
+        Returns: Database["public"]["Tables"]["chat_checkpoints"]["Row"];
+      };
+      rewind_thread_to_checkpoint: {
+        Args: {
+          p_branch_id: string;
+          p_checkpoint_id: string;
+          p_thread_id: string;
+          p_user_id: string;
+        };
+        Returns: string;
+      };
+      rewrite_latest_turn_in_place: {
+        Args: {
+          p_assistant_message_content_text: string;
+          p_assistant_message_id: string;
+          p_assistant_message_metadata: Json;
+          p_assistant_message_parts: Json;
+          p_autotitle_text?: string | null;
+          p_branch_id: string;
+          p_checkpoint_id: string;
+          p_reconcile_payload: Json;
+          p_thread_id: string;
+          p_user_id: string;
+          p_user_message_content_text?: string | null;
+          p_user_message_id?: string | null;
+          p_user_message_metadata?: Json | null;
+          p_user_message_parts?: Json | null;
+        };
+        Returns: Database["public"]["Tables"]["chat_checkpoints"]["Row"];
+      };
       set_default_persona: {
         Args: { target_persona_id: string; target_user_id: string };
         Returns: Database["public"]["Tables"]["user_personas"]["Row"][];

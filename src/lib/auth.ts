@@ -9,7 +9,7 @@ export function isAllowedEmail(email?: string | null) {
   return allowed.includes(email.trim().toLowerCase());
 }
 
-async function ensureProfileRecord(user: User) {
+async function syncProfileRecord(user: User) {
   const supabase = await createSupabaseServerClient();
   if (!supabase) return;
 
@@ -35,10 +35,6 @@ export async function getCurrentUser() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (user) {
-    await ensureProfileRecord(user);
-  }
-
   return {
     supabase,
     user,
@@ -60,5 +56,5 @@ export async function requireAllowedUser() {
 }
 
 export async function syncProfile(user: User) {
-  await ensureProfileRecord(user);
+  await syncProfileRecord(user);
 }

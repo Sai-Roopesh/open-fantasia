@@ -96,6 +96,23 @@ export async function claimPendingJobs(
   );
 }
 
+export async function getLatestReconcileJobForCheckpoint(
+  supabase: DatabaseClient,
+  checkpointId: string,
+) {
+  const { data, error } = await supabase
+    .from("background_jobs")
+    .select(jobSelect)
+    .eq("type", "reconcile_checkpoint")
+    .eq("checkpoint_id", checkpointId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data ? normalizeJob(castRecord(data, "Background job")) : null;
+}
+
 export async function completeJob(
   supabase: DatabaseClient,
   jobId: string,

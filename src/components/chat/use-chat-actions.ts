@@ -38,8 +38,6 @@ export function useChatActions(threadId: string) {
       runAction("rewind", () => actions.rewindCheckpoint(threadId, checkpointId), onSuccess),
     rate: (checkpointId: string, rating: number) =>
       runAction("rate", () => actions.rateCheckpoint(threadId, checkpointId, rating)),
-    selectAlternate: (checkpointId: string) =>
-      runAction("alternate", () => actions.selectAlternate(threadId, checkpointId)),
     editMessage: (messageId: string, content: string) =>
       runAction("edit", () => actions.editMessage(threadId, messageId, content)),
     createBranch: (opts: { checkpointId: string; name: string }) =>

@@ -1,5 +1,4 @@
 import { getCurrentUser } from "@/lib/auth";
-import { updateBranchHead } from "@/lib/data/branches";
 import { getThreadGraphView } from "@/lib/data/threads";
 
 export async function POST(
@@ -22,15 +21,20 @@ export async function POST(
     return Response.json({ error: "Checkpoint not found on the active branch." }, { status: 404 });
   }
 
-  await updateBranchHead(
-    context.supabase,
-    threadView.activeBranch.id,
-    selected.parent_checkpoint_id,
-  );
+  const { error } = await context.supabase.rpc("rewind_thread_to_checkpoint", {
+    p_thread_id: threadId,
+    p_user_id: context.user.id,
+    p_branch_id: threadView.activeBranch.id,
+    p_checkpoint_id: selected.id,
+  });
+
+  if (error) {
+    throw error;
+  }
 
   return Response.json({
     ok: true,
     branchId: threadView.activeBranch.id,
-    headCheckpointId: selected.parent_checkpoint_id,
+    headCheckpointId: selected.id,
   });
 }

@@ -332,6 +332,21 @@ create trigger set_background_jobs_updated_at
 before update on public.background_jobs
 for each row execute procedure public.set_updated_at();
 
+grant usage on schema public to anon, authenticated, service_role;
+
+grant all on all tables in schema public to anon, authenticated, service_role;
+grant all on all sequences in schema public to anon, authenticated, service_role;
+grant all on all routines in schema public to anon, authenticated, service_role;
+
+alter default privileges in schema public
+grant all on tables to anon, authenticated, service_role;
+
+alter default privileges in schema public
+grant all on sequences to anon, authenticated, service_role;
+
+alter default privileges in schema public
+grant all on routines to anon, authenticated, service_role;
+
 alter table public.profiles enable row level security;
 alter table public.ai_connections enable row level security;
 alter table public.user_personas enable row level security;

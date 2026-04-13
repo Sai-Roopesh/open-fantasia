@@ -1,20 +1,43 @@
-import { buildSnapshotFromReconciliation, reconcileTurnState } from "@/lib/ai/thread-engine";
-import type { CharacterBundle } from "@/lib/data/characters";
-import { createCheckpoint } from "@/lib/data/checkpoints";
-import { persistMessage } from "@/lib/data/messages";
-import { updateBranchHead } from "@/lib/data/branches";
-import { maybeAutotitleThreadFromMessage } from "@/lib/data/threads";
-import { saveSnapshot } from "@/lib/data/snapshots";
-import { insertTimelineEvent } from "@/lib/data/timeline";
-import { ensureMessageId } from "@/lib/ai/message-utils";
+import { ensureMessageId, toStoredMessage } from "@/lib/ai/message-utils";
+import type { DatabaseClient } from "@/lib/data/shared";
 import type {
   ChatCheckpointRecord,
-  ConnectionRecord,
   FantasiaUIMessage,
   ThreadRecord,
-  ThreadStateSnapshot,
 } from "@/lib/types";
-import type { DatabaseClient } from "@/lib/data/shared";
+import type { Json } from "@/lib/supabase/database.types";
+
+function toJson(value: unknown) {
+  return value as Json;
+}
+
+function buildReconcileJobPayload(args: {
+  thread: ThreadRecord;
+  branchId: string;
+  checkpointId: string;
+  previousCheckpointId: string | null;
+  recentMessages: FantasiaUIMessage[];
+}) {
+  return {
+    threadId: args.thread.id,
+    branchId: args.branchId,
+    checkpointId: args.checkpointId,
+    previousCheckpointId: args.previousCheckpointId,
+    connectionId: args.thread.connection_id,
+    modelId: args.thread.model_id,
+    characterId: args.thread.character_id,
+    personaId: args.thread.persona_id,
+    recentMessageIds: args.recentMessages.map((message) => message.id),
+  };
+}
+
+function getAutotitleText(message: FantasiaUIMessage | null) {
+  if (!message || message.metadata?.hiddenFromTranscript) {
+    return null;
+  }
+
+  return toStoredMessage(message).content_text;
+}
 
 export async function finalizeAssistantTurn(args: {
   supabase: DatabaseClient;
@@ -22,93 +45,104 @@ export async function finalizeAssistantTurn(args: {
   thread: ThreadRecord;
   branchId: string;
   parentCheckpointId: string | null;
-  userMessage: FantasiaUIMessage | null;
-  existingUserMessageId?: string;
+  userMessage: FantasiaUIMessage;
   assistantMessage: FantasiaUIMessage;
   choiceGroupKey: string;
-  previousSnapshot: ThreadStateSnapshot | null;
-  connection: ConnectionRecord;
-  character: CharacterBundle;
-  modelId: string;
+  recentMessages: FantasiaUIMessage[];
+}) {
+  const userMessage = ensureMessageId(args.userMessage);
+  const assistantMessage = ensureMessageId(args.assistantMessage);
+  const recentMessages = args.recentMessages.map((message) => ensureMessageId(message));
+  const storedUser = toStoredMessage(userMessage);
+  const storedAssistant = toStoredMessage(assistantMessage);
+
+  const { data, error } = await args.supabase.rpc("finalize_turn_and_enqueue_reconcile", {
+    p_thread_id: args.thread.id,
+    p_user_id: args.userId,
+    p_branch_id: args.branchId,
+    p_parent_checkpoint_id: args.parentCheckpointId,
+    p_choice_group_key: args.choiceGroupKey,
+    p_user_message_id: storedUser.id,
+    p_user_message_parts: toJson(storedUser.parts),
+    p_user_message_content_text: storedUser.content_text,
+    p_user_message_metadata: toJson(storedUser.metadata ?? {}),
+    p_assistant_message_id: storedAssistant.id,
+    p_assistant_message_parts: toJson(storedAssistant.parts),
+    p_assistant_message_content_text: storedAssistant.content_text,
+    p_assistant_message_metadata: toJson(storedAssistant.metadata ?? {}),
+    p_reconcile_payload: toJson(
+      buildReconcileJobPayload({
+        thread: args.thread,
+        branchId: args.branchId,
+        checkpointId: "",
+        previousCheckpointId: args.parentCheckpointId,
+        recentMessages,
+      }),
+    ),
+    p_autotitle_text: getAutotitleText(userMessage),
+  });
+
+  if (error) throw error;
+  return {
+    checkpoint: data as ChatCheckpointRecord,
+    storedAssistant,
+    storedUser,
+  } satisfies {
+    checkpoint: ChatCheckpointRecord;
+    storedAssistant: { id: string; content_text: string };
+    storedUser: { id: string; content_text: string };
+  };
+}
+
+export async function rewriteCheckpointTurnInPlace(args: {
+  supabase: DatabaseClient;
+  userId: string;
+  thread: ThreadRecord;
+  branchId: string;
+  checkpoint: ChatCheckpointRecord;
+  userMessage?: FantasiaUIMessage | null;
+  assistantMessage: FantasiaUIMessage;
   recentMessages: FantasiaUIMessage[];
 }) {
   const userMessage = args.userMessage ? ensureMessageId(args.userMessage) : null;
   const assistantMessage = ensureMessageId(args.assistantMessage);
   const recentMessages = args.recentMessages.map((message) => ensureMessageId(message));
-  const storedUser = userMessage
-    ? await persistMessage(args.supabase, args.thread.id, userMessage)
-    : null;
-  const storedAssistant = await persistMessage(
-    args.supabase,
-    args.thread.id,
-    assistantMessage,
-  );
-  const userMessageId = storedUser?.id ?? args.existingUserMessageId ?? null;
+  const storedUser = userMessage ? toStoredMessage(userMessage) : null;
+  const storedAssistant = toStoredMessage(assistantMessage);
 
-  if (!userMessageId || userMessageId.trim().length === 0) {
-    throw new Error("Cannot create a checkpoint without a persisted user message id.");
-  }
-
-  const checkpoint = await createCheckpoint(args.supabase, {
-    thread_id: args.thread.id,
-    branch_id: args.branchId,
-    parent_checkpoint_id: args.parentCheckpointId,
-    user_message_id: userMessageId,
-    assistant_message_id: storedAssistant.id,
-    choice_group_key: args.choiceGroupKey,
-    feedback_rating: null,
-    created_by: args.userId,
+  const { data, error } = await args.supabase.rpc("rewrite_latest_turn_in_place", {
+    p_thread_id: args.thread.id,
+    p_user_id: args.userId,
+    p_branch_id: args.branchId,
+    p_checkpoint_id: args.checkpoint.id,
+    p_user_message_id: storedUser?.id ?? null,
+    p_user_message_parts: storedUser ? toJson(storedUser.parts) : null,
+    p_user_message_content_text: storedUser?.content_text ?? null,
+    p_user_message_metadata: storedUser ? toJson(storedUser.metadata ?? {}) : null,
+    p_assistant_message_id: storedAssistant.id,
+    p_assistant_message_parts: toJson(storedAssistant.parts),
+    p_assistant_message_content_text: storedAssistant.content_text,
+    p_assistant_message_metadata: toJson(storedAssistant.metadata ?? {}),
+    p_reconcile_payload: toJson(
+      buildReconcileJobPayload({
+        thread: args.thread,
+        branchId: args.branchId,
+        checkpointId: args.checkpoint.id,
+        previousCheckpointId: args.checkpoint.parent_checkpoint_id,
+        recentMessages,
+      }),
+    ),
+    p_autotitle_text: getAutotitleText(userMessage),
   });
 
-  if (storedUser && !userMessage?.metadata?.hiddenFromTranscript) {
-    await maybeAutotitleThreadFromMessage(
-      args.supabase,
-      args.userId,
-      args.thread,
-      storedUser.content_text,
-    );
-  }
-
-  const reconciliation = await reconcileTurnState({
-    connection: args.connection,
-    modelId: args.modelId,
-    character: args.character,
-    previousSnapshot: args.previousSnapshot,
-    recentMessages,
-  });
-
-  const snapshot = buildSnapshotFromReconciliation({
-    checkpointId: checkpoint.id,
-    threadId: args.thread.id,
-    branchId: args.branchId,
-    previousSnapshot: args.previousSnapshot,
-    reconciliation,
-  });
-
-  await saveSnapshot(args.supabase, snapshot);
-
-  if (reconciliation.timelineEvent) {
-    await insertTimelineEvent(args.supabase, {
-      thread_id: args.thread.id,
-      branch_id: args.branchId,
-      checkpoint_id: checkpoint.id,
-      source_message_id: storedAssistant.id,
-      title: reconciliation.timelineEvent.title,
-      detail: reconciliation.timelineEvent.detail,
-      importance: reconciliation.timelineEvent.importance,
-    });
-  }
-
-  await updateBranchHead(args.supabase, args.branchId, checkpoint.id);
+  if (error) throw error;
 
   return {
-    checkpoint,
-    snapshot,
+    checkpoint: data as ChatCheckpointRecord,
     storedAssistant,
     storedUser,
   } satisfies {
     checkpoint: ChatCheckpointRecord;
-    snapshot: ThreadStateSnapshot;
     storedAssistant: { id: string; content_text: string };
     storedUser: { id: string; content_text: string } | null;
   };

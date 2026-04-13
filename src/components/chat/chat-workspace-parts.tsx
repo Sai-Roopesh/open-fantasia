@@ -4,7 +4,6 @@ import { useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
-  MessageCircleMore,
   Send,
   Sparkles,
   WandSparkles,
@@ -15,7 +14,6 @@ import type {
   ChatBranchRecord,
   ContinuityInspectorView,
   ModelCatalogEntry,
-  TranscriptControl,
 } from "@/lib/types";
 
 export type ActionSheetState =
@@ -33,10 +31,6 @@ export type ActionSheetState =
       kind: "pin";
       messageId: string;
       value: string;
-    }
-  | {
-      kind: "alternates";
-      control: TranscriptControl;
     };
 
 export type ModelChoiceGroup = {
@@ -426,11 +420,32 @@ export function InspectorPanel({
         {activeInspectorTab === "continuity" ? (
           <div className="space-y-4">
             {inspectorView.continuityStatus ? (
-              <div className="rounded-[1.5rem] border border-brand/20 bg-brand/8 p-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-brand">
+              <div
+                className={cn(
+                  "rounded-[1.5rem] p-4",
+                  inspectorView.continuityStatus.tone === "error"
+                    ? "border border-red-900/40 bg-red-950/35"
+                    : "border border-brand/20 bg-brand/8",
+                )}
+              >
+                <p
+                  className={cn(
+                    "text-xs uppercase tracking-[0.18em]",
+                    inspectorView.continuityStatus.tone === "error"
+                      ? "text-red-300"
+                      : "text-brand",
+                  )}
+                >
                   {inspectorView.continuityStatus.title}
                 </p>
-                <p className="mt-2 text-sm leading-7 text-brand-strong">
+                <p
+                  className={cn(
+                    "mt-2 text-sm leading-7",
+                    inspectorView.continuityStatus.tone === "error"
+                      ? "text-red-100"
+                      : "text-brand-strong",
+                  )}
+                >
                   {inspectorView.continuityStatus.detail}
                 </p>
               </div>
@@ -535,10 +550,6 @@ export function InspectorPanel({
                   value={inspectorView.branch.headCheckpointId ?? "No assistant turn yet"}
                 />
                 <BranchMetric
-                  label="Alternate replies"
-                  value={String(inspectorView.branch.alternateCount)}
-                />
-                <BranchMetric
                   label="Total branches"
                   value={String(inspectorView.branch.totalBranches)}
                 />
@@ -596,11 +607,9 @@ export function ActionSheet({
   sheet: ActionSheetState;
   pendingAction: string | null;
   onClose: () => void;
-  onSubmit: (value: string, alternateCheckpointId?: string) => Promise<void>;
+  onSubmit: (value: string) => Promise<void>;
 }) {
-  const [value, setValue] = useState(
-    sheet.kind === "alternates" ? "" : sheet.value,
-  );
+  const [value, setValue] = useState(sheet.value);
 
   return (
     <div className="fixed inset-0 z-50">
@@ -611,120 +620,75 @@ export function ActionSheet({
         className="absolute inset-0 bg-black/50"
       />
       <div className="absolute inset-x-3 bottom-5 mx-auto max-w-2xl rounded-[2rem] border border-white/10 bg-[#1a1412] p-6 shadow-[0_30px_100px_rgba(0,0,0,0.4)]">
-        {sheet.kind === "alternates" ? (
-          <>
-            <p className="text-xs uppercase tracking-[0.22em] text-ink-soft">
-              Alternate picker
-            </p>
-            <h3 className="mt-3 font-serif text-3xl text-foreground">Choose the canonical reply</h3>
-            <p className="mt-3 text-sm leading-7 text-ink-soft">
-              Selecting an alternate moves this branch head to a different sibling reply for the same latest user turn.
-            </p>
-            <div className="mt-5 space-y-3">
-              {sheet.control.alternates.map((alternate) => (
-                <button
-                  key={alternate.checkpointId}
-                  type="button"
-                  disabled={pendingAction !== null || alternate.selected}
-                  onClick={() => void onSubmit("", alternate.checkpointId)}
-                  className={cn(
-                    "flex w-full items-center justify-between rounded-[1.5rem] border px-4 py-4 text-left transition disabled:opacity-60",
-                    alternate.selected
-                      ? "border-brand bg-brand/10 text-brand"
-                      : "border-border bg-paper text-foreground hover:border-brand hover:text-brand",
-                  )}
-                >
-                  <span>
-                    <span className="block text-sm font-semibold">{alternate.label}</span>
-                    <span className="mt-1 block text-xs uppercase tracking-[0.18em] text-ink-soft">
-                      {alternate.selected ? "Current branch head" : "Switch this branch to this reply"}
-                    </span>
-                  </span>
-                  {alternate.selected ? <CheckCircle2 className="h-4 w-4" /> : <MessageCircleMore className="h-4 w-4" />}
-                </button>
-              ))}
-            </div>
-            <div className="mt-5 flex justify-end">
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-foreground transition hover:border-brand hover:text-brand"
-              >
-                Close
-              </button>
-            </div>
-          </>
-        ) : (
-          <form
-            onSubmit={async (event) => {
-              event.preventDefault();
-              const trimmed = value.trim();
-              if (!trimmed) return;
-              await onSubmit(trimmed);
-            }}
-          >
-            <p className="text-xs uppercase tracking-[0.22em] text-ink-soft">
-              {sheet.kind === "edit"
-                ? "Edit last user turn"
-                : sheet.kind === "branch"
-                  ? "Branch from checkpoint"
-                  : "Pin fact"}
-            </p>
-            <h3 className="mt-3 font-serif text-3xl text-foreground">
-              {sheet.kind === "edit"
-                ? "Fork a fresh version of that user turn"
-                : sheet.kind === "branch"
-                  ? "Name the new branch"
-                  : "Save a branch-local memory"}
-            </h3>
-            <p className="mt-3 text-sm leading-7 text-ink-soft">
-              {sheet.kind === "edit"
-                ? "Saving this does not rewrite history. It creates a new branch from the point before that user turn and generates a new assistant reply."
-                : sheet.kind === "branch"
-                  ? "This creates a clean future path from the selected checkpoint without disturbing the current branch."
-                  : "Pinned facts stay local to the active branch and influence future replies on this path only."}
-            </p>
+        <form
+          onSubmit={async (event) => {
+            event.preventDefault();
+            const trimmed = value.trim();
+            if (!trimmed) return;
+            await onSubmit(trimmed);
+          }}
+        >
+          <p className="text-xs uppercase tracking-[0.22em] text-ink-soft">
+            {sheet.kind === "edit"
+              ? "Edit last user turn"
+              : sheet.kind === "branch"
+                ? "Branch from checkpoint"
+                : "Pin fact"}
+          </p>
+          <h3 className="mt-3 font-serif text-3xl text-foreground">
+            {sheet.kind === "edit"
+              ? "Rewrite the latest turn"
+              : sheet.kind === "branch"
+                ? "Name the new branch"
+                : "Save a branch-local memory"}
+          </h3>
+          <p className="mt-3 text-sm leading-7 text-ink-soft">
+            {sheet.kind === "edit"
+              ? "Saving this rewrites the latest visible user turn and regenerates the assistant reply on the current branch."
+              : sheet.kind === "branch"
+                ? "This forks a new branch from the selected user turn and switches you onto that path."
+                : "Pinned facts stay local to the active branch and influence future replies on this path only."}
+          </p>
 
-            {sheet.kind === "branch" ? (
-              <input
-                value={value}
-                onChange={(event) => setValue(event.target.value)}
-                className="mt-5 w-full rounded-[1.5rem] border border-border bg-paper px-4 py-4 text-sm outline-none transition focus:border-brand"
-                placeholder="branch-2"
-              />
-            ) : (
-              <textarea
-                rows={sheet.kind === "edit" ? 6 : 5}
-                value={value}
-                onChange={(event) => setValue(event.target.value)}
-                className="mt-5 w-full rounded-[1.5rem] border border-border bg-paper px-4 py-4 text-sm leading-7 outline-none transition focus:border-brand"
-              />
-            )}
+          {sheet.kind === "branch" ? (
+            <input
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+              className="mt-5 w-full rounded-[1.5rem] border border-border bg-paper px-4 py-4 text-sm outline-none transition focus:border-brand"
+              placeholder="branch-2"
+            />
+          ) : (
+            <textarea
+              rows={sheet.kind === "edit" ? 6 : 5}
+              value={value}
+              onChange={(event) => setValue(event.target.value)}
+              className="mt-5 w-full rounded-[1.5rem] border border-border bg-paper px-4 py-4 text-sm leading-7 outline-none transition focus:border-brand"
+            />
+          )}
 
-            <div className="mt-5 flex flex-wrap justify-end gap-2">
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-foreground transition hover:border-brand hover:text-brand"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                disabled={pendingAction !== null}
-                className="rounded-full bg-brand px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-strong disabled:opacity-60"
-              >
-                {pendingAction !== null
-                  ? "Working..."
-                  : sheet.kind === "edit"
-                    ? "Create edited branch"
-                    : sheet.kind === "branch"
-                      ? "Create branch"
-                      : "Save pin"}
-              </button>
-            </div>
-          </form>
-        )}
+          <div className="mt-5 flex flex-wrap justify-end gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-foreground transition hover:border-brand hover:text-brand"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={pendingAction !== null}
+              className="rounded-full bg-brand px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-strong disabled:opacity-60"
+            >
+              {pendingAction !== null
+                ? "Working..."
+                : sheet.kind === "edit"
+                  ? "Rewrite turn"
+                  : sheet.kind === "branch"
+                    ? "Create branch"
+                    : "Save pin"}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

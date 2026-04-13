@@ -57,24 +57,23 @@ export default async function ChatThreadPage({
   const parentBranch = view.branches.find(
     (branch) => branch.id === view.activeBranch.parent_branch_id,
   );
-  const latestAssistantMessage = [...view.canonicalMessages]
-    .reverse()
-    .find((message) => message.role === "assistant");
-  const alternateCount = latestAssistantMessage
-    ? Math.max(
-        (view.controlsByMessageId[latestAssistantMessage.id]?.alternates.length ?? 1) - 1,
-        0,
-      )
-    : 0;
-  const continuitySnapshot = view.headSnapshot;
-  const continuityStatus = view.headSnapshotPending
+  const continuitySnapshot = view.resolvedSnapshot;
+  const continuityStatus = view.headSnapshotFailed
     ? {
-        tone: "pending" as const,
-        title: "This branch head is missing its continuity snapshot",
+        tone: "error" as const,
+        title: "Continuity reconciliation failed",
         detail:
-          "The active branch points at a turn without a committed continuity state. New turns should stay blocked until the thread is repaired or rebuilt.",
+          view.headSnapshotFailureMessage ??
+          "The active branch could not reconcile its latest turn. New turns stay blocked until you rewrite, rewind, or repair this checkpoint.",
       }
-    : null;
+    : view.headSnapshotPending
+      ? {
+          tone: "pending" as const,
+          title: "Continuity reconciliation is still running",
+          detail:
+            "The worker is rebuilding the branch head after the latest turn change. New sends, regenerate, and edit stay blocked until it finishes.",
+        }
+      : null;
 
   const inspectorView: ContinuityInspectorView = {
     continuityStatus,
@@ -172,7 +171,6 @@ export default async function ChatThreadPage({
       headCheckpointId: view.activeBranch.head_checkpoint_id,
       totalBranches: view.branches.length,
       totalCheckpoints: view.checkpoints.length,
-      alternateCount,
     },
   };
 
