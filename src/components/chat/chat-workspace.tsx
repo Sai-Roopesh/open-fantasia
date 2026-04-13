@@ -3,6 +3,7 @@
 import { DefaultChatTransport } from "ai";
 import { useChat } from "@ai-sdk/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { useNavTransition } from "@/components/transition-provider";
 import { Expand, GitBranchPlus, Minimize2, RefreshCcw, UserRound } from "lucide-react";
 import type {
@@ -78,6 +79,13 @@ export function ChatWorkspace({
   const [portraitState, setPortraitState] = useState<"idle" | "ready" | "error">(
     characterBackgroundUrl ? "idle" : "error",
   );
+  const [lastUrl, setLastUrl] = useState(characterBackgroundUrl);
+
+  // Sync portrait state during render to avoid cascading useEffect renders
+  if (characterBackgroundUrl !== lastUrl) {
+    setLastUrl(characterBackgroundUrl);
+    setPortraitState(characterBackgroundUrl ? "idle" : "error");
+  }
 
   const {
     pendingAction,
@@ -135,9 +143,7 @@ export function ChatWorkspace({
     return () => { document.body.style.overflow = ""; };
   }, [focusMode]);
 
-  useEffect(() => {
-    setPortraitState(characterBackgroundUrl ? "idle" : "error");
-  }, [characterBackgroundUrl]);
+
 
   const { messages, sendMessage, status, error } = useChat<FantasiaUIMessage>({
     id: threadId,
@@ -288,13 +294,15 @@ export function ChatWorkspace({
           <div className="absolute inset-0 bg-[var(--focus-bg-base)]" />
           {characterBackgroundUrl && portraitState !== "error" ? (
             <>
-              <img
+              <Image
                 src={characterBackgroundUrl}
                 alt=""
-                aria-hidden="true"
-                className="absolute inset-0 h-full w-full object-cover"
+                fill
+                priority
+                className="absolute inset-0 object-cover"
                 onLoad={() => setPortraitState("ready")}
                 onError={() => setPortraitState("error")}
+                unoptimized
               />
             </>
           ) : null}

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { buildRoleplaySystemPrompt } from "@/lib/ai/roleplay-prompt";
 import type { CharacterBundle } from "@/lib/data/characters";
-import type { UserPersonaRecord, ThreadStateSnapshot, ChatPinRecord, TimelineEventRecord } from "@/lib/types";
+import type { UserPersonaRecord, ThreadStateSnapshot, TimelineEventRecord } from "@/lib/types";
 
 const mockCharacter: CharacterBundle = {
   character: {

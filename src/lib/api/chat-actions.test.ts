@@ -13,7 +13,7 @@ describe("chat-actions", () => {
     vi.restoreAllMocks();
   });
 
-  function mockFetchResponse(ok: boolean, body: any = {}) {
+  function mockFetchResponse(ok: boolean, body: unknown = {}) {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
       new Response(JSON.stringify(body), {
         status: ok ? 200 : 500,

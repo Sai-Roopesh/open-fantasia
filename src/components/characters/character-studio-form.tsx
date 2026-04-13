@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { buildCharacterPortraitStatusCopy } from "@/lib/characters/portraits";
 import type { CharacterBundle } from "@/lib/data/characters";
 import { cn } from "@/lib/utils";
@@ -307,10 +308,13 @@ export function CharacterStudioForm({
 
           <div className="mt-5 overflow-hidden rounded-[1.5rem] border border-border bg-[#14100e]">
             {portraitPreviewUrl && portraitStatus === "ready" ? (
-              <img
+              <Image
                 src={portraitPreviewUrl}
                 alt={`${((editing?.character.name ?? draft.name) || "Character")} portrait`}
+                width={512}
+                height={512}
                 className="aspect-square w-full object-cover"
+                unoptimized
               />
             ) : (
               <div className="flex aspect-square items-center justify-center px-8 text-center text-sm leading-7 text-ink-soft">

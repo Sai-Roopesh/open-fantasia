@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Plus, WandSparkles } from "lucide-react";
 import { requireAllowedUser } from "@/lib/auth";
 import { resolveCharacterPortraitUrl } from "@/lib/characters/portraits";
@@ -239,10 +240,13 @@ export default async function CharactersPage({
                     </p>
                   </div>
                   {character.portraitUrl ? (
-                    <img
+                    <Image
                       src={character.portraitUrl}
                       alt={`${character.name} portrait`}
+                      width={80}
+                      height={80}
                       className="h-20 w-20 shrink-0 rounded-[1.4rem] border border-border object-cover"
+                      unoptimized
                     />
                   ) : (
                     <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-[1.4rem] border border-dashed border-border bg-white/5">

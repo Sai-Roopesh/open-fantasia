@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { finalizeAssistantTurn } from "@/lib/ai/turn-finalizer";
 import type { DatabaseClient } from "@/lib/data/shared";
-import type { ThreadRecord } from "@/lib/types";
+import type { ThreadRecord, ConnectionRecord } from "@/lib/types";
+import type { CharacterBundle } from "@/lib/data/characters";
 
 vi.mock("@/lib/data/checkpoints", () => ({
   createCheckpoint: vi.fn().mockResolvedValue({ id: "mock_ckpt_1" }),
@@ -71,8 +72,8 @@ describe("finalizeAssistantTurn", () => {
     parentCheckpointId: null,
     choiceGroupKey: "choice_1",
     previousSnapshot: null,
-    connection: { id: "conn_1", user_id: "user_1", provider: "openrouter", label: "Mock", enabled: true, model_cache: [], health_status: "healthy", health_message: "", created_at: "", updated_at: "" } as any,
-    character: {} as any,
+    connection: { id: "conn_1", user_id: "user_1", provider: "openrouter", label: "Mock", enabled: true, model_cache: [], health_status: "healthy", health_message: "", created_at: "", updated_at: "" } as unknown as ConnectionRecord,
+    character: {} as CharacterBundle,
     modelId: "mod_1",
     recentMessages: [],
   };
