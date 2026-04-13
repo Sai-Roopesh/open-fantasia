@@ -8,7 +8,7 @@ export const CHARACTER_PORTRAIT_SIZE = 768;
 
 type CharacterPortraitInput = Pick<
   CharacterRecord,
-  "name" | "appearance" | "tagline" | "short_description"
+  "name" | "appearance" | "core_persona"
 >;
 
 type CharacterPortraitState = Pick<
@@ -32,9 +32,7 @@ export type CharacterPortraitPlan = {
 
 export function buildCharacterPortraitPrompt(input: CharacterPortraitInput) {
   const identity = `${input.name.trim()}, ${input.appearance.trim()}.`;
-  const mood = [input.tagline.trim(), input.short_description.trim()]
-    .filter(Boolean)
-    .join(". ");
+  const mood = input.core_persona.trim();
   const clauses = [
     identity,
     mood,
@@ -48,8 +46,7 @@ export function buildCharacterPortraitSourceHash(input: CharacterPortraitInput) 
   const normalized = JSON.stringify({
     name: input.name.trim(),
     appearance: input.appearance.trim(),
-    tagline: input.tagline.trim(),
-    short_description: input.short_description.trim(),
+    core_persona: input.core_persona.trim(),
   });
 
   return createHash("sha256").update(normalized).digest("hex").slice(0, 24);

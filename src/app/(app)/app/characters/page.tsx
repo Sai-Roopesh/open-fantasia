@@ -229,13 +229,12 @@ export default async function CharactersPage({
                     <h3 className="mt-2 font-serif text-3xl text-foreground">
                       {character.name}
                     </h3>
-                    {character.tagline ? (
-                      <p className="mt-2 text-sm font-semibold text-brand">{character.tagline}</p>
+                    {character.core_persona ? (
+                      <p className="mt-2 text-sm font-semibold text-brand">{character.core_persona.slice(0, 80)}</p>
                     ) : null}
                     <p className="mt-4 line-clamp-4 text-sm leading-7 text-ink-soft">
-                      {character.short_description ||
+                      {character.story ||
                         character.core_persona ||
-                        character.scenario_seed ||
                         character.greeting}
                     </p>
                   </div>

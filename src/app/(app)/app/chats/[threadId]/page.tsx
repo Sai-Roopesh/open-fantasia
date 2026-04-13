@@ -188,8 +188,7 @@ export default async function ChatThreadPage({
               {character.character.name}
             </h1>
             <p className="mt-4 max-w-3xl text-sm leading-7 text-ink-soft">
-              {character.character.short_description ||
-                character.character.scenario_seed ||
+              {character.character.story ||
                 character.character.core_persona ||
                 character.character.greeting}
             </p>

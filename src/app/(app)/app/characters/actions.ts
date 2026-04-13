@@ -55,16 +55,11 @@ export async function saveCharacterAction(formData: FormData) {
   const parsed = saveCharacterCommandSchema.safeParse({
     id: String(formData.get("id") ?? "").trim() || undefined,
     name: String(formData.get("name") ?? "").trim(),
-    appearance: String(formData.get("appearance") ?? ""),
-    tagline: String(formData.get("tagline") ?? ""),
-    short_description: String(formData.get("short_description") ?? ""),
-    long_description: String(formData.get("long_description") ?? ""),
-    greeting: String(formData.get("greeting") ?? ""),
-    world_context: String(formData.get("world_context") ?? ""),
+    story: String(formData.get("story") ?? ""),
     core_persona: String(formData.get("core_persona") ?? ""),
+    greeting: String(formData.get("greeting") ?? ""),
+    appearance: String(formData.get("appearance") ?? ""),
     style_rules: String(formData.get("style_rules") ?? ""),
-    scenario_seed: String(formData.get("scenario_seed") ?? ""),
-    author_notes: String(formData.get("author_notes") ?? ""),
     definition: String(formData.get("definition") ?? ""),
     negative_guidance: String(formData.get("negative_guidance") ?? ""),
     temperature: String(formData.get("temperature") ?? "0.92"),
@@ -91,8 +86,7 @@ export async function saveCharacterAction(formData: FormData) {
     input: {
       name: parsed.data.name,
       appearance: parsed.data.appearance,
-      tagline: parsed.data.tagline,
-      short_description: parsed.data.short_description,
+      core_persona: parsed.data.core_persona,
     },
   });
 
@@ -135,8 +129,7 @@ export async function regenerateCharacterPortraitAction(formData: FormData) {
     input: {
       name: existing.character.name,
       appearance: existing.character.appearance,
-      tagline: existing.character.tagline,
-      short_description: existing.character.short_description,
+      core_persona: existing.character.core_persona,
     },
     forceRegenerate: true,
   });

@@ -2,24 +2,19 @@ import { z } from "zod";
 
 export const promptTargets = ["generic", "claude", "gemini"] as const;
 export type PromptTarget = (typeof promptTargets)[number];
-export const openFantasiaCharacterDocumentVersion = 3 as const;
+export const openFantasiaCharacterDocumentVersion = 4 as const;
 export const openFantasiaPersonaDocumentVersion = 1 as const;
 
 export const openFantasiaCharacterDataSchema = z
   .object({
     name: z.string(),
-    appearance: z.string(),
-    tagline: z.string(),
-    short_description: z.string(),
-    long_description: z.string(),
-    greeting: z.string(),
-    world_context: z.string(),
+    story: z.string(),
     core_persona: z.string(),
+    greeting: z.string(),
+    appearance: z.string(),
     style_rules: z.string(),
-    scenario_seed: z.string(),
     definition: z.string(),
     negative_guidance: z.string(),
-    author_notes: z.string(),
     suggested_starters: z.array(z.string()),
     example_conversations: z.array(
       z
@@ -71,18 +66,13 @@ export type OpenFantasiaPersonaDocument = z.infer<
 
 export const openFantasiaCharacterDataDefaults: OpenFantasiaCharacterData = {
   name: "",
-  appearance: "",
-  tagline: "",
-  short_description: "",
-  long_description: "",
-  greeting: "",
-  world_context: "",
+  story: "",
   core_persona: "",
+  greeting: "",
+  appearance: "",
   style_rules: "",
-  scenario_seed: "",
   definition: "",
   negative_guidance: "",
-  author_notes: "",
   suggested_starters: [],
   example_conversations: [],
 };
@@ -111,35 +101,25 @@ export const openFantasiaCharacterJsonSchema = {
       additionalProperties: false,
       required: [
         "name",
-        "appearance",
-        "tagline",
-        "short_description",
-        "long_description",
-        "greeting",
-        "world_context",
+        "story",
         "core_persona",
+        "greeting",
+        "appearance",
         "style_rules",
-        "scenario_seed",
         "definition",
         "negative_guidance",
-        "author_notes",
         "suggested_starters",
         "example_conversations",
       ],
       properties: {
         name: { type: "string" },
-        appearance: { type: "string" },
-        tagline: { type: "string" },
-        short_description: { type: "string" },
-        long_description: { type: "string" },
-        greeting: { type: "string" },
-        world_context: { type: "string" },
+        story: { type: "string" },
         core_persona: { type: "string" },
+        greeting: { type: "string" },
+        appearance: { type: "string" },
         style_rules: { type: "string" },
-        scenario_seed: { type: "string" },
         definition: { type: "string" },
         negative_guidance: { type: "string" },
-        author_notes: { type: "string" },
         suggested_starters: {
           type: "array",
           items: { type: "string" },
