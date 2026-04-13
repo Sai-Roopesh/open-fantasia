@@ -9,6 +9,22 @@ export function isAllowedEmail(email?: string | null) {
   return allowed.includes(email.trim().toLowerCase());
 }
 
+async function ensureProfileRecord(user: User) {
+  const supabase = await createSupabaseServerClient();
+  if (!supabase) return;
+
+  const { error } = await supabase.from("profiles").upsert({
+    id: user.id,
+    email: user.email ?? "",
+    is_allowed: isAllowedEmail(user.email),
+    updated_at: new Date().toISOString(),
+  });
+
+  if (error) {
+    console.error("Failed to sync profile record", error);
+  }
+}
+
 export async function getCurrentUser() {
   const supabase = await createSupabaseServerClient();
   if (!supabase) {
@@ -18,6 +34,10 @@ export async function getCurrentUser() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  if (user) {
+    await ensureProfileRecord(user);
+  }
 
   return {
     supabase,
@@ -40,13 +60,5 @@ export async function requireAllowedUser() {
 }
 
 export async function syncProfile(user: User) {
-  const supabase = await createSupabaseServerClient();
-  if (!supabase) return;
-
-  await supabase.from("profiles").upsert({
-    id: user.id,
-    email: user.email ?? "",
-    is_allowed: isAllowedEmail(user.email),
-    updated_at: new Date().toISOString(),
-  });
+  await ensureProfileRecord(user);
 }
