@@ -3,7 +3,15 @@ import { providerIds } from "@/lib/types";
 
 export const chatRequestSchema = z.object({
   threadId: z.string().uuid(),
-  messages: z.array(z.unknown()),
+  messages: z.array(
+    z.object({
+      id: z.string().min(1),
+      role: z.enum(["user", "assistant", "system", "data"]),
+      createdAt: z.union([z.string(), z.date()]).optional(),
+      annotations: z.array(z.unknown()).optional(),
+      data: z.unknown().optional(),
+    }).passthrough()
+  ),
 });
 
 export const regenerateRequestSchema = z.object({

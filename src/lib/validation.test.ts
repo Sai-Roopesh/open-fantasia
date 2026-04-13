@@ -1,5 +1,6 @@
 import {
   backgroundJobRecordSchema,
+  chatRequestSchema,
   jobPayloadSchema,
   saveCharacterCommandSchema,
 } from "@/lib/validation";
@@ -58,5 +59,21 @@ describe("validation schemas", () => {
         updated_at: new Date().toISOString(),
       }),
     ).toThrow();
+  });
+
+  it("accepts UI messages that rely on parts instead of plain string content", () => {
+    const parsed = chatRequestSchema.parse({
+      threadId: crypto.randomUUID(),
+      messages: [
+        {
+          id: "msg_1",
+          role: "user",
+          parts: [{ type: "text", text: "hello there" }],
+        },
+      ],
+    });
+
+    expect(parsed.messages).toHaveLength(1);
+    expect(parsed.messages[0]?.role).toBe("user");
   });
 });
