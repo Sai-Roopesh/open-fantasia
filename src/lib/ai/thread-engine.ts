@@ -48,9 +48,10 @@ export function buildSnapshotFromReconciliation(args: {
 
   // Filter open loops to exclude anything the reconciler just resolved
   const resolvedSet = new Set(allResolved.map((s) => s.toLowerCase().trim()));
-  const activeLoops = dedupeStrings(args.reconciliation.openLoops).filter(
-    (loop) => !resolvedSet.has(loop.toLowerCase().trim()),
-  );
+  const activeLoops = dedupeStrings([
+    ...(args.previousSnapshot?.open_loops ?? []),
+    ...args.reconciliation.openLoops,
+  ]).filter((loop) => !resolvedSet.has(loop.toLowerCase().trim()));
 
   return {
     checkpoint_id: args.checkpointId,

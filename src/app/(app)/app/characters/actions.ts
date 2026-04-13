@@ -3,15 +3,51 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAllowedUser } from "@/lib/auth";
-import { deleteCharacter, upsertCharacterBundle } from "@/lib/data/characters";
+import { planCharacterPortraitState } from "@/lib/characters/portraits";
+import {
+  deleteCharacter,
+  getCharacter,
+  getCharacterBundle,
+  updateCharacterPortrait,
+  upsertCharacterBundle,
+} from "@/lib/data/characters";
 import { listConnections } from "@/lib/data/connections";
-import { getDefaultPersona } from "@/lib/data/personas";
+import { enqueueGenerateCharacterPortraitJob } from "@/lib/data/jobs";
+import { getDefaultPersona, getPersona } from "@/lib/data/personas";
 import { createThread } from "@/lib/data/threads";
+import { scheduleBackgroundWorker } from "@/lib/jobs/kick-worker";
 import {
   characterDeleteCommandSchema,
   saveCharacterCommandSchema,
   startThreadCommandSchema,
 } from "@/lib/validation";
+
+async function enqueuePortraitJobIfNeeded(args: {
+  shouldEnqueue: boolean;
+  userId: string;
+  characterId: string;
+  prompt: string | null;
+  seed: number | null;
+  sourceHash: string;
+  supabase: Awaited<ReturnType<typeof requireAllowedUser>>["supabase"];
+}) {
+  if (!args.shouldEnqueue || !args.prompt || args.seed === null || !args.sourceHash) {
+    return;
+  }
+
+  await enqueueGenerateCharacterPortraitJob(args.supabase, {
+    userId: args.userId,
+    characterId: args.characterId,
+    details: {
+      characterId: args.characterId,
+      prompt: args.prompt,
+      seed: args.seed,
+      sourceHash: args.sourceHash,
+    },
+  });
+
+  scheduleBackgroundWorker(1);
+}
 
 export async function saveCharacterAction(formData: FormData) {
   const { supabase, user } = await requireAllowedUser();
@@ -19,10 +55,12 @@ export async function saveCharacterAction(formData: FormData) {
   const parsed = saveCharacterCommandSchema.safeParse({
     id: String(formData.get("id") ?? "").trim() || undefined,
     name: String(formData.get("name") ?? "").trim(),
+    appearance: String(formData.get("appearance") ?? ""),
     tagline: String(formData.get("tagline") ?? ""),
     short_description: String(formData.get("short_description") ?? ""),
     long_description: String(formData.get("long_description") ?? ""),
     greeting: String(formData.get("greeting") ?? ""),
+    world_context: String(formData.get("world_context") ?? ""),
     core_persona: String(formData.get("core_persona") ?? ""),
     style_rules: String(formData.get("style_rules") ?? ""),
     scenario_seed: String(formData.get("scenario_seed") ?? ""),
@@ -45,26 +83,109 @@ export async function saveCharacterAction(formData: FormData) {
     redirect("/app/characters?reason=name");
   }
 
-  const character = await upsertCharacterBundle(supabase, user.id, parsed.data);
+  const existing = parsed.data.id
+    ? await getCharacterBundle(supabase, user.id, parsed.data.id)
+    : null;
+  const portraitPlan = planCharacterPortraitState({
+    existing: existing?.character ?? null,
+    input: {
+      name: parsed.data.name,
+      appearance: parsed.data.appearance,
+      tagline: parsed.data.tagline,
+      short_description: parsed.data.short_description,
+    },
+  });
+
+  const character = await upsertCharacterBundle(supabase, user.id, {
+    ...parsed.data,
+    ...portraitPlan.nextPortrait,
+  });
+
+  await enqueuePortraitJobIfNeeded({
+    shouldEnqueue: portraitPlan.shouldEnqueue,
+    userId: user.id,
+    characterId: character.character.id,
+    prompt: portraitPlan.prompt,
+    seed: portraitPlan.seed,
+    sourceHash: portraitPlan.sourceHash,
+    supabase,
+  });
 
   revalidatePath("/app/characters");
   redirect(`/app/characters?edit=${character.character.id}&saved=1`);
+}
+
+export async function regenerateCharacterPortraitAction(formData: FormData) {
+  const { supabase, user } = await requireAllowedUser();
+  const parsed = characterDeleteCommandSchema.safeParse({
+    characterId: String(formData.get("id") ?? "").trim(),
+  });
+
+  if (!parsed.success) {
+    redirect("/app/characters");
+  }
+
+  const existing = await getCharacterBundle(supabase, user.id, parsed.data.characterId);
+  if (!existing) {
+    redirect("/app/characters");
+  }
+
+  const portraitPlan = planCharacterPortraitState({
+    existing: existing.character,
+    input: {
+      name: existing.character.name,
+      appearance: existing.character.appearance,
+      tagline: existing.character.tagline,
+      short_description: existing.character.short_description,
+    },
+    forceRegenerate: true,
+  });
+
+  await updateCharacterPortrait(
+    supabase,
+    user.id,
+    existing.character.id,
+    portraitPlan.nextPortrait,
+  );
+
+  await enqueuePortraitJobIfNeeded({
+    shouldEnqueue: portraitPlan.shouldEnqueue,
+    userId: user.id,
+    characterId: existing.character.id,
+    prompt: portraitPlan.prompt,
+    seed: portraitPlan.seed,
+    sourceHash: portraitPlan.sourceHash,
+    supabase,
+  });
+
+  revalidatePath("/app/characters");
+  redirect(`/app/characters?edit=${existing.character.id}`);
 }
 
 export async function startThreadAction(formData: FormData) {
   const { supabase, user } = await requireAllowedUser();
   const parsed = startThreadCommandSchema.safeParse({
     characterId: String(formData.get("characterId") ?? ""),
+    personaId: String(formData.get("personaId") ?? "").trim() || undefined,
   });
   if (!parsed.success) {
     redirect("/app/characters?reason=character");
   }
 
   const connections = await listConnections(supabase, user.id);
-  const persona = await getDefaultPersona(supabase, user.id);
+  const [persona, character] = await Promise.all([
+    parsed.data.personaId
+      ? getPersona(supabase, user.id, parsed.data.personaId)
+      : getDefaultPersona(supabase, user.id),
+    getCharacter(supabase, user.id, parsed.data.characterId),
+  ]);
   const usableConnection = connections.find(
     (connection) => connection.enabled && connection.model_cache.length > 0,
   );
+
+  if (!character) {
+    redirect("/app/characters?reason=character");
+  }
 
   if (!persona) {
     redirect("/app/personas?reason=default");
@@ -79,7 +200,7 @@ export async function startThreadAction(formData: FormData) {
     connection: usableConnection!,
     modelId: usableConnection!.model_cache[0].id,
     personaId: persona!.id,
-    title: "New roleplay thread",
+    title: `Scene with ${character.name}`,
   });
 
   revalidatePath("/app");

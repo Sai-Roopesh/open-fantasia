@@ -55,6 +55,7 @@ export type ChatCheckpointRecord = DbRow<"chat_checkpoints">;
 export type TimelineEventRecord = DbRow<"chat_timeline_events">;
 export type ChatPinRecord = DbRow<"chat_pins">;
 export type BackgroundJobRecord = DbRow<"background_jobs">;
+export type CharacterPortraitStatus = CharacterRecord["portrait_status"];
 
 export const messageMetadataSchema = z
   .object({
@@ -215,7 +216,7 @@ export type ThreadGenerationSettings = {
   maxOutputTokens: number;
 };
 
-export type JobPayload = {
+export type ReconcileCheckpointJobPayload = {
   threadId: string;
   branchId: string;
   checkpointId: string;
@@ -225,4 +226,11 @@ export type JobPayload = {
   characterId: string;
   personaId: string | null;
   recentMessageIds: string[];
+};
+
+export type GenerateCharacterPortraitJobPayload = {
+  characterId: string;
+  prompt: string;
+  seed: number;
+  sourceHash: string;
 };

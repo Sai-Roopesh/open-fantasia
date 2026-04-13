@@ -65,10 +65,12 @@ export const savePersonaCommandSchema = z.object({
 export const saveCharacterCommandSchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().trim().min(1),
+  appearance: z.string().default(""),
   tagline: z.string().default(""),
   short_description: z.string().default(""),
   long_description: z.string().default(""),
   greeting: z.string().default(""),
+  world_context: z.string().default(""),
   core_persona: z.string().default(""),
   style_rules: z.string().default(""),
   scenario_seed: z.string().default(""),
@@ -118,6 +120,7 @@ export const characterDeleteCommandSchema = z.object({
 
 export const startThreadCommandSchema = z.object({
   characterId: z.string().uuid(),
+  personaId: z.string().uuid().optional(),
 });
 
 export const switchThreadModelSchema = z.object({
@@ -136,7 +139,7 @@ export const switchThreadBranchSchema = z.object({
   branchId: z.string().uuid(),
 });
 
-export const jobPayloadSchema = z.object({
+export const reconcileCheckpointJobPayloadSchema = z.object({
   threadId: z.string().uuid(),
   branchId: z.string().uuid(),
   checkpointId: z.string().uuid(),
@@ -147,6 +150,15 @@ export const jobPayloadSchema = z.object({
   personaId: z.string().uuid().nullable(),
   recentMessageIds: z.array(z.string().min(1)),
 });
+
+export const generateCharacterPortraitJobPayloadSchema = z.object({
+  characterId: z.string().uuid(),
+  prompt: z.string().trim().min(1),
+  seed: z.number().int().nonnegative(),
+  sourceHash: z.string().trim().min(1),
+});
+
+export const jobPayloadSchema = reconcileCheckpointJobPayloadSchema;
 
 export const backgroundJobRecordSchema = z.object({
   id: z.string().uuid(),

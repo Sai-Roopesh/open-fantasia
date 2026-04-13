@@ -126,10 +126,11 @@ export async function deleteThreadAction(formData: FormData) {
 
   const thread = await getThread(supabase, user.id, parsed.data.threadId);
   if (!thread) {
-    redirect("/app/characters");
+    redirect("/app/threads");
   }
 
   await deleteThread(supabase, user.id, parsed.data.threadId);
   revalidatePath("/app");
-  redirect("/app/characters");
+  revalidatePath("/app/threads");
+  redirect("/app/threads?deleted=1");
 }

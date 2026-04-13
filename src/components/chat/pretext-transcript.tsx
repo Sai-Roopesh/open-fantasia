@@ -47,7 +47,7 @@ function sliceMarkedRuns(text: string, marks: InlineMark[]) {
     .filter((run) => run.text.length > 0);
 }
 
-function RichTextBlockView({ block }: { block: RichTextBlock }) {
+function RichTextBlockView({ block, focusMode }: { block: RichTextBlock; focusMode?: boolean }) {
   if (block.kind === "separator") {
     return (
       <div className="flex items-center justify-center py-2">
@@ -62,7 +62,8 @@ function RichTextBlockView({ block }: { block: RichTextBlock }) {
   return (
     <Tag
       className={cn(
-        "whitespace-pre-wrap text-[15px] leading-7",
+        "whitespace-pre-wrap",
+        focusMode ? "text-[16px] leading-[2.15] md:text-[17px]" : "text-[15px] leading-7",
         block.kind === "quote" && "border-l border-current/20 pl-4 italic",
       )}
     >
@@ -156,7 +157,7 @@ export function PretextTranscript({
             : "h-[68vh] min-h-[28rem] rounded-[2rem] border border-white/8",
         )}
       >
-        <div className="mx-auto flex max-w-4xl flex-col gap-5 py-1">
+        <div className={cn("mx-auto flex flex-col gap-5 py-1", focusMode ? "max-w-[65ch]" : "max-w-4xl")}>
           {messages.map((message) => {
             const metadata = message.metadata;
             const isUser = message.role === "user";
@@ -195,6 +196,7 @@ export function PretextTranscript({
                       <RichTextBlockView
                         key={`${message.id}-${block.kind}-${blockIndex}`}
                         block={block}
+                        focusMode={focusMode}
                       />
                     ))}
                   </div>

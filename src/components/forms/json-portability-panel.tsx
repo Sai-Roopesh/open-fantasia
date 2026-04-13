@@ -15,6 +15,8 @@ import {
 import {
   buildPromptPack,
   documentToJson,
+  openFantasiaCharacterDocumentVersion,
+  openFantasiaPersonaDocumentVersion,
   promptPackFilename,
   schemaFilename,
   templateFilename,
@@ -74,16 +76,18 @@ export function JsonPortabilityPanel(props: JsonPortabilityPanelProps) {
   );
   const blankDocument = useMemo(
     () =>
-      props.kind === "character"
+          props.kind === "character"
         ? {
             format: "openfantasia.character" as const,
-            version: 1 as const,
+            version: openFantasiaCharacterDocumentVersion,
             data: {
               name: "",
+              appearance: "",
               tagline: "",
               short_description: "",
               long_description: "",
               greeting: "",
+              world_context: "",
               core_persona: "",
               style_rules: "",
               scenario_seed: "",
@@ -96,7 +100,7 @@ export function JsonPortabilityPanel(props: JsonPortabilityPanelProps) {
           }
         : {
             format: "openfantasia.persona" as const,
-            version: 1 as const,
+            version: openFantasiaPersonaDocumentVersion,
             data: {
               name: "",
               identity: "",
@@ -115,7 +119,10 @@ export function JsonPortabilityPanel(props: JsonPortabilityPanelProps) {
         props.kind === "character"
           ? ("openfantasia.character" as const)
           : ("openfantasia.persona" as const),
-      version: 1 as const,
+      version:
+        props.kind === "character"
+          ? openFantasiaCharacterDocumentVersion
+          : openFantasiaPersonaDocumentVersion,
       data: props.currentData,
     }),
     [props.currentData, props.kind],

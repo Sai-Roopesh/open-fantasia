@@ -4,6 +4,10 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAllowedUser } from "@/lib/auth";
 import {
+  emptyPersonaFormState,
+  type PersonaFormState,
+} from "@/components/personas/persona-form-state";
+import {
   deletePersona,
   duplicatePersona,
   setDefaultPersona,
@@ -15,7 +19,10 @@ import {
   savePersonaCommandSchema,
 } from "@/lib/validation";
 
-export async function savePersonaAction(formData: FormData) {
+export async function savePersonaAction(
+  _previousState: PersonaFormState,
+  formData: FormData,
+): Promise<PersonaFormState> {
   const { supabase, user } = await requireAllowedUser();
   const parsed = savePersonaCommandSchema.safeParse({
     id: String(formData.get("id") ?? "").trim() || undefined,
@@ -30,10 +37,26 @@ export async function savePersonaAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect("/app/personas?reason=name");
+    return {
+      ...emptyPersonaFormState,
+      fieldErrors: {
+        name: "Give the persona a name so it is recognizable when you attach it to a thread.",
+      },
+    };
   }
 
-  const persona = await upsertPersona(supabase, user.id, parsed.data);
+  let persona;
+  try {
+    persona = await upsertPersona(supabase, user.id, parsed.data);
+  } catch (error) {
+    return {
+      ...emptyPersonaFormState,
+      formError:
+        error instanceof Error
+          ? error.message
+          : "Fantasia could not save this persona right now.",
+    };
+  }
 
   revalidatePath("/app/personas");
   revalidatePath("/app/characters");

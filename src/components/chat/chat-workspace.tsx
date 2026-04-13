@@ -14,7 +14,9 @@ import type {
 } from "@/lib/types";
 import { messageMetadataSchema } from "@/lib/types";
 import { PretextTranscript } from "@/components/chat/pretext-transcript";
-import { humanizeChatError, throwIfFailed } from "@/components/chat/chat-workspace-helpers";
+import { humanizeChatError } from "@/components/chat/chat-workspace-helpers";
+import { useChatActions } from "@/components/chat/use-chat-actions";
+import { useOptimisticSwitches } from "@/components/chat/use-optimistic-switches";
 import {
   ActionSheet,
   type ActionSheetState,
@@ -30,6 +32,7 @@ import {
 export function ChatWorkspace({
   threadId,
   characterName,
+  characterBackgroundUrl,
   currentModel,
   currentConnectionLabel,
   activeBranch,
@@ -47,6 +50,7 @@ export function ChatWorkspace({
 }: {
   threadId: string;
   characterName: string;
+  characterBackgroundUrl?: string | null;
   currentModel: string;
   currentConnectionLabel: string;
   activeBranch: ChatBranchRecord;
@@ -58,46 +62,53 @@ export function ChatWorkspace({
   suggestedStarters: string[];
   modelChoices: ModelChoiceGroup[];
   inspectorView: ContinuityInspectorView;
-  switchModelAction: (input: {
-    threadId: string;
-    connectionId: string;
-    modelId: string;
-  }) => Promise<void>;
-  switchBranchAction: (input: {
-    threadId: string;
-    branchId: string;
-  }) => Promise<void>;
-  switchPersonaAction: (input: {
-    threadId: string;
-    personaId: string;
-  }) => Promise<void>;
+  switchModelAction: (input: { threadId: string; connectionId: string; modelId: string; }) => Promise<void>;
+  switchBranchAction: (input: { threadId: string; branchId: string; }) => Promise<void>;
+  switchPersonaAction: (input: { threadId: string; personaId: string; }) => Promise<void>;
 }) {
   const { isNavigating, refreshWithTransition } = useNavTransition();
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const attemptedDraftRef = useRef<string | null>(null);
   const [draft, setDraft] = useState("");
   const [showModelPicker, setShowModelPicker] = useState(false);
-  const [switchPending, setSwitchPending] = useState(false);
-  const [surfaceError, setSurfaceError] = useState<string | null>(null);
-  const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [failedDraft, setFailedDraft] = useState<string | null>(null);
   const [activeInspectorTab, setActiveInspectorTab] = useState<InspectorTab>("continuity");
   const [sheet, setSheet] = useState<ActionSheetState | null>(null);
   const [focusMode, setFocusMode] = useState(false);
+  const [portraitState, setPortraitState] = useState<"idle" | "ready" | "error">(
+    characterBackgroundUrl ? "idle" : "error",
+  );
 
-  // Optimistic state — shows the user's selection immediately while the server round-trip runs
-  const [optimisticBranchId, setOptimisticBranchId] = useState<string | null>(null);
-  const [optimisticPersonaId, setOptimisticPersonaId] = useState<string | null>(null);
-  const [optimisticModel, setOptimisticModel] = useState<{ modelId: string; label: string } | null>(null);
+  const {
+    pendingAction,
+    surfaceError,
+    setSurfaceError,
+    regenerate,
+    rewind,
+    rate,
+    selectAlternate,
+    editMessage,
+    createBranch,
+    createPin,
+    removePin,
+    triggerStarter
+  } = useChatActions(threadId);
 
-  // Reset optimistic state when server props arrive (switchPending goes false)
-  useEffect(() => {
-    if (!switchPending) {
-      setOptimisticBranchId(null);
-      setOptimisticPersonaId(null);
-      setOptimisticModel(null);
-    }
-  }, [switchPending]);
+  const {
+    switchPending,
+    optimisticBranchId,
+    optimisticPersonaId,
+    optimisticModel,
+    onBranchSwitch,
+    onPersonaSwitch,
+    onModelSwitch
+  } = useOptimisticSwitches({
+    threadId,
+    setSurfaceError,
+    switchModelAction,
+    switchBranchAction,
+    switchPersonaAction,
+  });
 
   const displayModel = optimisticModel?.modelId ?? currentModel;
   const displayConnectionLabel = optimisticModel?.label ?? currentConnectionLabel;
@@ -123,6 +134,10 @@ export function ChatWorkspace({
     }
     return () => { document.body.style.overflow = ""; };
   }, [focusMode]);
+
+  useEffect(() => {
+    setPortraitState(characterBackgroundUrl ? "idle" : "error");
+  }, [characterBackgroundUrl]);
 
   const { messages, sendMessage, status, error } = useChat<FantasiaUIMessage>({
     id: threadId,
@@ -170,22 +185,6 @@ export function ChatWorkspace({
   const composerBusy =
     status === "streaming" || status === "submitted" || pendingAction !== null || switchPending || isNavigating;
 
-  async function runAction(label: string, callback: () => Promise<void>) {
-    setPendingAction(label);
-    setSurfaceError(null);
-    try {
-      await callback();
-      setSheet(null);
-      refreshWithTransition();
-    } catch (nextError) {
-      setSurfaceError(
-        nextError instanceof Error ? humanizeChatError(nextError.message) : "That action failed.",
-      );
-    } finally {
-      setPendingAction(null);
-    }
-  }
-
   async function submitCurrentDraft(value: string) {
     const nextValue = value.trim();
     if (!nextValue) return;
@@ -228,15 +227,7 @@ export function ChatWorkspace({
     assistantLabel: characterName,
     controlsByMessageId,
     pendingAction,
-    onRegenerate: (checkpointId: string) =>
-      runAction("regenerate", async () => {
-        const response = await fetch(`/api/chats/${threadId}/regenerate`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ checkpointId }),
-        });
-        await throwIfFailed(response, "Regenerate failed.");
-      }),
+    onRegenerate: regenerate,
     onOpenAlternates: openAlternates,
     onOpenEditMessage: (messageId: string, currentText: string) =>
       setSheet({ kind: "edit", messageId, value: currentText }),
@@ -250,30 +241,14 @@ export function ChatWorkspace({
       ) {
         return;
       }
-      await runAction("rewind", async () => {
-        const response = await fetch(
-          `/api/chats/${threadId}/checkpoints/${checkpointId}/rewind`,
-          { method: "POST" },
-        );
-        await throwIfFailed(response, "Rewind failed.");
+      rewind(checkpointId, () => {
         setDraft(currentText);
         requestAnimationFrame(() => composerRef.current?.focus());
       });
     },
     onOpenPinMessage: (messageId: string, currentText: string) =>
       setSheet({ kind: "pin", messageId, value: currentText }),
-    onRateCheckpoint: (checkpointId: string, rating: number) =>
-      runAction("rate", async () => {
-        const response = await fetch(
-          `/api/chats/${threadId}/checkpoints/${checkpointId}/rate`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ rating }),
-          },
-        );
-        await throwIfFailed(response, "Rating failed.");
-      }),
+    onRateCheckpoint: rate,
   } as const;
 
   const composerProps = {
@@ -299,17 +274,41 @@ export function ChatWorkspace({
       onShowModelPicker={() => setShowModelPicker(true)}
     />
   ) : null;
+  const focusBackdropColor = portraitState === "ready" ? "#120f0d" : "#0f0c0a";
 
   return (
     <>
       {/* ── Focus mode overlay ── */}
       {focusMode ? (
         <div
-          className="fixed inset-0 z-50 flex flex-col bg-[#0f0c0a]"
+          className="animate-in fade-in zoom-in-95 duration-300 fixed inset-0 z-50 flex flex-col overflow-hidden bg-[var(--focus-bg-base)]"
           data-testid="focus-mode-overlay"
+          style={{ "--focus-bg-base": focusBackdropColor } as React.CSSProperties}
         >
+          <div className="absolute inset-0 bg-[var(--focus-bg-base)]" />
+          {characterBackgroundUrl && portraitState !== "error" ? (
+            <>
+              <img
+                src={characterBackgroundUrl}
+                alt=""
+                aria-hidden="true"
+                className="absolute inset-0 h-full w-full object-cover"
+                onLoad={() => setPortraitState("ready")}
+                onError={() => setPortraitState("error")}
+              />
+            </>
+          ) : null}
+          <div
+            className="absolute inset-0 backdrop-blur-[10px]"
+            style={{
+              backgroundColor: "var(--focus-bg-base)",
+              backgroundImage:
+                "radial-gradient(circle at top, rgba(29,22,18,0.45), rgba(12,10,8,0.82) 48%, rgba(8,7,6,0.96) 100%)",
+            }}
+          />
+
           {/* Top bar — fixed height */}
-          <div className="flex shrink-0 items-center justify-between border-b border-white/8 px-4 py-3 md:px-6">
+          <div className="relative z-10 flex shrink-0 items-center justify-between border-b border-white/8 px-4 py-3 md:px-6">
             <div className="flex items-center gap-3">
               <button
                 type="button"
@@ -332,12 +331,17 @@ export function ChatWorkspace({
           </div>
 
           {/* Transcript — fills remaining space, scrollable */}
-          <div className="min-h-0 flex-1 overflow-hidden px-3 pt-3 md:px-6">
+          <div className="relative z-10 min-h-0 flex-1 overflow-hidden px-3 pt-3 md:px-6">
+            <div className="pointer-events-none absolute inset-x-0 top-0 z-10 h-8 bg-gradient-to-b from-[var(--focus-bg-base)] to-transparent" />
             <PretextTranscript {...transcriptProps} focusMode />
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 z-10 h-8 bg-gradient-to-t from-[var(--focus-bg-base)] to-transparent" />
           </div>
 
           {/* Error banner + Composer — pinned at bottom, never overlaps */}
-          <div className="shrink-0 border-t border-white/6 px-3 pb-3 md:px-6">
+          <div
+            className="relative z-10 shrink-0 border-t border-white/6 px-3 pb-3 md:px-6"
+            style={{ backgroundColor: "color-mix(in srgb, var(--focus-bg-base) 78%, transparent)" }}
+          >
             {errorBannerBlock}
             <ChatComposer {...composerProps} focusMode />
           </div>
@@ -399,20 +403,7 @@ export function ChatWorkspace({
                 <select
                   value={displayBranchId}
                   disabled={switchPending}
-                  onChange={async (event) => {
-                    const nextBranchId = event.target.value;
-                    setOptimisticBranchId(nextBranchId);
-                    setSwitchPending(true);
-                    try {
-                      await switchBranchAction({
-                        threadId,
-                        branchId: nextBranchId,
-                      });
-                      refreshWithTransition();
-                    } finally {
-                      setSwitchPending(false);
-                    }
-                  }}
+                  onChange={(e) => onBranchSwitch(e.target.value)}
                   className="mt-3 w-full rounded-2xl border border-border bg-paper px-3 py-3 text-sm font-semibold outline-none"
                 >
                   {branches.map((branch) => (
@@ -430,28 +421,21 @@ export function ChatWorkspace({
                 </div>
                 <select
                   value={displayPersonaId}
-                  disabled={switchPending}
-                  onChange={async (event) => {
-                    const nextPersonaId = event.target.value;
-                    setOptimisticPersonaId(nextPersonaId);
-                    setSwitchPending(true);
-                    try {
-                      await switchPersonaAction({
-                        threadId,
-                        personaId: nextPersonaId,
-                      });
-                      refreshWithTransition();
-                    } finally {
-                      setSwitchPending(false);
-                    }
-                  }}
+                  disabled={switchPending || personas.length === 0}
+                  onChange={(e) => onPersonaSwitch(e.target.value)}
                   className="mt-3 w-full rounded-2xl border border-border bg-paper px-3 py-3 text-sm font-semibold outline-none"
                 >
-                  {personas.map((persona) => (
-                    <option key={persona.id} value={persona.id}>
-                      {persona.name}
+                  {personas.length ? (
+                    personas.map((persona) => (
+                      <option key={persona.id} value={persona.id}>
+                        {persona.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" disabled>
+                      No personas available
                     </option>
-                  ))}
+                  )}
                 </select>
               </label>
             </div>
@@ -465,19 +449,8 @@ export function ChatWorkspace({
               onClose={() => setShowModelPicker(false)}
               onSelectModel={async (connectionId, modelId) => {
                 const matchedGroup = modelChoices.find((g) => g.connectionId === connectionId);
-                setOptimisticModel({ modelId, label: matchedGroup?.label ?? currentConnectionLabel });
-                setSwitchPending(true);
-                try {
-                  await switchModelAction({
-                    threadId,
-                    connectionId,
-                    modelId,
-                  });
-                  refreshWithTransition();
-                  setShowModelPicker(false);
-                } finally {
-                  setSwitchPending(false);
-                }
+                await onModelSwitch(connectionId, modelId, matchedGroup?.label ?? currentConnectionLabel);
+                setShowModelPicker(false);
               }}
             />
           ) : null}
@@ -486,17 +459,7 @@ export function ChatWorkspace({
             <EmptyStateGuide
               disabled={composerBusy}
               suggestedStarters={suggestedStarters}
-              onSelectStarter={(starter) =>
-                void runAction("starter", async () => {
-                  const response = await fetch(`/api/chats/${threadId}/starter`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ starter }),
-                  });
-                  await throwIfFailed(response, "Starter generation failed.");
-                  setDraft("");
-                })
-              }
+              onSelectStarter={(starter) => triggerStarter(starter, () => setDraft(""))}
             />
           ) : null}
 
@@ -516,14 +479,7 @@ export function ChatWorkspace({
             branches={branches}
             inspectorView={inspectorView}
             pendingAction={pendingAction}
-            onRemovePin={(pinId) =>
-              runAction("unpin", async () => {
-                const response = await fetch(`/api/chats/${threadId}/pins/${pinId}`, {
-                  method: "DELETE",
-                });
-                await throwIfFailed(response, "Failed to remove pin.");
-              })
-            }
+            onRemovePin={removePin}
             onTabChange={setActiveInspectorTab}
           />
         </aside>
@@ -545,61 +501,17 @@ export function ChatWorkspace({
           onClose={() => setSheet(null)}
           onSubmit={async (value, alternateCheckpointId) => {
             if (sheet.kind === "alternates") {
-              if (!alternateCheckpointId) return;
-              await runAction("alternate", async () => {
-                const response = await fetch(
-                  `/api/chats/${threadId}/checkpoints/${alternateCheckpointId}/select`,
-                  {
-                    method: "POST",
-                  },
-                );
-                await throwIfFailed(response, "Alternate selection failed.");
-              });
-              return;
+              if (alternateCheckpointId) {
+                await selectAlternate(alternateCheckpointId);
+              }
+            } else if (sheet.kind === "edit") {
+              await editMessage(sheet.messageId, value);
+            } else if (sheet.kind === "branch") {
+              await createBranch({ checkpointId: sheet.checkpointId, name: value });
+            } else {
+              await createPin(sheet.messageId, value);
             }
-
-            if (sheet.kind === "edit") {
-              await runAction("edit", async () => {
-                const response = await fetch(
-                  `/api/chats/${threadId}/messages/${sheet.messageId}/edit`,
-                  {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ content: value }),
-                  },
-                );
-                await throwIfFailed(response, "Edit failed.");
-              });
-              return;
-            }
-
-            if (sheet.kind === "branch") {
-              await runAction("branch", async () => {
-                const response = await fetch(`/api/chats/${threadId}/branches`, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    checkpointId: sheet.checkpointId,
-                    name: value,
-                    makeActive: true,
-                  }),
-                });
-                await throwIfFailed(response, "Branch creation failed.");
-              });
-              return;
-            }
-
-            await runAction("pin", async () => {
-              const response = await fetch(`/api/chats/${threadId}/pins`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  sourceMessageId: sheet.messageId,
-                  body: value,
-                }),
-              });
-              await throwIfFailed(response, "Pin failed.");
-            });
+            setSheet(null);
           }}
         />
       ) : null}

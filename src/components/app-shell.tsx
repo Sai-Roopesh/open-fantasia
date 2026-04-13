@@ -15,7 +15,8 @@ import {
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { cn } from "@/lib/utils";
 import type { ThreadListItem } from "@/lib/types";
-import { useState } from "react";
+import { useState, use, Suspense } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const desktopNavItems = [
   { href: "/app", label: "Home", icon: Compass },
@@ -40,15 +41,16 @@ function isRouteActive(pathname: string, href: string) {
 
 export function AppShell({
   email,
-  threads,
+  threadsPromise,
   children,
 }: {
   email: string;
-  threads: ThreadListItem[];
+  threadsPromise: Promise<ThreadListItem[]>;
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
+  const hideMobileNav = pathname.startsWith("/app/chats/");
 
   return (
     <div className="min-h-screen bg-transparent">
@@ -104,42 +106,17 @@ export function AppShell({
               </Link>
             </div>
 
-            <div className="mt-3 space-y-2">
-              {threads.length ? (
-                threads.slice(0, 6).map((thread) => {
-                  const active = pathname === `/app/chats/${thread.id}`;
-                  return (
-                    <Link
-                      key={thread.id}
-                      href={`/app/chats/${thread.id}`}
-                      className={cn(
-                        "block rounded-2xl px-4 py-3 text-sm transition",
-                        active
-                          ? "bg-brand/20 text-foreground"
-                          : "bg-white/5 text-foreground hover:bg-white/8",
-                      )}
-                    >
-                      <div className="flex items-center gap-2">
-                        <p className="truncate font-medium">{thread.title}</p>
-                        {thread.pinned_at ? (
-                          <span className="rounded-full bg-brand/15 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-brand">
-                            pinned
-                          </span>
-                        ) : null}
-                      </div>
-                      <p className={cn("mt-1 truncate text-xs", active ? "text-foreground/70" : "text-ink-soft")}>
-                        {thread.characters?.name ?? "Unknown character"}
-                        {thread.user_personas?.name ? ` • ${thread.user_personas.name}` : ""}
-                      </p>
-                    </Link>
-                  );
-                })
-              ) : (
-                <p className="rounded-2xl bg-white/5 px-4 py-3 text-sm leading-7 text-ink-soft">
-                  Threads you touch most often will stay within easy reach here.
-                </p>
-              )}
-            </div>
+            <Suspense
+              fallback={
+                <div className="mt-3 space-y-2">
+                  {Array.from({ length: 3 }).map((_, index) => (
+                    <Skeleton key={index} className="h-16 w-full rounded-2xl" />
+                  ))}
+                </div>
+              }
+            >
+              <SidebarThreadList promise={threadsPromise} />
+            </Suspense>
           </div>
 
           <div className="mt-10 rounded-[1.75rem] bg-white/5 px-4 py-4 text-sm text-ink-soft">
@@ -149,7 +126,7 @@ export function AppShell({
           </div>
         </aside>
 
-        <div className="min-h-screen pb-24 xl:pb-0">
+        <div className={cn("min-h-screen xl:pb-0", hideMobileNav ? "pb-0" : "pb-24")}>
           <header className="sticky top-0 z-40 border-b border-white/8 bg-[#141010]/90 px-4 py-4 backdrop-blur xl:hidden">
             <div className="flex items-center justify-between gap-3">
               <Link href="/app" className="flex items-center gap-3">
@@ -181,39 +158,41 @@ export function AppShell({
         </div>
       </div>
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/8 bg-[#141010]/94 px-3 pb-[calc(env(safe-area-inset-bottom)+0.65rem)] pt-3 backdrop-blur xl:hidden">
-        <div className="mx-auto grid max-w-xl grid-cols-4 gap-2">
-          {mobileNavItems.map((item) => {
-            const Icon = item.icon;
-            const active = isRouteActive(pathname, item.href);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "flex flex-col items-center justify-center gap-1 rounded-2xl px-3 py-2 text-[11px] font-semibold transition",
-                  active
-                    ? "bg-brand text-white"
-                    : "text-ink-soft hover:bg-white/8 hover:text-foreground",
-                )}
-              >
-                <Icon className="h-4 w-4" />
-                {item.label}
-              </Link>
-            );
-          })}
+      {!hideMobileNav ? (
+        <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/8 bg-[#141010]/94 px-3 pb-[calc(env(safe-area-inset-bottom)+0.65rem)] pt-3 backdrop-blur xl:hidden">
+          <div className="mx-auto grid max-w-xl grid-cols-4 gap-2">
+            {mobileNavItems.map((item) => {
+              const Icon = item.icon;
+              const active = isRouteActive(pathname, item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  aria-current={active ? "page" : undefined}
+                  className={cn(
+                    "flex flex-col items-center justify-center gap-1 rounded-2xl px-3 py-2 text-[11px] font-semibold transition",
+                    active
+                      ? "bg-brand text-white"
+                      : "text-ink-soft hover:bg-white/8 hover:text-foreground",
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                  {item.label}
+                </Link>
+              );
+            })}
 
-          <button
-            type="button"
-            onClick={() => setMoreOpen(true)}
-            className="flex flex-col items-center justify-center gap-1 rounded-2xl px-3 py-2 text-[11px] font-semibold text-ink-soft transition hover:bg-white/8 hover:text-foreground"
-          >
-            <Settings2 className="h-4 w-4" />
-            More
-          </button>
-        </div>
-      </nav>
+            <button
+              type="button"
+              onClick={() => setMoreOpen(true)}
+              className="flex flex-col items-center justify-center gap-1 rounded-2xl px-3 py-2 text-[11px] font-semibold text-ink-soft transition hover:bg-white/8 hover:text-foreground"
+            >
+              <Settings2 className="h-4 w-4" />
+              More
+            </button>
+          </div>
+        </nav>
+      ) : null}
 
       {moreOpen ? (
         <div className="fixed inset-0 z-50 xl:hidden">
@@ -268,6 +247,50 @@ export function AppShell({
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function SidebarThreadList({ promise }: { promise: Promise<ThreadListItem[]> }) {
+  const threads = use(promise);
+  const pathname = usePathname();
+
+  return (
+    <div className="mt-3 space-y-2">
+      {threads.length ? (
+        threads.slice(0, 6).map((thread) => {
+          const active = pathname === `/app/chats/${thread.id}`;
+          return (
+            <Link
+              key={thread.id}
+              href={`/app/chats/${thread.id}`}
+              className={cn(
+                "block rounded-2xl px-4 py-3 text-sm transition",
+                active
+                  ? "bg-brand/20 text-foreground"
+                  : "bg-white/5 text-foreground hover:bg-white/8",
+              )}
+            >
+              <div className="flex items-center gap-2">
+                <p className="truncate font-medium">{thread.title}</p>
+                {thread.pinned_at ? (
+                  <span className="rounded-full bg-brand/15 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-brand">
+                    pinned
+                  </span>
+                ) : null}
+              </div>
+              <p className={cn("mt-1 truncate text-xs", active ? "text-foreground/70" : "text-ink-soft")}>
+                {thread.characters?.name ?? "Unknown character"}
+                {thread.user_personas?.name ? ` • ${thread.user_personas.name}` : ""}
+              </p>
+            </Link>
+          );
+        })
+      ) : (
+        <p className="rounded-2xl bg-white/5 px-4 py-3 text-sm leading-7 text-ink-soft">
+          Threads you touch most often will stay within easy reach here.
+        </p>
+      )}
     </div>
   );
 }

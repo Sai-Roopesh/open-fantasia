@@ -19,7 +19,7 @@ import type {
   TranscriptControl,
 } from "@/lib/types";
 
-const threadSelect = [
+export const threadSelect = [
   "id",
   "user_id",
   "character_id",

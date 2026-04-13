@@ -56,7 +56,11 @@ export default async function ThreadsPage({
           </div>
         ) : null}
 
-        <form className="mt-6 grid gap-3 md:grid-cols-[minmax(0,1fr)_12rem_10rem]">
+        <form
+          method="get"
+          action="/app/threads"
+          className="mt-6 grid gap-3 md:grid-cols-[minmax(0,1fr)_12rem_10rem]"
+        >
           <label className="block">
             <span className="mb-2 block text-sm font-medium text-foreground">Search threads</span>
             <input

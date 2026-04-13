@@ -339,12 +339,18 @@ export function ChatComposer({
     <form
       className={cn(
         "flex flex-col gap-3 md:flex-row",
-        focusMode ? "mx-auto w-full max-w-3xl shrink-0 pt-3" : "mt-5",
+        focusMode
+          ? "mx-auto w-full max-w-3xl shrink-0 px-1 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]"
+          : "mt-5",
       )}
       data-testid="chat-composer"
       onSubmit={async (event) => {
         event.preventDefault();
-        await onSubmit();
+        try {
+          await onSubmit();
+        } catch (error) {
+          console.error("Chat composer submit failed.", error);
+        }
       }}
     >
       <label className="flex-1">
@@ -508,7 +514,7 @@ export function InspectorPanel({
 
         {activeInspectorTab === "branch" ? (
           <div className="space-y-4">
-            <div className="rounded-[1.5rem] border border-border bg-white/75 p-4">
+            <div className="rounded-[1.5rem] border border-border bg-white/5 p-4">
               <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">
                 Active branch
               </p>
@@ -543,7 +549,7 @@ export function InspectorPanel({
               </dl>
             </div>
 
-            <div className="rounded-[1.5rem] border border-border bg-white/75 p-4">
+            <div className="rounded-[1.5rem] border border-border bg-white/5 p-4">
               <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">
                 Available branches
               </p>
