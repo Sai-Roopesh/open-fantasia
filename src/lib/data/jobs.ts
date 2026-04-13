@@ -1,4 +1,8 @@
-import type { BackgroundJobRecord, JobPayload } from "@/lib/types";
+import type {
+  BackgroundJobRecord,
+  GenerateCharacterPortraitJobPayload,
+  ReconcileCheckpointJobPayload,
+} from "@/lib/types";
 import type { Json } from "@/lib/supabase/database.types";
 import {
   castRecord,
@@ -36,7 +40,7 @@ export async function enqueueReconcileCheckpointJob(
     threadId: string;
     branchId: string;
     checkpointId: string;
-    details: JobPayload;
+    details: ReconcileCheckpointJobPayload;
   },
 ) {
   const { data, error } = await supabase
@@ -47,6 +51,28 @@ export async function enqueueReconcileCheckpointJob(
       thread_id: payload.threadId,
       branch_id: payload.branchId,
       checkpoint_id: payload.checkpointId,
+      payload: payload.details as Json,
+    })
+    .select(jobSelect)
+    .single();
+
+  if (error) throw error;
+  return normalizeJob(castRecord(data, "Background job"));
+}
+
+export async function enqueueGenerateCharacterPortraitJob(
+  supabase: DatabaseClient,
+  payload: {
+    userId: string;
+    characterId: string;
+    details: GenerateCharacterPortraitJobPayload;
+  },
+) {
+  const { data, error } = await supabase
+    .from("background_jobs")
+    .insert({
+      type: "generate_character_portrait",
+      user_id: payload.userId,
       payload: payload.details as Json,
     })
     .select(jobSelect)

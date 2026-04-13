@@ -1,9 +1,13 @@
 "use client";
 
-import { useEffect } from "react";
+import { useActionState, useEffect } from "react";
 import type { UserPersonaRecord } from "@/lib/types";
 import { SubmitButton } from "@/components/forms/submit-button";
 import { JsonPortabilityPanel } from "@/components/forms/json-portability-panel";
+import {
+  emptyPersonaFormState,
+  type PersonaFormState,
+} from "@/components/personas/persona-form-state";
 import { useLocalDraft } from "@/components/forms/use-local-draft";
 import { useUnsavedChangesGuard } from "@/components/forms/use-unsaved-changes-guard";
 import {
@@ -52,9 +56,13 @@ export function PersonaStudioForm({
 }: {
   editing: UserPersonaRecord | null;
   personaCount: number;
-  action: (formData: FormData) => Promise<void>;
+  action: (
+    state: PersonaFormState,
+    formData: FormData,
+  ) => Promise<PersonaFormState>;
   saved?: boolean;
 }) {
+  const [formState, formAction] = useActionState(action, emptyPersonaFormState);
   const {
     value: draft,
     setValue: setDraft,
@@ -92,8 +100,14 @@ export function PersonaStudioForm({
   }
 
   return (
-    <form action={action} className="mt-8 space-y-5">
+    <form action={formAction} className="mt-8 space-y-5">
       <input type="hidden" name="id" value={editing?.id ?? ""} />
+
+      {formState.formError ? (
+        <div className="rounded-[1.6rem] border border-red-900/40 bg-red-950/40 px-5 py-4 text-sm text-red-300">
+          {formState.formError}
+        </div>
+      ) : null}
 
       {hasStoredDraft ? (
         <div className="rounded-[1.6rem] border border-accent/25 bg-accent/10 px-5 py-4 text-sm text-accent">
@@ -143,6 +157,11 @@ export function PersonaStudioForm({
           className="w-full rounded-full border border-border bg-white/5 px-4 py-3 outline-none transition focus:border-brand"
           placeholder="Late-night version of me"
         />
+        {formState.fieldErrors.name ? (
+          <span className="mt-2 block text-xs leading-6 text-amber-300">
+            {formState.fieldErrors.name}
+          </span>
+        ) : null}
       </label>
 
       <TextField

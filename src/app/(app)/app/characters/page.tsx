@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { Plus, WandSparkles } from "lucide-react";
 import { requireAllowedUser } from "@/lib/auth";
+import { resolveCharacterPortraitUrl } from "@/lib/characters/portraits";
 import { CharacterStudioForm } from "@/components/characters/character-studio-form";
 import { getCharacterBundle, listCharacters } from "@/lib/data/characters";
 import { listConnections } from "@/lib/data/connections";
-import { getDefaultPersona } from "@/lib/data/personas";
+import { getDefaultPersona, listPersonas } from "@/lib/data/personas";
 import {
   deleteCharacterAction,
+  regenerateCharacterPortraitAction,
   saveCharacterAction,
   startThreadAction,
 } from "@/app/(app)/app/characters/actions";
@@ -23,6 +25,7 @@ type ThreadSetupStep = {
 };
 
 function buildThreadSetupSteps(options: {
+  personaCount: number;
   hasDefaultPersona: boolean;
   hasUsableConnection: boolean;
   connectionsCount: number;
@@ -30,13 +33,16 @@ function buildThreadSetupSteps(options: {
   const steps: ThreadSetupStep[] = [
     {
       id: "persona",
-      label: "Default persona",
-      ctaLabel: options.hasDefaultPersona ? "Persona ready" : "Set default persona",
+      label: "Persona library",
+      ctaLabel: options.personaCount > 0 ? "Persona ready" : "Create persona",
       href: "/app/personas?reason=default",
-      ready: options.hasDefaultPersona,
-      detail: options.hasDefaultPersona
-        ? "New threads know which version of you to use."
-        : "Pick one persona as the default voice for new scenes.",
+      ready: options.personaCount > 0,
+      detail:
+        options.personaCount > 0
+          ? options.hasDefaultPersona
+            ? "Pick the persona you want per thread. The default is just the starting selection."
+            : "You can choose a persona when the thread starts, even without a global default."
+          : "Create at least one persona before you open a new scene.",
     },
     {
       id: "provider",
@@ -68,22 +74,35 @@ export default async function CharactersPage({
 }) {
   const { supabase, user } = await requireAllowedUser();
   const params = await searchParams;
-  const characters = await listCharacters(supabase, user.id);
-  const connections = await listConnections(supabase, user.id);
-  const defaultPersona = await getDefaultPersona(supabase, user.id);
+  const [characters, connections, personas, defaultPersona] = await Promise.all([
+    listCharacters(supabase, user.id),
+    listConnections(supabase, user.id),
+    listPersonas(supabase, user.id),
+    getDefaultPersona(supabase, user.id),
+  ]);
   const editId = typeof params.edit === "string" ? params.edit : null;
   const editing = editId ? await getCharacterBundle(supabase, user.id, editId) : null;
+  const editingPortraitUrl = editing
+    ? await resolveCharacterPortraitUrl(supabase, editing.character.portrait_path)
+    : null;
   const reason = typeof params.reason === "string" ? params.reason : null;
   const hasUsableConnection = connections.some(
     (connection) => connection.enabled && connection.model_cache.length > 0,
   );
   const threadSetup = buildThreadSetupSteps({
+    personaCount: personas.length,
     hasDefaultPersona: Boolean(defaultPersona),
     hasUsableConnection,
     connectionsCount: connections.length,
   });
   const canStartThread = threadSetup.missing.length === 0;
   const primarySetupStep = threadSetup.missing[0] ?? null;
+  const characterCards = await Promise.all(
+    characters.map(async (character) => ({
+      ...character,
+      portraitUrl: await resolveCharacterPortraitUrl(supabase, character.portrait_path),
+    })),
+  );
 
   return (
     <div className="space-y-8" data-testid="characters-page">
@@ -191,16 +210,18 @@ export default async function CharactersPage({
           <CharacterStudioForm
             editing={editing}
             action={saveCharacterAction}
+            portraitPreviewUrl={editingPortraitUrl}
+            regeneratePortraitAction={regenerateCharacterPortraitAction}
             saved={params.saved === "1"}
           />
         </section>
 
         <section className="space-y-4">
-          {characters.length ? (
-            characters.map((character) => (
+          {characterCards.length ? (
+            characterCards.map((character) => (
               <article key={character.id} className="paper-panel rounded-[2rem] p-6">
                 <div className="flex items-start justify-between gap-4">
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <p className="text-xs uppercase tracking-[0.22em] text-ink-soft">
                       Character
                     </p>
@@ -217,7 +238,17 @@ export default async function CharactersPage({
                         character.greeting}
                     </p>
                   </div>
-                  <Plus className="h-5 w-5 text-brand" />
+                  {character.portraitUrl ? (
+                    <img
+                      src={character.portraitUrl}
+                      alt={`${character.name} portrait`}
+                      className="h-20 w-20 shrink-0 rounded-[1.4rem] border border-border object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-[1.4rem] border border-dashed border-border bg-white/5">
+                      <Plus className="h-5 w-5 text-brand" />
+                    </div>
+                  )}
                 </div>
 
                 <div className="mt-6 flex flex-wrap gap-3">
@@ -229,8 +260,23 @@ export default async function CharactersPage({
                   </Link>
 
                   {canStartThread ? (
-                    <form action={startThreadAction}>
+                    <form action={startThreadAction} className="flex flex-wrap items-center gap-3">
                       <input type="hidden" name="characterId" value={character.id} />
+                      <label className="min-w-[13rem] flex-1">
+                        <span className="sr-only">Persona for this thread</span>
+                        <select
+                          name="personaId"
+                          defaultValue={defaultPersona?.id ?? personas[0]?.id ?? ""}
+                          className="w-full rounded-full border border-border bg-white/5 px-4 py-2 text-sm text-foreground outline-none transition focus:border-brand"
+                        >
+                          {personas.map((persona) => (
+                            <option key={persona.id} value={persona.id}>
+                              {persona.name}
+                              {persona.is_default ? " (default)" : ""}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
                       <SubmitButton className="px-4 py-2 text-sm">
                         Start thread
                       </SubmitButton>

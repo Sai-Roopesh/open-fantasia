@@ -3,16 +3,16 @@
 import { ErrorState } from "@/components/feedback/page-state";
 
 export default function WorkspaceError({
-  reset,
+  unstable_retry,
 }: {
   error: Error & { digest?: string };
-  reset: () => void;
+  unstable_retry: () => void;
 }) {
   return (
     <ErrorState
       title="The workspace view failed to render"
       description="Fantasia couldn’t finish loading this workspace surface."
-      onRetry={reset}
+      onRetry={unstable_retry}
       backHref="/app"
     />
   );

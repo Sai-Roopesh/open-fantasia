@@ -8,6 +8,17 @@ import type {
   UserPersonaRecord,
 } from "@/lib/types";
 
+function compactLabeledLines(items: Array<[label: string, value: string | null | undefined]>) {
+  return items.flatMap(([label, value]) => {
+    const trimmed = value?.trim();
+    return trimmed ? [`${label}: ${trimmed}`] : [];
+  });
+}
+
+function bulletList(items: string[], emptyLine: string) {
+  return items.length ? items.map((item) => `- ${item}`).join("\n") : emptyLine;
+}
+
 export function buildRoleplaySystemPrompt(args: {
   character: CharacterBundle;
   persona: UserPersonaRecord;
@@ -17,6 +28,26 @@ export function buildRoleplaySystemPrompt(args: {
 }) {
   const { character, persona, snapshot, pins, timeline } = args;
   const charName = character.character.name;
+  const characterLines = compactLabeledLines([
+    ["Tagline", character.character.tagline],
+    ["Short description", character.character.short_description],
+    ["Long description", character.character.long_description],
+    ["Greeting", character.character.greeting],
+    ["Story / setting", character.character.world_context],
+    ["Core persona", character.character.core_persona],
+    ["Style rules", character.character.style_rules],
+    ["Scenario seed", character.character.scenario_seed],
+    ["Behavior contract", character.character.definition],
+    ["Negative guidance", character.character.negative_guidance],
+  ]);
+  const personaLines = compactLabeledLines([
+    ["Name", persona.name],
+    ["Identity", persona.identity],
+    ["Backstory", persona.backstory],
+    ["Voice style", persona.voice_style],
+    ["Goals", persona.goals],
+    ["Boundaries", persona.boundaries],
+  ]);
 
   const timelineText = timeline.length
     ? timeline
@@ -31,11 +62,14 @@ export function buildRoleplaySystemPrompt(args: {
     ? character.starters.map((starter) => `- ${starter.text}`).join("\n")
     : "- No starter prompts defined.";
 
-  const exampleConversationText = character.exampleConversations.length
-    ? character.exampleConversations
+  const populatedExamples = character.exampleConversations.filter(
+    (example) => example.user_line.trim() || example.character_line.trim(),
+  );
+  const exampleConversationText = populatedExamples.length
+    ? populatedExamples
         .map(
           (example, index) =>
-            `Example ${index + 1}\nUSER: ${example.user_line || "N/A"}\n${charName.toUpperCase()}: ${example.character_line || "N/A"}`,
+            `Example ${index + 1}\nUSER: ${example.user_line || "(left blank)"}\n${charName.toUpperCase()}: ${example.character_line || "(left blank)"}`,
         )
         .join("\n\n")
     : "No structured example conversations yet.";
@@ -45,44 +79,25 @@ export function buildRoleplaySystemPrompt(args: {
     : "- No manual branch pins yet.";
 
   // --- Build active narrative threads ---
-  const openLoopsText = snapshot?.open_loops.length
-    ? snapshot.open_loops.map((loop) => `- ${loop}`).join("\n")
-    : "- None active.";
+  const openLoopsText = bulletList(snapshot?.open_loops ?? [], "- None active.");
 
-  const narrativeHooksText = snapshot?.narrative_hooks.length
-    ? snapshot.narrative_hooks.map((hook) => `- ${hook}`).join("\n")
-    : "- None yet.";
+  const narrativeHooksText = bulletList(snapshot?.narrative_hooks ?? [], "- None yet.");
 
-  const resolvedLoopsText = snapshot?.resolved_loops.length
-    ? snapshot.resolved_loops.map((loop) => `- ${loop}`).join("\n")
-    : "- Nothing resolved yet.";
+  const resolvedLoopsText = bulletList(
+    snapshot?.resolved_loops ?? [],
+    "- Nothing resolved yet.",
+  );
 
-  const sceneGoalsText = snapshot?.scene_goals.length
-    ? snapshot.scene_goals.map((goal) => `- ${goal}`).join("\n")
-    : "- None set.";
+  const sceneGoalsText = bulletList(snapshot?.scene_goals ?? [], "- None set.");
 
   return [
     `You are roleplaying as ${charName}.`,
     "",
     "Character card:",
-    `Tagline: ${character.character.tagline || "N/A"}`,
-    `Short description: ${character.character.short_description || "N/A"}`,
-    `Long description: ${character.character.long_description || "N/A"}`,
-    `Greeting: ${character.character.greeting || "N/A"}`,
-    `Core persona: ${character.character.core_persona || "N/A"}`,
-    `Style rules: ${character.character.style_rules || "N/A"}`,
-    `Scenario seed: ${character.character.scenario_seed || "N/A"}`,
-    `Definition: ${character.character.definition || "N/A"}`,
-    `Negative guidance: ${character.character.negative_guidance || "N/A"}`,
-    `Private author notes: ${character.character.author_notes || "N/A"}`,
+    ...(characterLines.length ? characterLines : ["No character guidance has been filled in yet."]),
     "",
     "Selected user persona:",
-    `Name: ${persona.name}`,
-    `Identity: ${persona.identity || "N/A"}`,
-    `Backstory: ${persona.backstory || "N/A"}`,
-    `Voice style: ${persona.voice_style || "N/A"}`,
-    `Goals: ${persona.goals || "N/A"}`,
-    `Boundaries: ${persona.boundaries || "N/A"}`,
+    ...personaLines,
     "",
     "Suggested starters:",
     starterText,

@@ -8,11 +8,13 @@ describe("validation schemas", () => {
   it("coerces numeric character settings into numbers", () => {
     const parsed = saveCharacterCommandSchema.parse({
       name: "Selene",
+      appearance: "Silver hair, moonlit eyes, velvet coat",
       temperature: "1.25",
       top_p: "0.8",
       max_output_tokens: "900",
     });
 
+    expect(parsed.appearance).toBe("Silver hair, moonlit eyes, velvet coat");
     expect(parsed.temperature).toBe(1.25);
     expect(parsed.top_p).toBe(0.8);
     expect(parsed.max_output_tokens).toBe(900);
@@ -22,6 +24,7 @@ describe("validation schemas", () => {
     expect(() =>
       saveCharacterCommandSchema.parse({
         name: "Selene",
+        appearance: "Silver hair",
         top_p: "0",
         max_output_tokens: "0",
       }),

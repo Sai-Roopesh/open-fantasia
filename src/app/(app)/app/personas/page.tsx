@@ -7,7 +7,6 @@ import {
   setDefaultPersonaAction,
 } from "@/app/(app)/app/personas/actions";
 import {
-  getPersona,
   listPersonas,
   listPersonaUsage,
 } from "@/lib/data/personas";
@@ -19,7 +18,7 @@ function reasonCopy(reason: string) {
     return "Give the persona a name so it is recognizable when you attach it to a thread.";
   }
   if (reason === "default") {
-    return "Choose a default persona before starting a new thread, or keep only one persona in the library so Fantasia can infer it.";
+    return "Create at least one persona before starting a new thread. A default persona only controls the starting selection.";
   }
   return reason;
 }
@@ -31,12 +30,12 @@ export default async function PersonasPage({
 }) {
   const { supabase, user } = await requireAllowedUser();
   const params = await searchParams;
-  const [personas, usage] = await Promise.all([
-    listPersonas(supabase, user.id),
-    listPersonaUsage(supabase, user.id),
-  ]);
+  const personas = await listPersonas(supabase, user.id);
+  const usage = await listPersonaUsage(supabase, user.id).catch(() => []);
   const editId = typeof params.edit === "string" ? params.edit : null;
-  const editing = editId ? await getPersona(supabase, user.id, editId) : null;
+  const editing = editId
+    ? personas.find((persona) => persona.id === editId) ?? null
+    : null;
   const reason = typeof params.reason === "string" ? params.reason : null;
 
   return (

@@ -57,19 +57,10 @@ export async function POST(request: Request) {
     );
   }
 
-  const incomingMessages = (await validateUIMessages({
-    messages: messages.map((message) => ({
-      ...(message as FantasiaUIMessage),
-      metadata:
-        typeof message === "object" &&
-        message !== null &&
-        "metadata" in message &&
-        message.metadata
-          ? message.metadata
-          : {},
-    })),
+  const incomingMessages = await validateUIMessages<FantasiaUIMessage>({
+    messages,
     metadataSchema: messageMetadataSchema,
-  })) as FantasiaUIMessage[];
+  });
 
   const latestUserMessage = [...incomingMessages]
     .reverse()

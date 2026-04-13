@@ -2,14 +2,18 @@ import { z } from "zod";
 
 export const promptTargets = ["generic", "claude", "gemini"] as const;
 export type PromptTarget = (typeof promptTargets)[number];
+export const openFantasiaCharacterDocumentVersion = 3 as const;
+export const openFantasiaPersonaDocumentVersion = 1 as const;
 
 export const openFantasiaCharacterDataSchema = z
   .object({
     name: z.string(),
+    appearance: z.string(),
     tagline: z.string(),
     short_description: z.string(),
     long_description: z.string(),
     greeting: z.string(),
+    world_context: z.string(),
     core_persona: z.string(),
     style_rules: z.string(),
     scenario_seed: z.string(),
@@ -43,7 +47,7 @@ export const openFantasiaPersonaDataSchema = z
 export const openFantasiaCharacterDocumentSchema = z
   .object({
     format: z.literal("openfantasia.character"),
-    version: z.literal(1),
+    version: z.literal(openFantasiaCharacterDocumentVersion),
     data: openFantasiaCharacterDataSchema,
   })
   .strict();
@@ -51,7 +55,7 @@ export const openFantasiaCharacterDocumentSchema = z
 export const openFantasiaPersonaDocumentSchema = z
   .object({
     format: z.literal("openfantasia.persona"),
-    version: z.literal(1),
+    version: z.literal(openFantasiaPersonaDocumentVersion),
     data: openFantasiaPersonaDataSchema,
   })
   .strict();
@@ -67,10 +71,12 @@ export type OpenFantasiaPersonaDocument = z.infer<
 
 export const openFantasiaCharacterDataDefaults: OpenFantasiaCharacterData = {
   name: "",
+  appearance: "",
   tagline: "",
   short_description: "",
   long_description: "",
   greeting: "",
+  world_context: "",
   core_persona: "",
   style_rules: "",
   scenario_seed: "",
@@ -99,16 +105,18 @@ export const openFantasiaCharacterJsonSchema = {
   required: ["format", "version", "data"],
   properties: {
     format: { const: "openfantasia.character" },
-    version: { const: 1 },
+    version: { const: openFantasiaCharacterDocumentVersion },
     data: {
       type: "object",
       additionalProperties: false,
       required: [
         "name",
+        "appearance",
         "tagline",
         "short_description",
         "long_description",
         "greeting",
+        "world_context",
         "core_persona",
         "style_rules",
         "scenario_seed",
@@ -120,10 +128,12 @@ export const openFantasiaCharacterJsonSchema = {
       ],
       properties: {
         name: { type: "string" },
+        appearance: { type: "string" },
         tagline: { type: "string" },
         short_description: { type: "string" },
         long_description: { type: "string" },
         greeting: { type: "string" },
+        world_context: { type: "string" },
         core_persona: { type: "string" },
         style_rules: { type: "string" },
         scenario_seed: { type: "string" },
@@ -159,7 +169,7 @@ export const openFantasiaPersonaJsonSchema = {
   required: ["format", "version", "data"],
   properties: {
     format: { const: "openfantasia.persona" },
-    version: { const: 1 },
+    version: { const: openFantasiaPersonaDocumentVersion },
     data: {
       type: "object",
       additionalProperties: false,
@@ -188,7 +198,7 @@ export const openFantasiaPersonaJsonSchema = {
 export function createBlankCharacterDocument(): OpenFantasiaCharacterDocument {
   return {
     format: "openfantasia.character",
-    version: 1,
+    version: openFantasiaCharacterDocumentVersion,
     data: structuredClone(openFantasiaCharacterDataDefaults),
   };
 }
@@ -196,7 +206,7 @@ export function createBlankCharacterDocument(): OpenFantasiaCharacterDocument {
 export function createBlankPersonaDocument(): OpenFantasiaPersonaDocument {
   return {
     format: "openfantasia.persona",
-    version: 1,
+    version: openFantasiaPersonaDocumentVersion,
     data: structuredClone(openFantasiaPersonaDataDefaults),
   };
 }
@@ -308,14 +318,22 @@ export function promptPackFilename(
 }
 
 export function schemaFilename(kind: "character" | "persona") {
-  return `openfantasia-${kind}-schema.v1.json`;
+  const version =
+    kind === "character"
+      ? openFantasiaCharacterDocumentVersion
+      : openFantasiaPersonaDocumentVersion;
+  return `openfantasia-${kind}-schema.v${version}.json`;
 }
 
 export function templateFilename(
   kind: "character" | "persona",
   variant: "blank" | "export",
 ) {
-  return `openfantasia-${kind}-${variant}.v1.json`;
+  const version =
+    kind === "character"
+      ? openFantasiaCharacterDocumentVersion
+      : openFantasiaPersonaDocumentVersion;
+  return `openfantasia-${kind}-${variant}.v${version}.json`;
 }
 
 function stripMarkdownCodeFence(value: string) {

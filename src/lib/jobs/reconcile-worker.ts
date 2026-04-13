@@ -1,17 +1,43 @@
 import { buildSnapshotFromReconciliation, reconcileTurnState } from "@/lib/ai/thread-engine";
-import { getCharacterBundle } from "@/lib/data/characters";
+import {
+  getCharacter,
+  getCharacterBundle,
+  updateCharacterPortrait,
+} from "@/lib/data/characters";
+import {
+  buildCharacterPortraitObjectPath,
+  CHARACTER_PORTRAITS_BUCKET,
+  fetchCharacterPortraitFromPollinations,
+} from "@/lib/characters/portraits";
 import { getConnection } from "@/lib/data/connections";
 import { getMessagesByIds, toUIMessages } from "@/lib/data/messages";
 import { getPersona } from "@/lib/data/personas";
 import { getSnapshot, saveSnapshot } from "@/lib/data/snapshots";
 import { insertTimelineEvent } from "@/lib/data/timeline";
 import { claimPendingJobs, completeJob, failJob } from "@/lib/data/jobs";
-import type { BackgroundJobRecord, JobPayload } from "@/lib/types";
+import type {
+  BackgroundJobRecord,
+  GenerateCharacterPortraitJobPayload,
+  ReconcileCheckpointJobPayload,
+} from "@/lib/types";
 import type { DatabaseClient } from "@/lib/data/shared";
-import { jobPayloadSchema } from "@/lib/validation";
+import {
+  generateCharacterPortraitJobPayloadSchema,
+  reconcileCheckpointJobPayloadSchema,
+} from "@/lib/validation";
 
 export function parseJobPayload(payload: BackgroundJobRecord["payload"]) {
-  return jobPayloadSchema.parse(payload) as JobPayload;
+  return reconcileCheckpointJobPayloadSchema.parse(
+    payload,
+  ) as ReconcileCheckpointJobPayload;
+}
+
+export function parseGenerateCharacterPortraitJobPayload(
+  payload: BackgroundJobRecord["payload"],
+) {
+  return generateCharacterPortraitJobPayloadSchema.parse(
+    payload,
+  ) as GenerateCharacterPortraitJobPayload;
 }
 
 async function runReconcileCheckpointJob(
@@ -66,13 +92,120 @@ async function runReconcileCheckpointJob(
 
 async function getPreviousSnapshot(
   supabase: DatabaseClient,
-  payload: JobPayload,
+  payload: ReconcileCheckpointJobPayload,
 ) {
   if (!payload.previousCheckpointId) {
     return null;
   }
 
   return getSnapshot(supabase, payload.previousCheckpointId);
+}
+
+async function runGenerateCharacterPortraitJob(
+  supabase: DatabaseClient,
+  job: BackgroundJobRecord,
+) {
+  const payload = parseGenerateCharacterPortraitJobPayload(job.payload);
+  const character = await getCharacter(supabase, job.user_id, payload.characterId);
+
+  if (!character) {
+    return;
+  }
+
+  if (!character.appearance.trim()) {
+    await updateCharacterPortrait(supabase, job.user_id, character.id, {
+      portrait_status: "idle",
+      portrait_path: "",
+      portrait_prompt: "",
+      portrait_seed: null,
+      portrait_source_hash: "",
+      portrait_last_error: "",
+      portrait_generated_at: null,
+    });
+    return;
+  }
+
+  if (character.portrait_source_hash !== payload.sourceHash) {
+    return;
+  }
+
+  const image = await fetchCharacterPortraitFromPollinations({
+    prompt: payload.prompt,
+    seed: payload.seed,
+  });
+  const path = buildCharacterPortraitObjectPath({
+    userId: job.user_id,
+    characterId: character.id,
+    sourceHash: payload.sourceHash,
+    seed: payload.seed,
+  });
+
+  const uploadResult = await supabase.storage
+    .from(CHARACTER_PORTRAITS_BUCKET)
+    .upload(path, image.buffer, {
+      upsert: true,
+      cacheControl: "31536000",
+      contentType: image.contentType,
+    });
+
+  if (uploadResult.error) {
+    throw uploadResult.error;
+  }
+
+  const { data, error } = await supabase
+    .from("characters")
+    .update({
+      portrait_status: "ready",
+      portrait_path: path,
+      portrait_prompt: payload.prompt,
+      portrait_seed: payload.seed,
+      portrait_last_error: "",
+      portrait_generated_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", character.id)
+    .eq("user_id", job.user_id)
+    .eq("portrait_source_hash", payload.sourceHash)
+    .select("id")
+    .maybeSingle();
+
+  if (error) {
+    throw error;
+  }
+
+  if (!data) {
+    await supabase.storage.from(CHARACTER_PORTRAITS_BUCKET).remove([path]);
+  }
+}
+
+async function syncPortraitFailureState(
+  supabase: DatabaseClient,
+  job: BackgroundJobRecord,
+  errorMessage: string,
+) {
+  if (job.type !== "generate_character_portrait") {
+    return;
+  }
+
+  try {
+    const payload = parseGenerateCharacterPortraitJobPayload(job.payload);
+    const character = await getCharacter(supabase, job.user_id, payload.characterId);
+
+    if (!character) {
+      return;
+    }
+
+    if (character.portrait_source_hash !== payload.sourceHash) {
+      return;
+    }
+
+    await updateCharacterPortrait(supabase, job.user_id, character.id, {
+      portrait_status: job.attempts >= job.max_attempts ? "failed" : "pending",
+      portrait_last_error: errorMessage,
+    });
+  } catch {
+    // Best-effort only. The job failure record remains the durable fallback.
+  }
 }
 
 export async function drainPendingJobs(
@@ -85,10 +218,13 @@ export async function drainPendingJobs(
     try {
       if (job.type === "reconcile_checkpoint") {
         await runReconcileCheckpointJob(supabase, job);
+      } else if (job.type === "generate_character_portrait") {
+        await runGenerateCharacterPortraitJob(supabase, job);
       }
       await completeJob(supabase, job.id);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Background job failed.";
+      await syncPortraitFailureState(supabase, job, message);
       await failJob(supabase, job, message);
     }
   }

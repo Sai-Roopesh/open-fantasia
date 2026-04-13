@@ -56,6 +56,7 @@ create table public.characters (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles(id) on delete cascade,
   name text not null,
+  appearance text not null default '',
   tagline text not null default '',
   short_description text not null default '',
   long_description text not null default '',
@@ -66,12 +67,30 @@ create table public.characters (
   author_notes text not null default '',
   definition text not null default '',
   negative_guidance text not null default '',
+  portrait_status text not null default 'idle'
+    check (portrait_status in ('idle', 'pending', 'ready', 'failed')),
+  portrait_path text not null default '',
+  portrait_prompt text not null default '',
+  portrait_seed integer,
+  portrait_source_hash text not null default '',
+  portrait_last_error text not null default '',
+  portrait_generated_at timestamptz,
   temperature numeric(3,2) not null default 0.92 check (temperature >= 0 and temperature <= 2),
   top_p numeric(3,2) not null default 0.94 check (top_p > 0 and top_p <= 1),
   max_output_tokens integer not null default 750 check (max_output_tokens > 0),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'character-portraits',
+  'character-portraits',
+  true,
+  5242880,
+  array['image/jpeg']
+)
+on conflict (id) do nothing;
 
 create table public.character_starters (
   id uuid primary key default gen_random_uuid(),
@@ -527,3 +546,8 @@ on public.background_jobs
 for all
 using (auth.uid() = user_id)
 with check (auth.uid() = user_id);
+
+create policy "character portrait objects are publicly readable"
+on storage.objects
+for select
+using (bucket_id = 'character-portraits');
