@@ -68,16 +68,20 @@ export function buildCharacterPortraitObjectPath(args: {
   return `${args.userId}/${args.characterId}/${args.sourceHash}-${args.seed}.jpg`;
 }
 
-export function resolveCharacterPortraitPublicUrl(
+export async function resolveCharacterPortraitUrl(
   supabase: SupabaseClient<Database>,
   path: string | null | undefined,
 ) {
   const normalized = path?.trim();
   if (!normalized) return null;
 
-  return supabase.storage
-    .from(CHARACTER_PORTRAITS_BUCKET)
-    .getPublicUrl(normalized).data.publicUrl;
+  const bucket = supabase.storage.from(CHARACTER_PORTRAITS_BUCKET);
+  const signed = await bucket.createSignedUrl(normalized, 60 * 60).catch(() => null);
+  if (signed?.data?.signedUrl) {
+    return signed.data.signedUrl;
+  }
+
+  return bucket.getPublicUrl(normalized).data.publicUrl;
 }
 
 export function planCharacterPortraitState(args: {

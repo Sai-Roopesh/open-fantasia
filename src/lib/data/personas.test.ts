@@ -25,8 +25,7 @@ describe("persona data helpers", () => {
 
   it("routes default persona selection through the RPC", async () => {
     const persona = { ...createPersonaRow(), is_default: true };
-    const single = vi.fn().mockResolvedValue({ data: persona, error: null });
-    const rpc = vi.fn(() => ({ single }));
+    const rpc = vi.fn().mockResolvedValue({ data: [persona], error: null });
     const supabase = { rpc } as never;
 
     const result = await setDefaultPersona(supabase, persona.user_id, persona.id);
@@ -40,16 +39,16 @@ describe("persona data helpers", () => {
 
   it("persists persona edits before promoting a new default", async () => {
     const persona = createPersonaRow();
+    const promotedPersona = { ...persona, is_default: true };
     const insertSingle = vi.fn().mockResolvedValue({ data: persona, error: null });
-    const rpcSingle = vi.fn().mockResolvedValue({
-      data: { ...persona, is_default: true },
-      error: null,
-    });
     const insert = vi.fn(() => ({
       select: vi.fn(() => ({ single: insertSingle })),
     }));
     const from = vi.fn(() => ({ insert }));
-    const rpc = vi.fn(() => ({ single: rpcSingle }));
+    const rpc = vi.fn().mockResolvedValue({
+      data: [promotedPersona],
+      error: null,
+    });
     const supabase = { from, rpc } as never;
 
     const result = await upsertPersona(supabase, persona.user_id, {

@@ -78,6 +78,7 @@ export const saveCharacterCommandSchema = z.object({
   short_description: z.string().default(""),
   long_description: z.string().default(""),
   greeting: z.string().default(""),
+  world_context: z.string().default(""),
   core_persona: z.string().default(""),
   style_rules: z.string().default(""),
   scenario_seed: z.string().default(""),
@@ -127,6 +128,7 @@ export const characterDeleteCommandSchema = z.object({
 
 export const startThreadCommandSchema = z.object({
   characterId: z.string().uuid(),
+  personaId: z.string().uuid().optional(),
 });
 
 export const switchThreadModelSchema = z.object({

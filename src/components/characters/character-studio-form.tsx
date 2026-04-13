@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { buildCharacterPortraitStatusCopy } from "@/lib/characters/portrait-status";
+import Image from "next/image";
+import { buildCharacterPortraitStatusCopy } from "@/lib/characters/portraits";
 import type { CharacterBundle } from "@/lib/data/characters";
 import { cn } from "@/lib/utils";
 import { SubmitButton } from "@/components/forms/submit-button";
@@ -99,6 +100,7 @@ export function CharacterStudioForm({
     profile: Number(Boolean(draft.name.trim() && (draft.greeting.trim() || draft.short_description.trim()))),
     definition: Number(
       Boolean(
+        draft.world_context.trim() ||
         draft.core_persona.trim() ||
           draft.style_rules.trim() ||
           draft.scenario_seed.trim() ||
@@ -306,10 +308,13 @@ export function CharacterStudioForm({
 
           <div className="mt-5 overflow-hidden rounded-[1.5rem] border border-border bg-[#14100e]">
             {portraitPreviewUrl && portraitStatus === "ready" ? (
-              <img
+              <Image
                 src={portraitPreviewUrl}
                 alt={`${((editing?.character.name ?? draft.name) || "Character")} portrait`}
+                width={512}
+                height={512}
                 className="aspect-square w-full object-cover"
+                unoptimized
               />
             ) : (
               <div className="flex aspect-square items-center justify-center px-8 text-center text-sm leading-7 text-ink-soft">
@@ -327,6 +332,14 @@ export function CharacterStudioForm({
       </div>
 
       <div className={cn(activeTab !== "definition" && "hidden", "space-y-5")}>
+        <TextField
+          label="Story / setting"
+          name="world_context"
+          value={draft.world_context}
+          rows={6}
+          helper="Persistent world context: setting truths, factions, history, magic, social rules, or any ongoing reality the model should keep carrying."
+          onChange={(value) => update("world_context", value)}
+        />
         <TextField
           label="Core persona"
           name="core_persona"
@@ -349,11 +362,11 @@ export function CharacterStudioForm({
           onChange={(value) => update("scenario_seed", value)}
         />
         <TextField
-          label="Definition"
+          label="Behavior contract"
           name="definition"
           value={draft.definition}
           rows={8}
-          helper="Use this for the deeper operating rules that should survive long chats."
+          helper="Use this for durable behavioral rules, priorities, and constraints that should survive long chats."
           onChange={(value) => update("definition", value)}
         />
         <TextField
@@ -368,7 +381,7 @@ export function CharacterStudioForm({
           label="Private author notes"
           name="author_notes"
           value={draft.author_notes}
-          helper="Notes for you, not the user-facing surface."
+          helper="Private notes for your own editing memory. These stay out of the AI prompt."
           onChange={(value) => update("author_notes", value)}
         />
       </div>

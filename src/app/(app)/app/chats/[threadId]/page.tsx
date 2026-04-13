@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 import { ChatWorkspace } from "@/components/chat/chat-workspace";
+import { resolveCharacterPortraitUrl } from "@/lib/characters/portraits";
 import { ConfirmSubmitButton } from "@/components/forms/confirm-submit-button";
 import { getTextFromMessage } from "@/lib/ai/message-text";
 import { requireAllowedUser } from "@/lib/auth";
@@ -40,6 +41,10 @@ export default async function ChatThreadPage({
   if (!character) {
     redirect("/app/characters");
   }
+  const characterBackgroundUrl = await resolveCharacterPortraitUrl(
+    supabase,
+    character.character.portrait_path,
+  );
 
   const currentConnection =
     connections.find((connection) => connection.id === view.thread.connection_id) ??
@@ -214,6 +219,7 @@ export default async function ChatThreadPage({
       <ChatWorkspace
         threadId={view.thread.id}
         characterName={character.character.name}
+        characterBackgroundUrl={characterBackgroundUrl}
         currentModel={view.thread.model_id}
         currentConnectionLabel={currentConnection?.label ?? "Unknown lane"}
         activeBranch={view.activeBranch}

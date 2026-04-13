@@ -48,7 +48,7 @@ describe("json portability panel helpers", () => {
       "character",
       JSON.stringify({
         format: "openfantasia.character",
-        version: 2,
+        version: 3,
         data: {
           name: "Captain Mirelle",
           appearance: "",
@@ -63,7 +63,6 @@ describe("json portability panel helpers", () => {
     }
 
     expect(result.message).toContain("Open-Fantasia schema");
-    expect(result.message).toContain("data.tagline");
   });
 
   it("returns a JSON syntax error when the pasted payload is malformed", () => {

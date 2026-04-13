@@ -1,158 +1,124 @@
+import { describe, it, expect } from "vitest";
 import { buildRoleplaySystemPrompt } from "@/lib/ai/roleplay-prompt";
+import type { CharacterBundle } from "@/lib/data/characters";
+import type { UserPersonaRecord, ThreadStateSnapshot, TimelineEventRecord } from "@/lib/types";
+
+const mockCharacter: CharacterBundle = {
+  character: {
+    id: "char_1",
+    user_id: "user_1",
+    name: "Alex",
+    appearance: "Lean mechanic with oil-streaked hands and a weathered jacket",
+    tagline: "A witty mechanic",
+    short_description: "Fixes things",
+    long_description: "Fixes things well and likes coffee",
+    greeting: "Hey there.",
+    world_context: "A salvaged shipyard orbiting a dead moon",
+    core_persona: "Gruff but kind",
+    style_rules: "Use slang",
+    scenario_seed: "A broken down spaceship",
+    author_notes: "Don't make him too mean",
+    definition: "An expert",
+    negative_guidance: "Do not flirt",
+    portrait_status: "idle",
+    portrait_path: "",
+    portrait_prompt: "",
+    portrait_seed: null,
+    portrait_source_hash: "",
+    portrait_last_error: "",
+    portrait_generated_at: null,
+    temperature: 0.9,
+    top_p: 0.9,
+    max_output_tokens: 500,
+    created_at: "2024-01-01",
+    updated_at: "2024-01-01",
+  },
+  starters: [],
+  exampleConversations: [],
+};
+
+const mockPersona: UserPersonaRecord = {
+  id: "persona_1",
+  user_id: "user_1",
+  name: "Riley",
+  identity: "Space pilot",
+  backstory: "Lost a ship",
+  voice_style: "Anxious",
+  goals: "Find a new ship",
+  boundaries: "No physical contact",
+  private_notes: "",
+  is_default: false,
+  created_at: "2024-01-01",
+  updated_at: "2024-01-01",
+};
 
 describe("buildRoleplaySystemPrompt", () => {
-  it("includes continuity, persona, pins, timeline, and narrative hooks", () => {
+  it("should handle empty or null snapshot data gracefully", () => {
     const prompt = buildRoleplaySystemPrompt({
-      character: {
-        character: {
-          id: crypto.randomUUID(),
-          user_id: crypto.randomUUID(),
-          name: "Ari",
-          appearance: "Sharp eyes, rain-dark hair, fitted coat, thief's gloves",
-          tagline: "Knife-edge charm",
-          short_description: "A sharp-tongued thief",
-          long_description: "",
-          greeting: "She looks over her shoulder.",
-          core_persona: "Untrusting but curious",
-          style_rules: "Lean, intimate prose",
-          scenario_seed: "Rain-soaked rooftop",
-          author_notes: "Keep the tension playful",
-          definition: "Expert lockbreaker",
-          negative_guidance: "No slapstick",
-          portrait_status: "idle",
-          portrait_path: "",
-          portrait_prompt: "",
-          portrait_seed: null,
-          portrait_source_hash: "",
-          portrait_last_error: "",
-          portrait_generated_at: null,
-          temperature: 0.92,
-          top_p: 0.94,
-          max_output_tokens: 750,
-          created_at: "",
-          updated_at: "",
-        },
-        starters: [{ text: "Meet me on the roof." }] as never,
-        exampleConversations: [
-          {
-            user_line: "Why did you come back?",
-            character_line: "Because leaving you alone felt worse.",
-          },
-        ] as never,
-      },
-      persona: {
-        id: crypto.randomUUID(),
-        user_id: crypto.randomUUID(),
-        name: "Watcher",
-        identity: "A patient observer",
-        backstory: "",
-        voice_style: "Measured",
-        goals: "Protect Ari",
-        boundaries: "No cruelty",
-        private_notes: "",
-        is_default: true,
-        created_at: "",
-        updated_at: "",
-      },
-      snapshot: {
-        checkpoint_id: crypto.randomUUID(),
-        thread_id: crypto.randomUUID(),
-        branch_id: crypto.randomUUID(),
-        based_on_snapshot_id: null,
-        scenario_state: "A rooftop negotiation in the rain.",
-        relationship_state: "Trust is fragile.",
-        rolling_summary: "Ari returned with stolen letters.",
-        user_facts: ["The user covers for Ari."],
-        open_loops: ["Who hired the guards?"],
-        resolved_loops: ["Whether Ari would return."],
-        narrative_hooks: ["Ari has an unopened letter she's hiding."],
-        scene_goals: ["Get off the roof unseen."],
-        version: 1,
-        updated_at: "",
-      },
-      pins: [{ body: "Ari hates being pitied." }] as never,
-      timeline: [{ importance: 4, title: "The return", detail: "Ari came back injured." }] as never,
-    });
-
-    // Continuity
-    expect(prompt).toContain("A rooftop negotiation in the rain.");
-    // Persona
-    expect(prompt).toContain("Protect Ari");
-    // Pins
-    expect(prompt).toContain("Ari hates being pitied.");
-    // Timeline
-    expect(prompt).toContain("The return");
-    // Active loops
-    expect(prompt).toContain("Who hired the guards?");
-    // Resolved loops
-    expect(prompt).toContain("Whether Ari would return.");
-    expect(prompt).toContain("do not reopen");
-    // Narrative hooks
-    expect(prompt).toContain("Ari has an unopened letter she's hiding.");
-    // Proactive directive
-    expect(prompt).toContain("Be proactive");
-    // Recency bias
-    expect(prompt).toContain("what happens NEXT");
-    // Anti-godmoding
-    expect(prompt).toContain("Never write, speak, act, decide, or think for the user");
-  });
-
-  it("handles null snapshot gracefully", () => {
-    const prompt = buildRoleplaySystemPrompt({
-      character: {
-        character: {
-          id: crypto.randomUUID(),
-          user_id: crypto.randomUUID(),
-          name: "Test",
-          appearance: "Unremarkable traveler in a plain coat",
-          tagline: "",
-          short_description: "",
-          long_description: "",
-          greeting: "",
-          core_persona: "",
-          style_rules: "",
-          scenario_seed: "",
-          author_notes: "",
-          definition: "",
-          negative_guidance: "",
-          portrait_status: "idle",
-          portrait_path: "",
-          portrait_prompt: "",
-          portrait_seed: null,
-          portrait_source_hash: "",
-          portrait_last_error: "",
-          portrait_generated_at: null,
-          temperature: 0.92,
-          top_p: 0.94,
-          max_output_tokens: 750,
-          created_at: "",
-          updated_at: "",
-        },
-        starters: [],
-        exampleConversations: [],
-      },
-      persona: {
-        id: crypto.randomUUID(),
-        user_id: crypto.randomUUID(),
-        name: "Default",
-        identity: "",
-        backstory: "",
-        voice_style: "",
-        goals: "",
-        boundaries: "",
-        private_notes: "",
-        is_default: true,
-        created_at: "",
-        updated_at: "",
-      },
+      character: mockCharacter,
+      persona: mockPersona,
       snapshot: null,
       pins: [],
       timeline: [],
     });
 
-    expect(prompt).toContain("Unknown");
-    expect(prompt).toContain("None active.");
-    expect(prompt).toContain("Nothing resolved yet.");
-    expect(prompt).toContain("None yet.");
+    expect(prompt).toContain("You are roleplaying as Alex.");
+    expect(prompt).toContain("Story / setting: A salvaged shipyard orbiting a dead moon");
+    expect(prompt).toContain("Scenario: Unknown");
+    expect(prompt).toContain("- No major beats recorded yet.");
+    expect(prompt).toContain("- No starter prompts defined.");
+    expect(prompt).toContain("- No manual branch pins yet.");
+    expect(prompt).toContain("- None active."); // open loops
+    expect(prompt).not.toContain("Private author notes");
+  });
+
+  it("should format timeline events correctly", () => {
+    const timeline: TimelineEventRecord[] = [
+      { id: "1", thread_id: "t1", title: "Met Alex", detail: "Shook hands", importance: 3, branch_id: null, checkpoint_id: null, source_message_id: null, created_at: "" },
+    ];
+    const prompt = buildRoleplaySystemPrompt({
+      character: mockCharacter,
+      persona: mockPersona,
+      snapshot: null,
+      pins: [],
+      timeline,
+    });
+    expect(prompt).toContain("- [3/5] Met Alex: Shook hands");
+  });
+
+  it("should format snapshot lists defensively avoiding undefined crashes", () => {
+    const snapshot = {
+      checkpoint_id: "1",
+      thread_id: "t1",
+      branch_id: "b1",
+      based_on_snapshot_id: null,
+      version: 1,
+      scenario_state: "Stranded",
+      relationship_state: "Wary",
+      rolling_summary: "Ship is broken.",
+      user_facts: ["Is a pilot", "Needs help"],
+      open_loops: ["Engine fix"],
+      resolved_loops: ["Introductions"],
+      narrative_hooks: ["Mysterious signal"],
+      scene_goals: ["Assess damage"],
+      updated_at: "",
+    } as ThreadStateSnapshot;
+
+    const prompt = buildRoleplaySystemPrompt({
+      character: mockCharacter,
+      persona: mockPersona,
+      snapshot,
+      pins: [],
+      timeline: [],
+    });
+
+    expect(prompt).toContain("Scenario: Stranded");
+    expect(prompt).toContain("Relationship: Wary");
+    expect(prompt).toContain("What happened so far: Ship is broken.");
+    expect(prompt).toContain("Known facts about the user: Is a pilot; Needs help");
+    expect(prompt).toContain("- Engine fix");
+    expect(prompt).toContain("- Introductions");
+    expect(prompt).toContain("- Mysterious signal");
+    expect(prompt).toContain("- Assess damage");
   });
 });

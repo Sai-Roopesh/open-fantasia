@@ -223,6 +223,7 @@ export interface Database {
           top_p: number;
           updated_at: string;
           user_id: string;
+          world_context: string;
         };
         Insert: {
           appearance?: string;
@@ -251,6 +252,7 @@ export interface Database {
           top_p?: number;
           updated_at?: string;
           user_id: string;
+          world_context?: string;
         };
         Update: {
           appearance?: string;
@@ -279,6 +281,7 @@ export interface Database {
           top_p?: number;
           updated_at?: string;
           user_id?: string;
+          world_context?: string;
         };
         Relationships: [];
       };

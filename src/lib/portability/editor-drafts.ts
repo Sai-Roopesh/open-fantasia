@@ -16,6 +16,7 @@ export type CharacterDraft = {
   short_description: string;
   long_description: string;
   greeting: string;
+  world_context: string;
   core_persona: string;
   style_rules: string;
   scenario_seed: string;
@@ -48,6 +49,7 @@ export function createCharacterDraft(editing: CharacterBundle | null): Character
           short_description: editing.character.short_description,
           long_description: editing.character.long_description,
           greeting: editing.character.greeting,
+          world_context: editing.character.world_context,
           core_persona: editing.character.core_persona,
           style_rules: editing.character.style_rules,
           scenario_seed: editing.character.scenario_seed,
@@ -78,6 +80,7 @@ export function characterDraftToPortableData(
     short_description: draft.short_description,
     long_description: draft.long_description,
     greeting: draft.greeting,
+    world_context: draft.world_context,
     core_persona: draft.core_persona,
     style_rules: draft.style_rules,
     scenario_seed: draft.scenario_seed,
@@ -102,6 +105,7 @@ export function portableCharacterDataToDraft(
     short_description: data.short_description,
     long_description: data.long_description,
     greeting: data.greeting,
+    world_context: data.world_context,
     core_persona: data.core_persona,
     style_rules: data.style_rules,
     scenario_seed: data.scenario_seed,

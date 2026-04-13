@@ -6,13 +6,14 @@ import { requireAllowedUser } from "@/lib/auth";
 import { planCharacterPortraitState } from "@/lib/characters/portraits";
 import {
   deleteCharacter,
+  getCharacter,
   getCharacterBundle,
   updateCharacterPortrait,
   upsertCharacterBundle,
 } from "@/lib/data/characters";
 import { listConnections } from "@/lib/data/connections";
 import { enqueueGenerateCharacterPortraitJob } from "@/lib/data/jobs";
-import { getDefaultPersona } from "@/lib/data/personas";
+import { getDefaultPersona, getPersona } from "@/lib/data/personas";
 import { createThread } from "@/lib/data/threads";
 import { scheduleBackgroundWorker } from "@/lib/jobs/kick-worker";
 import {
@@ -59,6 +60,7 @@ export async function saveCharacterAction(formData: FormData) {
     short_description: String(formData.get("short_description") ?? ""),
     long_description: String(formData.get("long_description") ?? ""),
     greeting: String(formData.get("greeting") ?? ""),
+    world_context: String(formData.get("world_context") ?? ""),
     core_persona: String(formData.get("core_persona") ?? ""),
     style_rules: String(formData.get("style_rules") ?? ""),
     scenario_seed: String(formData.get("scenario_seed") ?? ""),
@@ -164,16 +166,26 @@ export async function startThreadAction(formData: FormData) {
   const { supabase, user } = await requireAllowedUser();
   const parsed = startThreadCommandSchema.safeParse({
     characterId: String(formData.get("characterId") ?? ""),
+    personaId: String(formData.get("personaId") ?? "").trim() || undefined,
   });
   if (!parsed.success) {
     redirect("/app/characters?reason=character");
   }
 
   const connections = await listConnections(supabase, user.id);
-  const persona = await getDefaultPersona(supabase, user.id);
+  const [persona, character] = await Promise.all([
+    parsed.data.personaId
+      ? getPersona(supabase, user.id, parsed.data.personaId)
+      : getDefaultPersona(supabase, user.id),
+    getCharacter(supabase, user.id, parsed.data.characterId),
+  ]);
   const usableConnection = connections.find(
     (connection) => connection.enabled && connection.model_cache.length > 0,
   );
+
+  if (!character) {
+    redirect("/app/characters?reason=character");
+  }
 
   if (!persona) {
     redirect("/app/personas?reason=default");
@@ -188,7 +200,7 @@ export async function startThreadAction(formData: FormData) {
     connection: usableConnection!,
     modelId: usableConnection!.model_cache[0].id,
     personaId: persona!.id,
-    title: "New roleplay thread",
+    title: `Scene with ${character.name}`,
   });
 
   revalidatePath("/app");

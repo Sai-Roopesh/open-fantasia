@@ -2,7 +2,7 @@ import { z } from "zod";
 
 export const promptTargets = ["generic", "claude", "gemini"] as const;
 export type PromptTarget = (typeof promptTargets)[number];
-export const openFantasiaCharacterDocumentVersion = 2 as const;
+export const openFantasiaCharacterDocumentVersion = 3 as const;
 export const openFantasiaPersonaDocumentVersion = 1 as const;
 
 export const openFantasiaCharacterDataSchema = z
@@ -13,6 +13,7 @@ export const openFantasiaCharacterDataSchema = z
     short_description: z.string(),
     long_description: z.string(),
     greeting: z.string(),
+    world_context: z.string(),
     core_persona: z.string(),
     style_rules: z.string(),
     scenario_seed: z.string(),
@@ -75,6 +76,7 @@ export const openFantasiaCharacterDataDefaults: OpenFantasiaCharacterData = {
   short_description: "",
   long_description: "",
   greeting: "",
+  world_context: "",
   core_persona: "",
   style_rules: "",
   scenario_seed: "",
@@ -114,6 +116,7 @@ export const openFantasiaCharacterJsonSchema = {
         "short_description",
         "long_description",
         "greeting",
+        "world_context",
         "core_persona",
         "style_rules",
         "scenario_seed",
@@ -130,6 +133,7 @@ export const openFantasiaCharacterJsonSchema = {
         short_description: { type: "string" },
         long_description: { type: "string" },
         greeting: { type: "string" },
+        world_context: { type: "string" },
         core_persona: { type: "string" },
         style_rules: { type: "string" },
         scenario_seed: { type: "string" },

@@ -87,6 +87,7 @@ export function JsonPortabilityPanel(props: JsonPortabilityPanelProps) {
               short_description: "",
               long_description: "",
               greeting: "",
+              world_context: "",
               core_persona: "",
               style_rules: "",
               scenario_seed: "",
