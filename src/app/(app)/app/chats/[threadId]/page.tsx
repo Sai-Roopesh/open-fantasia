@@ -71,7 +71,7 @@ export default async function ChatThreadPage({
           tone: "pending" as const,
           title: "Continuity reconciliation is still running",
           detail:
-            "The worker is rebuilding the branch head after the latest turn change. New sends, regenerate, and edit stay blocked until it finishes.",
+            "The latest turn is still being folded into the branch snapshot. You can keep chatting while the next head snapshot catches up.",
         }
       : null;
 

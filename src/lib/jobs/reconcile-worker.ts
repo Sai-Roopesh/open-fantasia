@@ -40,17 +40,19 @@ export function parseGenerateCharacterPortraitJobPayload(
   ) as GenerateCharacterPortraitJobPayload;
 }
 
-async function runReconcileCheckpointJob(
-  supabase: DatabaseClient,
-  job: BackgroundJobRecord,
-) {
-  const payload = parseJobPayload(job.payload);
+export async function reconcileCheckpoint(args: {
+  supabase: DatabaseClient;
+  userId: string;
+  payload: ReconcileCheckpointJobPayload;
+}) {
   const [connection, character, persona, previousSnapshot, recentMessages] = await Promise.all([
-    getConnection(supabase, job.user_id, payload.connectionId),
-    getCharacterBundle(supabase, job.user_id, payload.characterId),
-    payload.personaId ? getPersona(supabase, job.user_id, payload.personaId) : Promise.resolve(null),
-    getPreviousSnapshot(supabase, payload),
-    getMessagesByIds(supabase, payload.recentMessageIds),
+    getConnection(args.supabase, args.userId, args.payload.connectionId),
+    getCharacterBundle(args.supabase, args.userId, args.payload.characterId),
+    args.payload.personaId
+      ? getPersona(args.supabase, args.userId, args.payload.personaId)
+      : Promise.resolve(null),
+    getPreviousSnapshot(args.supabase, args.payload),
+    getMessagesByIds(args.supabase, args.payload.recentMessageIds),
   ]);
 
   if (!connection) throw new Error("Reconciliation skipped: connection is missing.");
@@ -59,18 +61,18 @@ async function runReconcileCheckpointJob(
 
   const reconciliation = await reconcileTurnState({
     connection,
-    modelId: payload.modelId,
+    modelId: args.payload.modelId,
     character,
     previousSnapshot,
     recentMessages: toUIMessages(recentMessages, { includeHidden: true }),
   });
 
   await saveSnapshot(
-    supabase,
+    args.supabase,
     buildSnapshotFromReconciliation({
-      checkpointId: payload.checkpointId,
-      threadId: payload.threadId,
-      branchId: payload.branchId,
+      checkpointId: args.payload.checkpointId,
+      threadId: args.payload.threadId,
+      branchId: args.payload.branchId,
       previousSnapshot,
       reconciliation,
     }),
@@ -78,16 +80,29 @@ async function runReconcileCheckpointJob(
 
   if (reconciliation.timelineEvent) {
     const sourceMessageId = recentMessages.at(-1)?.id ?? null;
-    await insertTimelineEvent(supabase, {
-      thread_id: payload.threadId,
-      branch_id: payload.branchId,
-      checkpoint_id: payload.checkpointId,
+    await insertTimelineEvent(args.supabase, {
+      thread_id: args.payload.threadId,
+      branch_id: args.payload.branchId,
+      checkpoint_id: args.payload.checkpointId,
       source_message_id: sourceMessageId,
       title: reconciliation.timelineEvent.title,
       detail: reconciliation.timelineEvent.detail,
       importance: reconciliation.timelineEvent.importance,
     });
   }
+}
+
+async function runReconcileCheckpointJob(
+  supabase: DatabaseClient,
+  job: BackgroundJobRecord,
+) {
+  const payload = parseJobPayload(job.payload);
+
+  await reconcileCheckpoint({
+    supabase,
+    userId: job.user_id,
+    payload,
+  });
 }
 
 async function getPreviousSnapshot(

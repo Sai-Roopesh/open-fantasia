@@ -16,6 +16,7 @@ export function useLocalDraft<T>({
   const [value, setValue] = useState<T>(() => initialValue);
   const [hasStoredDraft, setHasStoredDraft] = useState(false);
   const [restoredFromDraft, setRestoredFromDraft] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
   const ignoredInitialDraft = useRef(false);
   const [readyToPersist, setReadyToPersist] = useState(false);
 
@@ -24,6 +25,7 @@ export function useLocalDraft<T>({
     setReadyToPersist(false);
     setHasStoredDraft(false);
     setRestoredFromDraft(false);
+    setIsDirty(false);
     setValue(JSON.parse(initialSerialized) as T);
   }, [initialSerialized, storageKey]);
 
@@ -58,6 +60,10 @@ export function useLocalDraft<T>({
       // Ignore localStorage persistence failures.
     }
   }, [initialSerialized, readyToPersist, storageKey, value]);
+
+  useEffect(() => {
+    setIsDirty(JSON.stringify(value) !== initialSerialized);
+  }, [initialSerialized, value]);
 
   const restoreDraft = useCallback(() => {
     try {
@@ -104,6 +110,6 @@ export function useLocalDraft<T>({
     restoreDraft,
     discardDraft,
     clearDraft,
-    isDirty: JSON.stringify(value) !== initialSerialized,
+    isDirty,
   };
 }

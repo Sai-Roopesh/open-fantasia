@@ -110,6 +110,7 @@ describe("turn-finalizer", () => {
       }),
     );
     expect(result.checkpoint.id).toBeDefined();
+    expect(result.reconcilePayload.checkpointId).toBe(result.checkpoint.id);
     expect(result.storedUser.id).toBe("user-msg-1");
     expect(result.storedAssistant.id).toBe("assistant-msg-1");
   });
@@ -159,6 +160,7 @@ describe("turn-finalizer", () => {
       }),
     );
     expect(result.checkpoint).toEqual(checkpoint);
+    expect(result.reconcilePayload.checkpointId).toBe(checkpoint.id);
     expect(result.storedUser).toBeNull();
     expect(result.storedAssistant.id).toBe(checkpoint.assistant_message_id);
   });

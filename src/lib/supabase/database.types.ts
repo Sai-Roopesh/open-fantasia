@@ -631,6 +631,10 @@ export interface Database {
         Args: { limit_count?: number };
         Returns: Database["public"]["Tables"]["background_jobs"]["Row"][];
       };
+      delete_persona_and_reassign: {
+        Args: { p_persona_id: string; p_user_id: string };
+        Returns: string | null;
+      };
       create_thread_with_main_branch: {
         Args: {
           p_character_id: string;
@@ -665,6 +669,14 @@ export interface Database {
       get_thread_graph_payload: {
         Args: { p_thread_id: string; p_user_id: string };
         Returns: Json;
+      };
+      list_persona_usage: {
+        Args: { p_user_id: string };
+        Returns: {
+          active_threads: number;
+          persona_id: string;
+          total_threads: number;
+        }[];
       };
       rewind_thread_to_checkpoint: {
         Args: {

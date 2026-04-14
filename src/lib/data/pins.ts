@@ -28,12 +28,14 @@ export async function createPin(
 
 export async function resolvePin(
   supabase: DatabaseClient,
+  threadId: string,
   pinId: string,
 ) {
   const { data, error } = await supabase
     .from("chat_pins")
     .update({ status: "resolved" })
     .eq("id", pinId)
+    .eq("thread_id", threadId)
     .select(pinSelect)
     .single();
 

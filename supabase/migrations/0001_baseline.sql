@@ -599,6 +599,101 @@ begin
 end;
 $$;
 
+create or replace function public.list_persona_usage(
+  p_user_id uuid
+)
+returns table (
+  persona_id uuid,
+  total_threads bigint,
+  active_threads bigint
+)
+language sql
+set search_path = public
+as $$
+  select
+    threads.persona_id,
+    count(*)::bigint as total_threads,
+    count(*) filter (where threads.status = 'active')::bigint as active_threads
+  from public.chat_threads threads
+  where threads.user_id = p_user_id
+    and threads.persona_id is not null
+  group by threads.persona_id;
+$$;
+
+create or replace function public.delete_persona_and_reassign(
+  p_user_id uuid,
+  p_persona_id uuid
+)
+returns uuid
+language plpgsql
+set search_path = public
+as $$
+declare
+  target_persona public.user_personas;
+  replacement_persona public.user_personas;
+  used_in_threads bigint := 0;
+begin
+  select *
+  into target_persona
+  from public.user_personas personas
+  where personas.id = p_persona_id
+    and personas.user_id = p_user_id;
+
+  if target_persona.id is null then
+    return null;
+  end if;
+
+  select *
+  into replacement_persona
+  from public.user_personas personas
+  where personas.user_id = p_user_id
+    and personas.id <> p_persona_id
+  order by personas.is_default desc, personas.updated_at desc
+  limit 1;
+
+  select count(*)
+  into used_in_threads
+  from public.chat_threads threads
+  where threads.user_id = p_user_id
+    and threads.persona_id = p_persona_id;
+
+  if used_in_threads > 0 and replacement_persona.id is null then
+    raise exception 'Create another persona before deleting the only persona used by your threads.';
+  end if;
+
+  if replacement_persona.id is not null then
+    update public.chat_threads
+    set
+      persona_id = replacement_persona.id,
+      updated_at = now()
+    where user_id = p_user_id
+      and persona_id = p_persona_id;
+
+    if target_persona.is_default then
+      update public.user_personas
+      set
+        is_default = false,
+        updated_at = now()
+      where user_id = p_user_id
+        and is_default = true;
+
+      update public.user_personas
+      set
+        is_default = true,
+        updated_at = now()
+      where id = replacement_persona.id
+        and user_id = p_user_id;
+    end if;
+  end if;
+
+  delete from public.user_personas personas
+  where personas.id = p_persona_id
+    and personas.user_id = p_user_id;
+
+  return replacement_persona.id;
+end;
+$$;
+
 create or replace function public.create_thread_with_main_branch(
   p_user_id uuid,
   p_character_id uuid,

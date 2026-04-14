@@ -36,6 +36,33 @@ function sortThreads<T extends ThreadRecord>(threads: T[]) {
   });
 }
 
+function buildThreadListQuery(
+  supabase: DatabaseClient,
+  userId: string,
+  status: "active" | "archived" | "all",
+) {
+  let queryBuilder = supabase
+    .from("chat_threads")
+    .select(threadListSelect)
+    .eq("user_id", userId)
+    .not("active_branch_id", "is", null);
+
+  if (status !== "all") {
+    queryBuilder = queryBuilder.eq("status", status);
+  }
+
+  return queryBuilder;
+}
+
+async function selectThreadItems(
+  query: ReturnType<typeof buildThreadListQuery>,
+) {
+  const { data, error } = await query;
+
+  if (error) throw error;
+  return castRows<ThreadListItem>(data, "Thread list items");
+}
+
 export async function listThreads(supabase: DatabaseClient, userId: string) {
   return listThreadItems(supabase, userId, { status: "active" });
 }
@@ -49,31 +76,59 @@ export async function listThreadItems(
   },
 ) {
   const status = options?.status ?? "all";
-  let queryBuilder = supabase
-    .from("chat_threads")
-    .select(threadListSelect)
-    .eq("user_id", userId)
-    .not("active_branch_id", "is", null)
-    .order("updated_at", { ascending: false });
+  const query = options?.query?.trim() ?? "";
 
-  if (status !== "all") {
-    queryBuilder = queryBuilder.eq("status", status);
+  if (!query) {
+    return sortThreads(
+      await selectThreadItems(buildThreadListQuery(supabase, userId, status)),
+    );
   }
 
-  const { data, error } = await queryBuilder;
+  const [titleMatches, characterIdRows, personaIdRows] = await Promise.all([
+    selectThreadItems(
+      buildThreadListQuery(supabase, userId, status).ilike("title", `%${query}%`),
+    ),
+    supabase
+      .from("characters")
+      .select("id")
+      .eq("user_id", userId)
+      .ilike("name", `%${query}%`),
+    supabase
+      .from("user_personas")
+      .select("id")
+      .eq("user_id", userId)
+      .ilike("name", `%${query}%`),
+  ]);
 
-  if (error) throw error;
-  const raw = castRows<ThreadListItem>(data, "Thread list items");
-  const query = options?.query?.trim().toLowerCase() ?? "";
+  if (characterIdRows.error) throw characterIdRows.error;
+  if (personaIdRows.error) throw personaIdRows.error;
 
-  return sortThreads(
-    raw.filter((thread) => {
-      if (!query) return true;
-      return [thread.title, thread.characters?.name, thread.user_personas?.name]
-        .filter(Boolean)
-        .some((value) => value!.toLowerCase().includes(query));
-    }),
+  const characterIds = castRows<{ id: string }>(characterIdRows.data ?? [], "Character ids").map(
+    (row) => row.id,
   );
+  const personaIds = castRows<{ id: string }>(personaIdRows.data ?? [], "Persona ids").map(
+    (row) => row.id,
+  );
+
+  const relatedMatches = await Promise.all([
+    characterIds.length
+      ? selectThreadItems(
+          buildThreadListQuery(supabase, userId, status).in("character_id", characterIds),
+        )
+      : Promise.resolve([] as ThreadListItem[]),
+    personaIds.length
+      ? selectThreadItems(
+          buildThreadListQuery(supabase, userId, status).in("persona_id", personaIds),
+        )
+      : Promise.resolve([] as ThreadListItem[]),
+  ]);
+
+  const merged = new Map<string, ThreadListItem>();
+  for (const thread of [titleMatches, ...relatedMatches].flat()) {
+    merged.set(thread.id, thread);
+  }
+
+  return sortThreads(Array.from(merged.values()));
 }
 
 export async function getThread(

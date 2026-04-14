@@ -4,9 +4,11 @@ import {
   loadThreadGenerationRuntime,
   toThreadGenerationErrorResponse,
 } from "@/lib/ai/thread-generation-service";
-import { finalizeAssistantTurn } from "@/lib/ai/turn-finalizer";
+import {
+  finalizeAssistantTurn,
+  reconcileCheckpointInBand,
+} from "@/lib/ai/turn-finalizer";
 import { insertTimelineEvent } from "@/lib/data/timeline";
-import { scheduleBackgroundWorker } from "@/lib/jobs/kick-worker";
 import { createTextMessage } from "@/lib/threads/read-model";
 import { starterSeedRequestSchema } from "@/lib/validation";
 
@@ -68,10 +70,10 @@ export async function POST(
   const { assistantMessage } = await generateAssistantReply({
     runtime,
     messages: [...runtime.threadView.modelContextMessages, starterMessage],
-    snapshot: runtime.threadView.headSnapshot,
+    snapshot: runtime.threadView.resolvedSnapshot,
   });
 
-  const { checkpoint } = await finalizeAssistantTurn({
+  const { checkpoint, reconcilePayload } = await finalizeAssistantTurn({
     supabase,
     userId: user.id,
     thread: runtime.threadView.thread,
@@ -86,7 +88,11 @@ export async function POST(
       assistantMessage,
     ],
   });
-  scheduleBackgroundWorker(1);
+  await reconcileCheckpointInBand({
+    supabase,
+    userId: user.id,
+    payload: reconcilePayload,
+  });
 
   await insertTimelineEvent(supabase, {
     thread_id: threadId,
