@@ -1199,7 +1199,9 @@ begin
         messages.metadata,
         messages.created_at
       from public.chat_messages messages
-      where messages.id = any((select value from message_ids))
+      where messages.id = any(
+        coalesce((select value from message_ids), array[]::text[])
+      )
     ),
     snapshot_rows as (
       select
@@ -1218,7 +1220,9 @@ begin
         snapshots.version,
         snapshots.updated_at
       from public.chat_state_snapshots snapshots
-      where snapshots.checkpoint_id = any((select value from checkpoint_ids))
+      where snapshots.checkpoint_id = any(
+        coalesce((select value from checkpoint_ids), array[]::uuid[])
+      )
     ),
     timeline_rows as (
       select
