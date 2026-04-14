@@ -1,7 +1,8 @@
 import { getCurrentUser } from "@/lib/auth";
 import { createBranch } from "@/lib/data/branches";
-import { getThreadGraphView, switchActiveBranch } from "@/lib/data/threads";
+import { switchActiveBranch } from "@/lib/data/threads";
 import { insertTimelineEvent } from "@/lib/data/timeline";
+import { getThreadGraphView } from "@/lib/threads/read-model";
 import { createBranchRequestSchema } from "@/lib/validation";
 
 export async function POST(

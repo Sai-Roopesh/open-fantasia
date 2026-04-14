@@ -1,5 +1,5 @@
 import type { ChatPinRecord } from "@/lib/types";
-import { castRow, castRows, type DatabaseClient } from "@/lib/data/shared";
+import { castRow, type DatabaseClient } from "@/lib/data/shared";
 
 const pinSelect = [
   "id",
@@ -11,23 +11,6 @@ const pinSelect = [
   "created_at",
   "updated_at",
 ].join(", ");
-
-export async function listPins(
-  supabase: DatabaseClient,
-  threadId: string,
-  branchId: string,
-) {
-  const { data, error } = await supabase
-    .from("chat_pins")
-    .select(pinSelect)
-    .eq("thread_id", threadId)
-    .eq("branch_id", branchId)
-    .eq("status", "active")
-    .order("created_at", { ascending: false });
-
-  if (error) throw error;
-  return castRows<ChatPinRecord>(data);
-}
 
 export async function createPin(
   supabase: DatabaseClient,

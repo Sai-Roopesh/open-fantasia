@@ -1,15 +1,13 @@
-import { convertToModelMessages, generateText } from "ai";
 import { getCurrentUser } from "@/lib/auth";
+import {
+  generateAssistantReply,
+  loadThreadGenerationRuntime,
+  toThreadGenerationErrorResponse,
+} from "@/lib/ai/thread-generation-service";
 import { finalizeAssistantTurn } from "@/lib/ai/turn-finalizer";
-import { resolveThreadGenerationSettings } from "@/lib/ai/generation-settings";
-import { getCharacterBundle } from "@/lib/data/characters";
-import { getConnection } from "@/lib/data/connections";
-import { getPersona } from "@/lib/data/personas";
-import { createTextMessage, getThreadGraphView } from "@/lib/data/threads";
 import { insertTimelineEvent } from "@/lib/data/timeline";
 import { scheduleBackgroundWorker } from "@/lib/jobs/kick-worker";
-import { createLanguageModel } from "@/lib/ai/provider-factory";
-import { buildRoleplaySystemPrompt } from "@/lib/ai/roleplay-prompt";
+import { createTextMessage } from "@/lib/threads/read-model";
 import { starterSeedRequestSchema } from "@/lib/validation";
 
 function buildStarterSeedPrompt(starter: string) {
@@ -40,28 +38,22 @@ export async function POST(
     return Response.json({ error: "A starter seed is required." }, { status: 400 });
   }
 
-  const threadView = await getThreadGraphView(supabase, user.id, threadId);
-  if (!threadView) {
-    return Response.json({ error: "Thread not found." }, { status: 404 });
+  let runtime: Awaited<ReturnType<typeof loadThreadGenerationRuntime>>;
+  try {
+    runtime = await loadThreadGenerationRuntime({
+      supabase,
+      userId: user.id,
+      threadId,
+    });
+  } catch (error) {
+    return toThreadGenerationErrorResponse(error);
   }
 
-  if (threadView.checkpoints.length > 0) {
+  if (runtime.threadView.checkpoints.length > 0) {
     return Response.json(
       { error: "Starter openings can only be used before the first turn." },
       { status: 400 },
     );
-  }
-
-  const [character, connection, persona] = await Promise.all([
-    getCharacterBundle(supabase, user.id, threadView.thread.character_id),
-    getConnection(supabase, user.id, threadView.thread.connection_id),
-    threadView.thread.persona_id
-      ? getPersona(supabase, user.id, threadView.thread.persona_id)
-      : Promise.resolve(null),
-  ]);
-
-  if (!character || !connection || !persona) {
-    return Response.json({ error: "Missing thread context." }, { status: 400 });
   }
 
   const starterMessage = createTextMessage({
@@ -72,53 +64,24 @@ export async function POST(
       starterSeed: true,
     },
   });
-  const generationSettings = resolveThreadGenerationSettings({
-    character: character.character,
-    thread: threadView.thread,
-  });
 
-  const result = await generateText({
-    model: createLanguageModel(connection, threadView.thread.model_id),
-    system: buildRoleplaySystemPrompt({
-      character,
-      persona,
-      snapshot: threadView.headSnapshot,
-      pins: threadView.pins,
-      timeline: [...threadView.timeline].reverse(),
-    }),
-    messages: await convertToModelMessages([
-      ...threadView.modelContextMessages,
-      starterMessage,
-    ]),
-    temperature: generationSettings.temperature,
-    topP: generationSettings.topP,
-    maxOutputTokens: generationSettings.maxOutputTokens,
-  });
-
-  const assistantMessage = createTextMessage({
-    role: "assistant",
-    text: result.text,
-    metadata: {
-      provider: connection.provider,
-      model: threadView.thread.model_id,
-      connectionLabel: connection.label,
-      branchId: threadView.activeBranch.id,
-      totalTokens: result.usage.totalTokens,
-      finishReason: result.finishReason,
-    },
+  const { assistantMessage } = await generateAssistantReply({
+    runtime,
+    messages: [...runtime.threadView.modelContextMessages, starterMessage],
+    snapshot: runtime.threadView.headSnapshot,
   });
 
   const { checkpoint } = await finalizeAssistantTurn({
     supabase,
     userId: user.id,
-    thread: threadView.thread,
-    branchId: threadView.activeBranch.id,
-    parentCheckpointId: threadView.activeBranch.head_checkpoint_id,
+    thread: runtime.threadView.thread,
+    branchId: runtime.threadView.activeBranch.id,
+    parentCheckpointId: runtime.threadView.activeBranch.head_checkpoint_id,
     userMessage: starterMessage,
     assistantMessage,
     choiceGroupKey: `choice:${crypto.randomUUID()}`,
     recentMessages: [
-      ...threadView.modelContextMessages,
+      ...runtime.threadView.modelContextMessages,
       starterMessage,
       assistantMessage,
     ],
@@ -127,7 +90,7 @@ export async function POST(
 
   await insertTimelineEvent(supabase, {
     thread_id: threadId,
-    branch_id: threadView.activeBranch.id,
+    branch_id: runtime.threadView.activeBranch.id,
     checkpoint_id: checkpoint.id,
     source_message_id: checkpoint.assistant_message_id,
     title: "Starter opening generated",

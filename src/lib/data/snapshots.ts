@@ -63,23 +63,6 @@ export async function listSnapshots(
   );
 }
 
-export async function listSnapshotsByCheckpointIds(
-  supabase: DatabaseClient,
-  checkpointIds: string[],
-) {
-  if (!checkpointIds.length) return [];
-
-  const { data, error } = await supabase
-    .from("chat_state_snapshots")
-    .select(snapshotSelect)
-    .in("checkpoint_id", checkpointIds);
-
-  if (error) throw error;
-  return castRows<unknown>(data).map((snapshot) =>
-    normalizeSnapshot(castRecord(snapshot)),
-  );
-}
-
 export async function saveSnapshot(
   supabase: DatabaseClient,
   snapshot: ThreadStateSnapshot,

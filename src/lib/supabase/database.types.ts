@@ -662,6 +662,10 @@ export interface Database {
         };
         Returns: Database["public"]["Tables"]["chat_checkpoints"]["Row"];
       };
+      get_thread_graph_payload: {
+        Args: { p_thread_id: string; p_user_id: string };
+        Returns: Json;
+      };
       rewind_thread_to_checkpoint: {
         Args: {
           p_branch_id: string;

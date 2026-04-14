@@ -1,6 +1,6 @@
 import { getCurrentUser } from "@/lib/auth";
 import { rateCheckpoint } from "@/lib/data/checkpoints";
-import { getThreadGraphView } from "@/lib/data/threads";
+import { getThreadGraphView } from "@/lib/threads/read-model";
 import { rateCheckpointRequestSchema } from "@/lib/validation";
 
 export async function POST(

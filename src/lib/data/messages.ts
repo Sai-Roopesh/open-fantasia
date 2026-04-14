@@ -6,8 +6,6 @@ import type {
   StoredMessageRecord,
 } from "@/lib/types";
 import {
-  assertThreadOwnership,
-  castRecord,
   castRows,
   type DatabaseClient,
 } from "@/lib/data/shared";
@@ -35,23 +33,6 @@ function normalizeStoredMessage(data: Record<string, unknown>) {
 
 function isHiddenFromTranscript(metadata: MessageMetadata | null | undefined) {
   return Boolean(metadata?.hiddenFromTranscript);
-}
-
-export async function listMessages(
-  supabase: DatabaseClient,
-  userId: string,
-  threadId: string,
-) {
-  await assertThreadOwnership(supabase, userId, threadId);
-
-  const { data, error } = await supabase
-    .from("chat_messages")
-    .select(messageSelect)
-    .eq("thread_id", threadId)
-    .order("created_at", { ascending: true });
-
-  if (error) throw error;
-  return castRows<unknown>(data).map((row) => normalizeStoredMessage(castRecord(row)));
 }
 
 export async function getMessagesByIds(

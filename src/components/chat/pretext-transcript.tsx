@@ -18,7 +18,7 @@ import {
   type InlineMark,
   type RichTextBlock,
 } from "@/lib/pretext/markdown-lite";
-import { ActionButton } from "@/components/chat/chat-workspace-parts";
+import { ActionButton } from "@/components/chat/chat-action-ui";
 
 function isNearBottom(element: HTMLDivElement) {
   return element.scrollHeight - element.scrollTop - element.clientHeight < 120;

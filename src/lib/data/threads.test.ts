@@ -1,4 +1,4 @@
-import { buildCheckpointPath, resolveSnapshotState } from "@/lib/data/threads";
+import { buildCheckpointPath, resolveSnapshotState } from "@/lib/threads/read-model";
 
 describe("buildCheckpointPath", () => {
   it("returns the canonical path from root to head", () => {
