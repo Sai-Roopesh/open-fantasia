@@ -29,7 +29,10 @@ export async function POST(
   });
 
   if (error) {
-    throw error;
+    return Response.json(
+      { error: error.message || "Thread rewind failed." },
+      { status: 500 },
+    );
   }
 
   return Response.json({

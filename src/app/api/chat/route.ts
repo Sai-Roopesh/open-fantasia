@@ -6,8 +6,10 @@ import {
   streamAssistantReply,
   toThreadGenerationErrorResponse,
 } from "@/lib/ai/thread-generation-service";
-import { finalizeAssistantTurn } from "@/lib/ai/turn-finalizer";
-import { scheduleBackgroundWorker } from "@/lib/jobs/kick-worker";
+import {
+  finalizeAssistantTurn,
+  reconcileCheckpointInBand,
+} from "@/lib/ai/turn-finalizer";
 import { ensureMessageId } from "@/lib/ai/message-utils";
 import { chatRequestSchema } from "@/lib/validation";
 import { messageMetadataSchema, type FantasiaUIMessage } from "@/lib/types";
@@ -62,9 +64,7 @@ export async function POST(request: Request) {
 
   const stableUserMessage = ensureMessageId(latestUserMessage);
   const streamMessages = [...runtime.threadView.modelContextMessages, stableUserMessage];
-  const continuitySnapshot = runtime.threadView.latestCheckpoint
-    ? runtime.threadView.headSnapshot
-    : null;
+  const continuitySnapshot = runtime.threadView.resolvedSnapshot;
 
   const result = await streamAssistantReply({
     runtime,
@@ -104,7 +104,7 @@ export async function POST(request: Request) {
 
       const assistantMessage = ensureMessageId(responseMessage);
 
-      await finalizeAssistantTurn({
+      const { reconcilePayload } = await finalizeAssistantTurn({
         supabase,
         userId: user.id,
         thread: runtime.threadView.thread,
@@ -115,7 +115,11 @@ export async function POST(request: Request) {
         choiceGroupKey: `choice:${crypto.randomUUID()}`,
         recentMessages: [...streamMessages, assistantMessage],
       });
-      scheduleBackgroundWorker(1);
+      await reconcileCheckpointInBand({
+        supabase,
+        userId: user.id,
+        payload: reconcilePayload,
+      });
     },
   });
 }

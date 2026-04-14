@@ -82,7 +82,7 @@ export async function loadThreadGenerationRuntime(args: {
 }
 
 export function assertThreadReadyForGeneration(threadView: ThreadGraphView) {
-  if (!threadView.headSnapshotPending && !threadView.headSnapshotFailed) {
+  if (!threadView.headSnapshotFailed) {
     return;
   }
 
@@ -91,7 +91,7 @@ export function assertThreadReadyForGeneration(threadView: ThreadGraphView) {
     threadView.headSnapshotFailed
       ? threadView.headSnapshotFailureMessage ??
           "The latest continuity reconciliation failed. Rewind or retry from the latest turn before continuing."
-      : "The latest continuity reconciliation is still running. Wait for it to finish before sending a new turn.",
+      : "The latest continuity reconciliation failed.",
   );
 }
 

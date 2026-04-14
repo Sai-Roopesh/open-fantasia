@@ -184,9 +184,7 @@ export function ChatWorkspace({
   );
 
   const activeError = surfaceError || (error ? humanizeChatError(error.message) : null);
-  const continuityBlocked =
-    inspectorView.continuityStatus?.tone === "pending" ||
-    inspectorView.continuityStatus?.tone === "error";
+  const continuityBlocked = inspectorView.continuityStatus?.tone === "error";
   const composerBusy =
     status === "streaming" ||
     status === "submitted" ||

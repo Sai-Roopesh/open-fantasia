@@ -1,8 +1,11 @@
 import { ensureMessageId, toStoredMessage } from "@/lib/ai/message-utils";
+import { completeJob, getLatestReconcileJobForCheckpoint } from "@/lib/data/jobs";
 import type { DatabaseClient } from "@/lib/data/shared";
+import { reconcileCheckpoint } from "@/lib/jobs/reconcile-worker";
 import type {
   ChatCheckpointRecord,
   FantasiaUIMessage,
+  ReconcileCheckpointJobPayload,
   ThreadRecord,
 } from "@/lib/types";
 import type { Json } from "@/lib/supabase/database.types";
@@ -17,7 +20,7 @@ function buildReconcileJobPayload(args: {
   checkpointId: string;
   previousCheckpointId: string | null;
   recentMessages: FantasiaUIMessage[];
-}) {
+}): ReconcileCheckpointJobPayload {
   return {
     threadId: args.thread.id,
     branchId: args.branchId,
@@ -39,6 +42,46 @@ function getAutotitleText(message: FantasiaUIMessage | null) {
   return toStoredMessage(message).content_text;
 }
 
+export async function reconcileCheckpointInBand(args: {
+  supabase: DatabaseClient;
+  userId: string;
+  payload: ReconcileCheckpointJobPayload;
+}) {
+  const job = await getLatestReconcileJobForCheckpoint(args.supabase, args.payload.checkpointId);
+
+  try {
+    await reconcileCheckpoint({
+      supabase: args.supabase,
+      userId: args.userId,
+      payload: args.payload,
+    });
+
+    if (job) {
+      await completeJob(args.supabase, job.id);
+    }
+  } catch (error) {
+    if (job) {
+      const message =
+        error instanceof Error ? error.message : "Continuity reconciliation failed.";
+      const { error: updateError } = await args.supabase
+        .from("background_jobs")
+        .update({
+          status: "failed",
+          locked_at: null,
+          last_error: message,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", job.id);
+
+      if (updateError) {
+        console.error("Failed to persist continuity job failure.", updateError);
+      }
+    }
+
+    console.error("Continuity reconciliation failed.", error);
+  }
+}
+
 export async function finalizeAssistantTurn(args: {
   supabase: DatabaseClient;
   userId: string;
@@ -55,6 +98,13 @@ export async function finalizeAssistantTurn(args: {
   const recentMessages = args.recentMessages.map((message) => ensureMessageId(message));
   const storedUser = toStoredMessage(userMessage);
   const storedAssistant = toStoredMessage(assistantMessage);
+  const pendingReconcilePayload = buildReconcileJobPayload({
+    thread: args.thread,
+    branchId: args.branchId,
+    checkpointId: "",
+    previousCheckpointId: args.parentCheckpointId,
+    recentMessages,
+  });
 
   const { data, error } = await args.supabase.rpc("finalize_turn_and_enqueue_reconcile", {
     p_thread_id: args.thread.id,
@@ -70,25 +120,25 @@ export async function finalizeAssistantTurn(args: {
     p_assistant_message_parts: toJson(storedAssistant.parts),
     p_assistant_message_content_text: storedAssistant.content_text,
     p_assistant_message_metadata: toJson(storedAssistant.metadata ?? {}),
-    p_reconcile_payload: toJson(
-      buildReconcileJobPayload({
-        thread: args.thread,
-        branchId: args.branchId,
-        checkpointId: "",
-        previousCheckpointId: args.parentCheckpointId,
-        recentMessages,
-      }),
-    ),
+    p_reconcile_payload: toJson(pendingReconcilePayload),
     p_autotitle_text: getAutotitleText(userMessage),
   });
 
   if (error) throw error;
+  const checkpoint = data as ChatCheckpointRecord;
+  const reconcilePayload = {
+    ...pendingReconcilePayload,
+    checkpointId: checkpoint.id,
+  } satisfies ReconcileCheckpointJobPayload;
+
   return {
-    checkpoint: data as ChatCheckpointRecord,
+    checkpoint,
+    reconcilePayload,
     storedAssistant,
     storedUser,
   } satisfies {
     checkpoint: ChatCheckpointRecord;
+    reconcilePayload: ReconcileCheckpointJobPayload;
     storedAssistant: { id: string; content_text: string };
     storedUser: { id: string; content_text: string };
   };
@@ -109,6 +159,13 @@ export async function rewriteCheckpointTurnInPlace(args: {
   const recentMessages = args.recentMessages.map((message) => ensureMessageId(message));
   const storedUser = userMessage ? toStoredMessage(userMessage) : null;
   const storedAssistant = toStoredMessage(assistantMessage);
+  const reconcilePayload = buildReconcileJobPayload({
+    thread: args.thread,
+    branchId: args.branchId,
+    checkpointId: args.checkpoint.id,
+    previousCheckpointId: args.checkpoint.parent_checkpoint_id,
+    recentMessages,
+  });
 
   const { data, error } = await args.supabase.rpc("rewrite_latest_turn_in_place", {
     p_thread_id: args.thread.id,
@@ -123,15 +180,7 @@ export async function rewriteCheckpointTurnInPlace(args: {
     p_assistant_message_parts: toJson(storedAssistant.parts),
     p_assistant_message_content_text: storedAssistant.content_text,
     p_assistant_message_metadata: toJson(storedAssistant.metadata ?? {}),
-    p_reconcile_payload: toJson(
-      buildReconcileJobPayload({
-        thread: args.thread,
-        branchId: args.branchId,
-        checkpointId: args.checkpoint.id,
-        previousCheckpointId: args.checkpoint.parent_checkpoint_id,
-        recentMessages,
-      }),
-    ),
+    p_reconcile_payload: toJson(reconcilePayload),
     p_autotitle_text: getAutotitleText(userMessage),
   });
 
@@ -139,10 +188,12 @@ export async function rewriteCheckpointTurnInPlace(args: {
 
   return {
     checkpoint: data as ChatCheckpointRecord,
+    reconcilePayload,
     storedAssistant,
     storedUser,
   } satisfies {
     checkpoint: ChatCheckpointRecord;
+    reconcilePayload: ReconcileCheckpointJobPayload;
     storedAssistant: { id: string; content_text: string };
     storedUser: { id: string; content_text: string } | null;
   };

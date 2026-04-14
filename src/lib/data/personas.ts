@@ -112,31 +112,23 @@ export async function listPersonaUsage(
   supabase: DatabaseClient,
   userId: string,
 ) {
-  const { data, error } = await supabase
-    .from("chat_threads")
-    .select("persona_id, status")
-    .eq("user_id", userId)
-    .not("persona_id", "is", null);
+  const { data, error } = await supabase.rpc("list_persona_usage", {
+    p_user_id: userId,
+  });
 
   if (error) throw error;
-
-  const usage = new Map<string, PersonaUsageSummary>();
-  for (const row of castRows<{ persona_id: string | null; status: "active" | "archived" }>(data)) {
-    const personaId = row.persona_id as string | null;
-    if (!personaId) continue;
-    const current = usage.get(personaId) ?? {
-      personaId,
-      totalThreads: 0,
-      activeThreads: 0,
-    };
-    current.totalThreads += 1;
-    if (row.status === "active") {
-      current.activeThreads += 1;
-    }
-    usage.set(personaId, current);
-  }
-
-  return Array.from(usage.values());
+  return castRows<{
+    persona_id: string;
+    total_threads: number;
+    active_threads: number;
+  }>(data ?? [], "Persona usage").map(
+    (row) =>
+      ({
+        personaId: row.persona_id,
+        totalThreads: Number(row.total_threads),
+        activeThreads: Number(row.active_threads),
+      }) satisfies PersonaUsageSummary,
+  );
 }
 
 export async function setDefaultPersona(
@@ -205,44 +197,10 @@ export async function deletePersona(
   userId: string,
   personaId: string,
 ) {
-  const persona = await getPersona(supabase, userId, personaId);
-  if (!persona) return;
-
-  const personas = await listPersonas(supabase, userId);
-  const replacement =
-    personas.find((item) => item.id !== personaId && item.is_default) ??
-    personas.find((item) => item.id !== personaId) ??
-    null;
-
-  const usage = await listPersonaUsage(supabase, userId);
-  const usedInThreads =
-    usage.find((summary) => summary.personaId === personaId)?.totalThreads ?? 0;
-
-  if (usedInThreads > 0 && !replacement) {
-    throw new Error(
-      "Create another persona before deleting the only persona used by your threads.",
-    );
-  }
-
-  if (replacement) {
-    const { error: replaceError } = await supabase
-      .from("chat_threads")
-      .update({ persona_id: replacement.id })
-      .eq("user_id", userId)
-      .eq("persona_id", personaId);
-
-    if (replaceError) throw replaceError;
-
-    if (persona.is_default && !replacement.is_default) {
-      await setDefaultPersona(supabase, userId, replacement.id);
-    }
-  }
-
-  const { error } = await supabase
-    .from("user_personas")
-    .delete()
-    .eq("id", personaId)
-    .eq("user_id", userId);
+  const { error } = await supabase.rpc("delete_persona_and_reassign", {
+    p_user_id: userId,
+    p_persona_id: personaId,
+  });
 
   if (error) throw error;
 }

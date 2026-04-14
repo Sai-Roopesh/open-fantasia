@@ -10,7 +10,7 @@ export async function DELETE(
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { pinId } = await params;
-  await resolvePin(context.supabase, pinId);
+  const { threadId, pinId } = await params;
+  await resolvePin(context.supabase, threadId, pinId);
   return Response.json({ ok: true });
 }

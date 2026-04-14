@@ -5,9 +5,11 @@ import {
   loadThreadGenerationRuntime,
   toThreadGenerationErrorResponse,
 } from "@/lib/ai/thread-generation-service";
-import { rewriteCheckpointTurnInPlace } from "@/lib/ai/turn-finalizer";
+import {
+  reconcileCheckpointInBand,
+  rewriteCheckpointTurnInPlace,
+} from "@/lib/ai/turn-finalizer";
 import { getSnapshot } from "@/lib/data/snapshots";
-import { scheduleBackgroundWorker } from "@/lib/jobs/kick-worker";
 import { regenerateRequestSchema } from "@/lib/validation";
 
 export async function POST(
@@ -65,7 +67,7 @@ export async function POST(
     assistantMessageId: latestCheckpoint.assistant_message_id,
   });
 
-  const { checkpoint } = await rewriteCheckpointTurnInPlace({
+  const { checkpoint, reconcilePayload } = await rewriteCheckpointTurnInPlace({
     supabase,
     userId: user.id,
     thread: runtime.threadView.thread,
@@ -74,7 +76,11 @@ export async function POST(
     assistantMessage,
     recentMessages: [...contextMessages, assistantMessage],
   });
-  scheduleBackgroundWorker(1);
+  await reconcileCheckpointInBand({
+    supabase,
+    userId: user.id,
+    payload: reconcilePayload,
+  });
 
   return Response.json({ ok: true, checkpointId: checkpoint.id });
 }
