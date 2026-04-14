@@ -1,20 +1,14 @@
-import {
-  convertToModelMessages,
-  createIdGenerator,
-  streamText,
-  validateUIMessages,
-} from "ai";
+import { createIdGenerator, validateUIMessages } from "ai";
 import { getCurrentUser } from "@/lib/auth";
+import {
+  assertThreadReadyForGeneration,
+  loadThreadGenerationRuntime,
+  streamAssistantReply,
+  toThreadGenerationErrorResponse,
+} from "@/lib/ai/thread-generation-service";
 import { finalizeAssistantTurn } from "@/lib/ai/turn-finalizer";
-import { resolveThreadGenerationSettings } from "@/lib/ai/generation-settings";
-import { getCharacterBundle } from "@/lib/data/characters";
-import { getConnection } from "@/lib/data/connections";
-import { getPersona } from "@/lib/data/personas";
-import { getThreadGraphView } from "@/lib/data/threads";
 import { scheduleBackgroundWorker } from "@/lib/jobs/kick-worker";
-import { createLanguageModel } from "@/lib/ai/provider-factory";
 import { ensureMessageId } from "@/lib/ai/message-utils";
-import { buildRoleplaySystemPrompt } from "@/lib/ai/roleplay-prompt";
 import { chatRequestSchema } from "@/lib/validation";
 import { messageMetadataSchema, type FantasiaUIMessage } from "@/lib/types";
 
@@ -38,24 +32,16 @@ export async function POST(request: Request) {
   }
 
   const { threadId, messages } = parsedBody.data;
-  const threadView = await getThreadGraphView(supabase, user.id, threadId);
-  if (!threadView) {
-    return Response.json({ error: "Thread not found." }, { status: 404 });
-  }
-
-  const [character, connection, persona] = await Promise.all([
-    getCharacterBundle(supabase, user.id, threadView.thread.character_id),
-    getConnection(supabase, user.id, threadView.thread.connection_id),
-    threadView.thread.persona_id
-      ? getPersona(supabase, user.id, threadView.thread.persona_id)
-      : Promise.resolve(null),
-  ]);
-
-  if (!character || !connection || !persona) {
-    return Response.json(
-      { error: "The thread is missing its character, provider connection, or persona." },
-      { status: 400 },
-    );
+  let runtime: Awaited<ReturnType<typeof loadThreadGenerationRuntime>>;
+  try {
+    runtime = await loadThreadGenerationRuntime({
+      supabase,
+      userId: user.id,
+      threadId,
+    });
+    assertThreadReadyForGeneration(runtime.threadView);
+  } catch (error) {
+    return toThreadGenerationErrorResponse(error);
   }
 
   const incomingMessages = await validateUIMessages<FantasiaUIMessage>({
@@ -74,40 +60,16 @@ export async function POST(request: Request) {
     );
   }
 
-  const continuitySnapshot = threadView.latestCheckpoint ? threadView.headSnapshot : null;
-  if (threadView.headSnapshotPending || threadView.headSnapshotFailed) {
-    return Response.json(
-      {
-        error:
-          threadView.headSnapshotFailed
-            ? threadView.headSnapshotFailureMessage ??
-              "The latest continuity reconciliation failed. Rewind or retry from the latest turn before continuing."
-            : "The latest continuity reconciliation is still running. Wait for it to finish before sending a new turn.",
-      },
-      { status: 409 },
-    );
-  }
-
   const stableUserMessage = ensureMessageId(latestUserMessage);
-  const streamMessages = [...threadView.modelContextMessages, stableUserMessage];
-  const generationSettings = resolveThreadGenerationSettings({
-    character: character.character,
-    thread: threadView.thread,
-  });
+  const streamMessages = [...runtime.threadView.modelContextMessages, stableUserMessage];
+  const continuitySnapshot = runtime.threadView.latestCheckpoint
+    ? runtime.threadView.headSnapshot
+    : null;
 
-  const result = streamText({
-    model: createLanguageModel(connection, threadView.thread.model_id),
-    system: buildRoleplaySystemPrompt({
-      character,
-      persona,
-      snapshot: continuitySnapshot,
-      pins: threadView.pins,
-      timeline: [...threadView.timeline].reverse(),
-    }),
-    messages: await convertToModelMessages(streamMessages),
-    temperature: generationSettings.temperature,
-    topP: generationSettings.topP,
-    maxOutputTokens: generationSettings.maxOutputTokens,
+  const result = await streamAssistantReply({
+    runtime,
+    messages: streamMessages,
+    snapshot: continuitySnapshot,
   });
 
   return result.toUIMessageStreamResponse<FantasiaUIMessage>({
@@ -116,20 +78,20 @@ export async function POST(request: Request) {
     messageMetadata: ({ part }) => {
       if (part.type === "start") {
         return {
-          provider: connection.provider,
-          model: threadView.thread.model_id,
-          connectionLabel: connection.label,
-          branchId: threadView.activeBranch.id,
+          provider: runtime.connection.provider,
+          model: runtime.threadView.thread.model_id,
+          connectionLabel: runtime.connection.label,
+          branchId: runtime.threadView.activeBranch.id,
           startedAt: Date.now(),
         };
       }
 
       if (part.type === "finish") {
         return {
-          provider: connection.provider,
-          model: threadView.thread.model_id,
-          connectionLabel: connection.label,
-          branchId: threadView.activeBranch.id,
+          provider: runtime.connection.provider,
+          model: runtime.threadView.thread.model_id,
+          connectionLabel: runtime.connection.label,
+          branchId: runtime.threadView.activeBranch.id,
           finishReason: part.finishReason,
           totalTokens: part.totalUsage.totalTokens,
         };
@@ -145,9 +107,9 @@ export async function POST(request: Request) {
       await finalizeAssistantTurn({
         supabase,
         userId: user.id,
-        thread: threadView.thread,
-        branchId: threadView.activeBranch.id,
-        parentCheckpointId: threadView.activeBranch.head_checkpoint_id,
+        thread: runtime.threadView.thread,
+        branchId: runtime.threadView.activeBranch.id,
+        parentCheckpointId: runtime.threadView.activeBranch.head_checkpoint_id,
         userMessage: stableUserMessage,
         assistantMessage,
         choiceGroupKey: `choice:${crypto.randomUUID()}`,

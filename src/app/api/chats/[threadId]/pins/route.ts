@@ -1,6 +1,6 @@
 import { getCurrentUser } from "@/lib/auth";
-import { getThreadGraphView } from "@/lib/data/threads";
 import { createPin } from "@/lib/data/pins";
+import { getThreadGraphView } from "@/lib/threads/read-model";
 import { createPinRequestSchema } from "@/lib/validation";
 
 export async function POST(

@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/lib/auth";
-import { getThreadGraphView } from "@/lib/data/threads";
+import { getThreadGraphView } from "@/lib/threads/read-model";
 
 export async function POST(
   _request: Request,

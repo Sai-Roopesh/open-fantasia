@@ -7,7 +7,7 @@ import { requireAllowedUser } from "@/lib/auth";
 import { getCharacterBundle } from "@/lib/data/characters";
 import { listConnections } from "@/lib/data/connections";
 import { listPersonas } from "@/lib/data/personas";
-import { getThreadGraphView } from "@/lib/data/threads";
+import { getThreadGraphView } from "@/lib/threads/read-model";
 import type { ContinuityInspectorView } from "@/lib/types";
 import {
   deleteThreadAction,

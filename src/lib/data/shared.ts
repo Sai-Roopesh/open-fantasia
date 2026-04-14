@@ -1,7 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
-import type { ThreadRecord } from "@/lib/types";
-import { threadSelect } from "@/lib/data/threads";
 
 export type DatabaseClient = SupabaseClient<Database>;
 
@@ -46,7 +44,7 @@ export async function assertThreadOwnership(
 ) {
   const { data, error } = await supabase
     .from("chat_threads")
-    .select(threadSelect)
+    .select("id")
     .eq("id", threadId)
     .eq("user_id", userId)
     .maybeSingle();
@@ -55,6 +53,4 @@ export async function assertThreadOwnership(
   if (!data) {
     throw new Error("Thread not found.");
   }
-
-  return castRow<ThreadRecord>(data, "Owned thread");
 }

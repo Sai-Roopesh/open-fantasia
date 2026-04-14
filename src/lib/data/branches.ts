@@ -1,10 +1,5 @@
 import type { ChatBranchRecord } from "@/lib/types";
-import {
-  assertThreadOwnership,
-  castRow,
-  castRows,
-  type DatabaseClient,
-} from "@/lib/data/shared";
+import { castRow, type DatabaseClient } from "@/lib/data/shared";
 
 const branchSelect = [
   "id",
@@ -17,23 +12,6 @@ const branchSelect = [
   "created_at",
   "updated_at",
 ].join(", ");
-
-export async function listBranches(
-  supabase: DatabaseClient,
-  userId: string,
-  threadId: string,
-) {
-  await assertThreadOwnership(supabase, userId, threadId);
-
-  const { data, error } = await supabase
-    .from("chat_branches")
-    .select(branchSelect)
-    .eq("thread_id", threadId)
-    .order("created_at", { ascending: true });
-
-  if (error) throw error;
-  return castRows<ChatBranchRecord>(data, "Chat branches");
-}
 
 export async function createBranch(
   supabase: DatabaseClient,
@@ -56,25 +34,6 @@ export async function createBranch(
       fork_checkpoint_id: args.forkCheckpointId,
       head_checkpoint_id: args.headCheckpointId,
     })
-    .select(branchSelect)
-    .single();
-
-  if (error) throw error;
-  return castRow<ChatBranchRecord>(data);
-}
-
-export async function updateBranchHead(
-  supabase: DatabaseClient,
-  branchId: string,
-  headCheckpointId: string | null,
-) {
-  const { data, error } = await supabase
-    .from("chat_branches")
-    .update({
-      head_checkpoint_id: headCheckpointId,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", branchId)
     .select(branchSelect)
     .single();
 
