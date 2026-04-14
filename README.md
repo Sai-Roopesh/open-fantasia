@@ -41,7 +41,7 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## Database setup
 
-Run the SQL in [supabase/migrations/0001_baseline.sql](/Users/sairoopesh/Documents/projects/Open-Fantasia/supabase/migrations/0001_baseline.sql) against your Supabase project before using the app.
+Run the SQL in [supabase/migrations/0001_baseline.sql](/Users/sairoopesh/Documents/projects/Open-Fantasia/supabase/migrations/0001_baseline.sql) against your Supabase project before using the app. This file is the full current schema baseline.
 
 ## Background jobs
 
