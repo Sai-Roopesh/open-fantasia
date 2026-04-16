@@ -23,6 +23,14 @@ export async function POST(
     return Response.json({ error: "Thread not found." }, { status: 404 });
   }
 
+  const selected = threadView.checkpoints.find((cp) => cp.id === checkpointId);
+  if (!selected) {
+    return Response.json(
+      { error: "Checkpoint not found on the active branch." },
+      { status: 404 },
+    );
+  }
+
   await rateCheckpoint(
     context.supabase,
     context.user.id,

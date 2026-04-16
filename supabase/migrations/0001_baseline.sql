@@ -694,6 +694,103 @@ begin
 end;
 $$;
 
+create or replace function public.upsert_character_bundle(
+  p_user_id uuid,
+  p_character jsonb,
+  p_starters jsonb default '[]'::jsonb,
+  p_examples jsonb default '[]'::jsonb
+)
+returns uuid
+language plpgsql
+set search_path = public
+as $$
+declare
+  character_id uuid;
+  existing_id uuid;
+begin
+  existing_id := (p_character ->> 'id')::uuid;
+
+  if existing_id is not null then
+    if not exists (
+      select 1 from public.characters c
+      where c.id = existing_id and c.user_id = p_user_id
+    ) then
+      raise exception 'Character % not found for user %', existing_id, p_user_id;
+    end if;
+
+    update public.characters set
+      name = coalesce(p_character ->> 'name', name),
+      story = coalesce(p_character ->> 'story', story),
+      core_persona = coalesce(p_character ->> 'core_persona', core_persona),
+      greeting = coalesce(p_character ->> 'greeting', greeting),
+      appearance = coalesce(p_character ->> 'appearance', appearance),
+      style_rules = coalesce(p_character ->> 'style_rules', style_rules),
+      definition = coalesce(p_character ->> 'definition', definition),
+      negative_guidance = coalesce(p_character ->> 'negative_guidance', negative_guidance),
+      portrait_status = coalesce(p_character ->> 'portrait_status', portrait_status),
+      portrait_path = coalesce(p_character ->> 'portrait_path', portrait_path),
+      portrait_prompt = coalesce(p_character ->> 'portrait_prompt', portrait_prompt),
+      portrait_seed = (p_character ->> 'portrait_seed')::integer,
+      portrait_source_hash = coalesce(p_character ->> 'portrait_source_hash', portrait_source_hash),
+      portrait_last_error = coalesce(p_character ->> 'portrait_last_error', portrait_last_error),
+      portrait_generated_at = (p_character ->> 'portrait_generated_at')::timestamptz,
+      temperature = coalesce((p_character ->> 'temperature')::numeric, temperature),
+      top_p = coalesce((p_character ->> 'top_p')::numeric, top_p),
+      max_output_tokens = coalesce((p_character ->> 'max_output_tokens')::integer, max_output_tokens),
+      updated_at = now()
+    where id = existing_id and user_id = p_user_id;
+
+    character_id := existing_id;
+  else
+    insert into public.characters (
+      user_id, name, story, core_persona, greeting, appearance,
+      style_rules, definition, negative_guidance,
+      portrait_status, portrait_path, portrait_prompt, portrait_seed,
+      portrait_source_hash, portrait_last_error, portrait_generated_at,
+      temperature, top_p, max_output_tokens
+    ) values (
+      p_user_id,
+      coalesce(p_character ->> 'name', ''),
+      coalesce(p_character ->> 'story', ''),
+      coalesce(p_character ->> 'core_persona', ''),
+      coalesce(p_character ->> 'greeting', ''),
+      coalesce(p_character ->> 'appearance', ''),
+      coalesce(p_character ->> 'style_rules', ''),
+      coalesce(p_character ->> 'definition', ''),
+      coalesce(p_character ->> 'negative_guidance', ''),
+      coalesce(p_character ->> 'portrait_status', 'idle'),
+      coalesce(p_character ->> 'portrait_path', ''),
+      coalesce(p_character ->> 'portrait_prompt', ''),
+      (p_character ->> 'portrait_seed')::integer,
+      coalesce(p_character ->> 'portrait_source_hash', ''),
+      coalesce(p_character ->> 'portrait_last_error', ''),
+      (p_character ->> 'portrait_generated_at')::timestamptz,
+      coalesce((p_character ->> 'temperature')::numeric, 0.92),
+      coalesce((p_character ->> 'top_p')::numeric, 0.94),
+      coalesce((p_character ->> 'max_output_tokens')::integer, 750)
+    )
+    returning id into character_id;
+  end if;
+
+  -- Atomically replace starters
+  delete from public.character_starters where character_id = character_id;
+  insert into public.character_starters (character_id, text, sort_order)
+  select character_id, s.value ->> 'text', (s.ordinality - 1)::integer
+  from jsonb_array_elements(p_starters) with ordinality as s(value, ordinality)
+  where nullif(trim(s.value ->> 'text'), '') is not null;
+
+  -- Atomically replace examples
+  delete from public.character_example_conversations where character_id = character_id;
+  insert into public.character_example_conversations (character_id, user_line, character_line, sort_order)
+  select character_id, coalesce(e.value ->> 'user_line', ''), coalesce(e.value ->> 'character_line', ''), (e.ordinality - 1)::integer
+  from jsonb_array_elements(p_examples) with ordinality as e(value, ordinality)
+  where nullif(trim(coalesce(e.value ->> 'user_line', '')), '') is not null
+     or nullif(trim(coalesce(e.value ->> 'character_line', '')), '') is not null;
+
+  return character_id;
+end;
+$$;
+
 create or replace function public.create_thread_with_main_branch(
   p_user_id uuid,
   p_character_id uuid,

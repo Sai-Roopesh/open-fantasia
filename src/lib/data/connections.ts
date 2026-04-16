@@ -1,4 +1,5 @@
 import { discoverModels } from "@/lib/ai/model-discovery";
+import { validateOllamaBaseUrl } from "@/lib/ai/ollama-url";
 import { encryptSecret } from "@/lib/crypto";
 import type {
   ConnectionRecord,
@@ -176,19 +177,23 @@ export async function saveConnection(
     enabled: boolean;
   },
 ) {
+  if (payload.provider === "ollama" && payload.baseUrl?.trim()) {
+    validateOllamaBaseUrl(payload.baseUrl.trim());
+  }
+
   const current = payload.id
     ? await getConnection(supabase, userId, payload.id)
     : null;
-  const nextEncryptedApiKey =
-    payload.apiKey && payload.apiKey.trim().length > 0
-      ? encryptSecret(payload.apiKey.trim())
-      : current?.encrypted_api_key ?? null;
+  const keyExplicitlyChanged = Boolean(payload.apiKey && payload.apiKey.trim().length > 0);
+  const nextEncryptedApiKey = keyExplicitlyChanged
+    ? encryptSecret(payload.apiKey!.trim())
+    : current?.encrypted_api_key ?? null;
   const nextBaseUrl = payload.baseUrl?.trim() || null;
   const connectionChanged =
     !current ||
     current.provider !== payload.provider ||
     (current.base_url ?? null) !== nextBaseUrl ||
-    current.encrypted_api_key !== nextEncryptedApiKey;
+    keyExplicitlyChanged;
 
   const next = {
     user_id: userId,
