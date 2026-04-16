@@ -23,10 +23,19 @@ export async function POST(
     return Response.json({ error: "Thread not found." }, { status: 404 });
   }
 
+  // Validate sourceMessageId is reachable on the active branch path
+  const sourceMessageId = parsedBody.data.sourceMessageId ?? null;
+  if (sourceMessageId && !threadView.controlsByMessageId[sourceMessageId]) {
+    return Response.json(
+      { error: "Source message is not reachable on the active branch." },
+      { status: 400 },
+    );
+  }
+
   const pin = await createPin(context.supabase, {
     thread_id: threadId,
     branch_id: threadView.activeBranch.id,
-    source_message_id: parsedBody.data.sourceMessageId ?? null,
+    source_message_id: sourceMessageId,
     body: parsedBody.data.body,
     status: "active",
   });

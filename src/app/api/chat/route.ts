@@ -10,7 +10,7 @@ import {
   finalizeAssistantTurn,
   reconcileCheckpointInBand,
 } from "@/lib/ai/turn-finalizer";
-import { ensureMessageId } from "@/lib/ai/message-utils";
+import { assignServerMessageId } from "@/lib/ai/message-utils";
 import { chatRequestSchema } from "@/lib/validation";
 import { messageMetadataSchema, type FantasiaUIMessage } from "@/lib/types";
 
@@ -62,7 +62,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const stableUserMessage = ensureMessageId(latestUserMessage);
+  const stableUserMessage = assignServerMessageId(latestUserMessage);
   const streamMessages = [...runtime.threadView.modelContextMessages, stableUserMessage];
   const continuitySnapshot = runtime.threadView.resolvedSnapshot;
 
@@ -102,7 +102,7 @@ export async function POST(request: Request) {
     onFinish: async ({ responseMessage, isAborted }) => {
       if (isAborted) return;
 
-      const assistantMessage = ensureMessageId(responseMessage);
+      const assistantMessage = assignServerMessageId(responseMessage);
 
       const { reconcilePayload } = await finalizeAssistantTurn({
         supabase,
@@ -115,11 +115,17 @@ export async function POST(request: Request) {
         choiceGroupKey: `choice:${crypto.randomUUID()}`,
         recentMessages: [...streamMessages, assistantMessage],
       });
-      await reconcileCheckpointInBand({
-        supabase,
-        userId: user.id,
-        payload: reconcilePayload,
-      });
+      // Reconciliation is post-response for streaming — the HTTP response is
+      // already committed, so we log failures instead of crashing the stream.
+      try {
+        await reconcileCheckpointInBand({
+          supabase,
+          userId: user.id,
+          payload: reconcilePayload,
+        });
+      } catch (reconcileError) {
+        console.error("Post-stream reconciliation failed (will surface on next turn).", reconcileError);
+      }
     },
   });
 }
