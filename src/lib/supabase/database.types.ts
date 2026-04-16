@@ -710,6 +710,15 @@ export interface Database {
         Args: { target_persona_id: string; target_user_id: string };
         Returns: Database["public"]["Tables"]["user_personas"]["Row"][];
       };
+      upsert_character_bundle: {
+        Args: {
+          p_user_id: string;
+          p_character: Json;
+          p_starters?: Json;
+          p_examples?: Json;
+        };
+        Returns: string;
+      };
     };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;

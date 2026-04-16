@@ -1,5 +1,3 @@
-import type { Json } from "@/lib/supabase/database.types";
-import { toStoredMessage } from "@/lib/ai/message-utils";
 import type {
   FantasiaUIMessage,
   MessageMetadata,
@@ -20,7 +18,14 @@ const messageSelect = [
   "created_at",
 ].join(", ");
 
+const validMessageRoles = new Set(["user", "assistant", "system"]);
+
 function normalizeStoredMessage(data: Record<string, unknown>) {
+  const role = String(data.role ?? "");
+  if (!validMessageRoles.has(role)) {
+    throw new Error(`Invalid message role: ${role}`);
+  }
+
   return {
     ...(data as StoredMessageRecord),
     parts: Array.isArray(data.parts) ? data.parts : [],
@@ -80,28 +85,4 @@ export function toUIMessages(
     }));
 }
 
-export async function persistMessage(
-  supabase: DatabaseClient,
-  threadId: string,
-  message: FantasiaUIMessage,
-) {
-  const stored = toStoredMessage({
-    ...message,
-    metadata: {
-      ...(message.metadata ?? {}),
-      createdAt: message.metadata?.createdAt ?? new Date().toISOString(),
-    },
-  });
 
-  const { error } = await supabase.from("chat_messages").upsert({
-    id: stored.id,
-    thread_id: threadId,
-    role: stored.role,
-    parts: stored.parts as Json,
-    content_text: stored.content_text,
-    metadata: (stored.metadata ?? {}) as Json,
-  });
-
-  if (error) throw error;
-  return stored;
-}

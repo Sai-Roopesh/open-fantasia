@@ -51,13 +51,13 @@ export async function reconcileCheckpoint(args: {
     args.payload.personaId
       ? getPersona(args.supabase, args.userId, args.payload.personaId)
       : Promise.resolve(null),
-    getPreviousSnapshot(args.supabase, args.payload),
+    getPreviousSnapshot(args.supabase, args.userId, args.payload),
     getMessagesByIds(args.supabase, args.payload.recentMessageIds),
   ]);
 
   if (!connection) throw new Error("Reconciliation skipped: connection is missing.");
   if (!character) throw new Error("Reconciliation skipped: character is missing.");
-  if (!persona) throw new Error("Reconciliation skipped: persona is missing.");
+  if (args.payload.personaId && !persona) throw new Error("Reconciliation skipped: persona not found.");
 
   const reconciliation = await reconcileTurnState({
     connection,
@@ -107,13 +107,14 @@ async function runReconcileCheckpointJob(
 
 async function getPreviousSnapshot(
   supabase: DatabaseClient,
+  userId: string,
   payload: ReconcileCheckpointJobPayload,
 ) {
   if (!payload.previousCheckpointId) {
     return null;
   }
 
-  return getSnapshot(supabase, payload.previousCheckpointId);
+  return getSnapshot(supabase, userId, payload.previousCheckpointId);
 }
 
 async function runGenerateCharacterPortraitJob(

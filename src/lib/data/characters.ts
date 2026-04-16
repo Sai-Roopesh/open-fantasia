@@ -1,9 +1,9 @@
 import type {
   CharacterExampleConversationRecord,
-  CharacterInsert,
   CharacterRecord,
   CharacterStarterRecord,
 } from "@/lib/types";
+import type { Json } from "@/lib/supabase/database.types";
 import { castRow, castRows, type DatabaseClient } from "@/lib/data/shared";
 
 export type CharacterBundle = {
@@ -72,17 +72,20 @@ export async function getCharacterBundle(
   userId: string,
   characterId: string,
 ) {
+  const { data: character, error: characterError } = await supabase
+    .from("characters")
+    .select(characterSelect)
+    .eq("user_id", userId)
+    .eq("id", characterId)
+    .maybeSingle();
+
+  if (characterError) throw characterError;
+  if (!character) return null;
+
   const [
-    { data: character, error: characterError },
     { data: starters, error: startersError },
     { data: examples, error: examplesError },
   ] = await Promise.all([
-    supabase
-      .from("characters")
-      .select(characterSelect)
-      .eq("user_id", userId)
-      .eq("id", characterId)
-      .maybeSingle(),
     supabase
       .from("character_starters")
       .select(starterSelect)
@@ -95,10 +98,8 @@ export async function getCharacterBundle(
       .order("sort_order", { ascending: true }),
   ]);
 
-  if (characterError) throw characterError;
   if (startersError) throw startersError;
   if (examplesError) throw examplesError;
-  if (!character) return null;
 
   return {
     character: castRow<CharacterRecord>(character),
@@ -133,9 +134,8 @@ export async function upsertCharacterBundle(
     exampleConversations: Array<{ user_line: string; character_line: string }>;
   },
 ) {
-  const nextCharacter: CharacterInsert = {
-    id: payload.id,
-    user_id: userId,
+  const characterPayload = {
+    id: payload.id ?? undefined,
     name: payload.name,
     story: payload.story ?? "",
     core_persona: payload.core_persona ?? "",
@@ -156,73 +156,27 @@ export async function upsertCharacterBundle(
     max_output_tokens: payload.max_output_tokens ?? 750,
   };
 
-  const characterQuery = payload.id
-    ? supabase
-        .from("characters")
-        .update(nextCharacter)
-        .eq("id", payload.id)
-        .eq("user_id", userId)
-        .select(characterSelect)
-        .single()
-    : supabase
-        .from("characters")
-        .insert(nextCharacter)
-        .select(characterSelect)
-        .single();
+  const starters = payload.starters
+    .map((text) => ({ text: text.trim() }))
+    .filter((s) => s.text.length > 0);
 
-  const { data: character, error } = await characterQuery;
+  const examples = payload.exampleConversations
+    .map((e) => ({
+      user_line: e.user_line.trim(),
+      character_line: e.character_line.trim(),
+    }))
+    .filter((e) => e.user_line || e.character_line);
+
+  const { data: characterId, error } = await supabase.rpc("upsert_character_bundle", {
+    p_user_id: userId,
+    p_character: characterPayload as unknown as Json,
+    p_starters: starters as unknown as Json,
+    p_examples: examples as unknown as Json,
+  });
+
   if (error) throw error;
 
-  const characterId = castRow<CharacterRecord>(character).id;
-
-  const [deleteStartersResult, deleteExamplesResult] = await Promise.all([
-    supabase.from("character_starters").delete().eq("character_id", characterId),
-    supabase
-      .from("character_example_conversations")
-      .delete()
-      .eq("character_id", characterId),
-  ]);
-
-  if (deleteStartersResult.error) throw deleteStartersResult.error;
-  if (deleteExamplesResult.error) throw deleteExamplesResult.error;
-
-  const starters = payload.starters
-    .map((text) => text.trim())
-    .filter(Boolean)
-    .map((text, index) => ({
-      character_id: characterId,
-      text,
-      sort_order: index,
-    }));
-
-  const exampleConversations = payload.exampleConversations
-    .map((example) => ({
-      user_line: example.user_line.trim(),
-      character_line: example.character_line.trim(),
-    }))
-    .filter((example) => example.user_line || example.character_line)
-    .map((example, index) => ({
-      character_id: characterId,
-      user_line: example.user_line,
-      character_line: example.character_line,
-      sort_order: index,
-    }));
-
-  if (starters.length) {
-    const { error: startersInsertError } = await supabase
-      .from("character_starters")
-      .insert(starters);
-    if (startersInsertError) throw startersInsertError;
-  }
-
-  if (exampleConversations.length) {
-    const { error: examplesInsertError } = await supabase
-      .from("character_example_conversations")
-      .insert(exampleConversations);
-    if (examplesInsertError) throw examplesInsertError;
-  }
-
-  const bundle = await getCharacterBundle(supabase, userId, characterId);
+  const bundle = await getCharacterBundle(supabase, userId, String(characterId));
   if (!bundle) {
     throw new Error("Failed to reload character bundle.");
   }

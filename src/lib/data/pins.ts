@@ -1,5 +1,9 @@
 import type { ChatPinRecord } from "@/lib/types";
-import { castRow, type DatabaseClient } from "@/lib/data/shared";
+import {
+  assertThreadOwnership,
+  castRow,
+  type DatabaseClient,
+} from "@/lib/data/shared";
 
 const pinSelect = [
   "id",
@@ -14,8 +18,11 @@ const pinSelect = [
 
 export async function createPin(
   supabase: DatabaseClient,
+  userId: string,
   payload: Omit<ChatPinRecord, "id" | "created_at" | "updated_at">,
 ) {
+  await assertThreadOwnership(supabase, userId, payload.thread_id);
+
   const { data, error } = await supabase
     .from("chat_pins")
     .insert(payload)
@@ -28,9 +35,12 @@ export async function createPin(
 
 export async function resolvePin(
   supabase: DatabaseClient,
+  userId: string,
   threadId: string,
   pinId: string,
 ) {
+  await assertThreadOwnership(supabase, userId, threadId);
+
   const { data, error } = await supabase
     .from("chat_pins")
     .update({ status: "resolved" })

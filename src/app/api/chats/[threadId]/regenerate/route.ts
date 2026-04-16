@@ -57,7 +57,7 @@ export async function POST(
 
   const contextMessages = runtime.threadView.modelContextMessages.slice(0, -1);
   const priorSnapshot = latestCheckpoint.parent_checkpoint_id
-    ? await getSnapshot(supabase, latestCheckpoint.parent_checkpoint_id)
+    ? await getSnapshot(supabase, user.id, latestCheckpoint.parent_checkpoint_id)
     : null;
 
   const { assistantMessage } = await generateAssistantReply({

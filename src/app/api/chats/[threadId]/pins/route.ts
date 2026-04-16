@@ -32,7 +32,7 @@ export async function POST(
     );
   }
 
-  const pin = await createPin(context.supabase, {
+  const pin = await createPin(context.supabase, context.user.id, {
     thread_id: threadId,
     branch_id: threadView.activeBranch.id,
     source_message_id: sourceMessageId,

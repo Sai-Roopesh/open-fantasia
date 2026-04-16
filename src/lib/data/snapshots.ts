@@ -36,12 +36,14 @@ function normalizeSnapshot(data: Record<string, unknown>) {
 
 export async function getSnapshot(
   supabase: DatabaseClient,
+  userId: string,
   checkpointId: string,
 ) {
   const { data, error } = await supabase
     .from("chat_state_snapshots")
-    .select(snapshotSelect)
+    .select(`${snapshotSelect}, chat_checkpoints!inner(thread_id, chat_threads!inner(user_id))`)
     .eq("checkpoint_id", checkpointId)
+    .eq("chat_checkpoints.chat_threads.user_id", userId)
     .maybeSingle();
 
   if (error) throw error;
@@ -50,12 +52,14 @@ export async function getSnapshot(
 
 export async function listSnapshots(
   supabase: DatabaseClient,
+  userId: string,
   threadId: string,
 ) {
   const { data, error } = await supabase
     .from("chat_state_snapshots")
-    .select(snapshotSelect)
-    .eq("thread_id", threadId);
+    .select(`${snapshotSelect}, chat_checkpoints!inner(thread_id, chat_threads!inner(user_id))`)
+    .eq("thread_id", threadId)
+    .eq("chat_checkpoints.chat_threads.user_id", userId);
 
   if (error) throw error;
   return castRows<unknown>(data).map((snapshot) =>

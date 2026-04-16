@@ -57,7 +57,7 @@ export async function POST(
 
   const parentCheckpointId = latestCheckpoint.parent_checkpoint_id;
   const priorSnapshot = parentCheckpointId
-    ? await getSnapshot(supabase, parentCheckpointId)
+    ? await getSnapshot(supabase, user.id, parentCheckpointId)
     : null;
 
   const contextMessages = runtime.threadView.modelContextMessages.slice(0, -2);

@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { requireAllowedUser } from "@/lib/auth";
 import { deleteConnection, saveConnection } from "@/lib/data/connections";
 import { validateConnectionInput } from "@/lib/ai/catalog";
-import { parseFormBoolean, saveConnectionCommandSchema } from "@/lib/validation";
+import { parseFormBoolean, saveConnectionCommandSchema, connectionRequestSchema } from "@/lib/validation";
 
 export async function saveConnectionAction(formData: FormData) {
   const { supabase, user } = await requireAllowedUser();
@@ -41,8 +41,13 @@ export async function saveConnectionAction(formData: FormData) {
 
 export async function deleteConnectionAction(formData: FormData) {
   const { supabase, user } = await requireAllowedUser();
-  const id = String(formData.get("id") ?? "");
-  await deleteConnection(supabase, user.id, id);
+  const parsed = connectionRequestSchema.safeParse({
+    connectionId: String(formData.get("id") ?? "").trim(),
+  });
+  if (!parsed.success) {
+    redirect("/app/settings/providers");
+  }
+  await deleteConnection(supabase, user.id, parsed.data.connectionId);
   revalidatePath("/app/settings/providers");
   redirect("/app/settings/providers?deleted=1");
 }

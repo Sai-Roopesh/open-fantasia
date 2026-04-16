@@ -11,6 +11,6 @@ export async function DELETE(
   }
 
   const { threadId, pinId } = await params;
-  await resolvePin(context.supabase, threadId, pinId);
+  await resolvePin(context.supabase, context.user.id, threadId, pinId);
   return Response.json({ ok: true });
 }

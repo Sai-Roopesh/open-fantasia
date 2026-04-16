@@ -18,7 +18,10 @@ export async function GET(request: Request) {
   const code = url.searchParams.get("code");
   const tokenHash = url.searchParams.get("token_hash");
   const type = url.searchParams.get("type");
-  const next = url.searchParams.get("next") ?? "/app";
+  const rawNext = url.searchParams.get("next");
+  const next = rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//")
+    ? rawNext
+    : "/app";
   const supabase = await createSupabaseServerClient();
   const siteUrl = requirePublicSiteUrl();
 
