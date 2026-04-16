@@ -83,36 +83,39 @@ describe("turn-finalizer", () => {
       recentMessages: [userMessage, assistantMessage],
     });
 
-    expect(rpcMock).toHaveBeenCalledWith(
-      "finalize_turn_and_enqueue_reconcile",
-      expect.objectContaining({
-        p_thread_id: thread.id,
-        p_user_id: thread.user_id,
-        p_branch_id: thread.active_branch_id,
-        p_parent_checkpoint_id: null,
-        p_choice_group_key: "choice-1",
-        p_user_message_id: "user-msg-1",
-        p_user_message_content_text: "Open with a secret.",
-        p_assistant_message_id: "assistant-msg-1",
-        p_assistant_message_content_text: "She leans in and lowers her voice.",
-        p_autotitle_text: "Open with a secret.",
-        p_reconcile_payload: expect.objectContaining({
-          threadId: thread.id,
-          branchId: thread.active_branch_id,
-          checkpointId: "",
-          previousCheckpointId: null,
-          connectionId: thread.connection_id,
-          modelId: thread.model_id,
-          characterId: thread.character_id,
-          personaId: thread.persona_id,
-          recentMessageIds: ["user-msg-1", "assistant-msg-1"],
-        }),
-      }),
+    const rpcArgs = rpcMock.mock.calls[0];
+    expect(rpcArgs[0]).toBe("finalize_turn_and_enqueue_reconcile");
+
+    const params = rpcArgs[1];
+    expect(params.p_thread_id).toBe(thread.id);
+    expect(params.p_user_id).toBe(thread.user_id);
+    expect(params.p_branch_id).toBe(thread.active_branch_id);
+    expect(params.p_parent_checkpoint_id).toBeNull();
+    expect(params.p_choice_group_key).toBe("choice-1");
+    expect(params.p_user_message_content_text).toBe("Open with a secret.");
+    expect(params.p_assistant_message_content_text).toBe("She leans in and lowers her voice.");
+    expect(params.p_autotitle_text).toBe("Open with a secret.");
+
+    // Server always generates fresh IDs — originals should NOT be preserved
+    expect(params.p_user_message_id).not.toBe("user-msg-1");
+    expect(params.p_assistant_message_id).not.toBe("assistant-msg-1");
+    expect(params.p_user_message_id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
     );
+    expect(params.p_assistant_message_id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
+
+    // Reconcile payload should reference the server-generated IDs
+    expect(params.p_reconcile_payload.recentMessageIds).toHaveLength(2);
+    expect(params.p_reconcile_payload.recentMessageIds).not.toContain("user-msg-1");
+    expect(params.p_reconcile_payload.recentMessageIds).not.toContain("assistant-msg-1");
+
     expect(result.checkpoint.id).toBeDefined();
     expect(result.reconcilePayload.checkpointId).toBe(result.checkpoint.id);
-    expect(result.storedUser.id).toBe("user-msg-1");
-    expect(result.storedAssistant.id).toBe("assistant-msg-1");
+    // Stored messages should also have server-generated IDs
+    expect(result.storedUser.id).not.toBe("user-msg-1");
+    expect(result.storedAssistant.id).not.toBe("assistant-msg-1");
   });
 
   it("rewrites an existing checkpoint in place and clears user fields when not provided", async () => {
@@ -138,27 +141,28 @@ describe("turn-finalizer", () => {
       recentMessages: [assistantMessage],
     });
 
-    expect(rpcMock).toHaveBeenCalledWith(
-      "rewrite_latest_turn_in_place",
-      expect.objectContaining({
-        p_thread_id: thread.id,
-        p_user_id: thread.user_id,
-        p_branch_id: checkpoint.branch_id,
-        p_checkpoint_id: checkpoint.id,
-        p_user_message_id: null,
-        p_user_message_parts: null,
-        p_user_message_content_text: null,
-        p_user_message_metadata: null,
-        p_assistant_message_id: checkpoint.assistant_message_id,
-        p_assistant_message_content_text: "The reply was rebuilt in place.",
-        p_autotitle_text: null,
-        p_reconcile_payload: expect.objectContaining({
-          checkpointId: checkpoint.id,
-          previousCheckpointId: checkpoint.parent_checkpoint_id,
-          recentMessageIds: [checkpoint.assistant_message_id],
-        }),
-      }),
-    );
+    const rpcArgs = rpcMock.mock.calls[0];
+    expect(rpcArgs[0]).toBe("rewrite_latest_turn_in_place");
+
+    const params = rpcArgs[1];
+    expect(params.p_thread_id).toBe(thread.id);
+    expect(params.p_user_id).toBe(thread.user_id);
+    expect(params.p_branch_id).toBe(checkpoint.branch_id);
+    expect(params.p_checkpoint_id).toBe(checkpoint.id);
+    expect(params.p_user_message_id).toBeNull();
+    expect(params.p_user_message_parts).toBeNull();
+    expect(params.p_user_message_content_text).toBeNull();
+    expect(params.p_user_message_metadata).toBeNull();
+    // Rewrite path preserves checkpoint-owned IDs
+    expect(params.p_assistant_message_id).toBe(checkpoint.assistant_message_id);
+    expect(params.p_assistant_message_content_text).toBe("The reply was rebuilt in place.");
+    expect(params.p_autotitle_text).toBeNull();
+
+    expect(params.p_reconcile_payload.checkpointId).toBe(checkpoint.id);
+    expect(params.p_reconcile_payload.previousCheckpointId).toBe(checkpoint.parent_checkpoint_id);
+    expect(params.p_reconcile_payload.recentMessageIds).toHaveLength(1);
+    expect(params.p_reconcile_payload.recentMessageIds[0]).toBe(checkpoint.assistant_message_id);
+
     expect(result.checkpoint).toEqual(checkpoint);
     expect(result.reconcilePayload.checkpointId).toBe(checkpoint.id);
     expect(result.storedUser).toBeNull();

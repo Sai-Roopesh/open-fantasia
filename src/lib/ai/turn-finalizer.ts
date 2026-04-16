@@ -1,4 +1,4 @@
-import { ensureMessageId, toStoredMessage } from "@/lib/ai/message-utils";
+import { assignServerMessageId, toStoredMessage } from "@/lib/ai/message-utils";
 import { completeJob, getLatestReconcileJobForCheckpoint } from "@/lib/data/jobs";
 import type { DatabaseClient } from "@/lib/data/shared";
 import { reconcileCheckpoint } from "@/lib/jobs/reconcile-worker";
@@ -79,6 +79,7 @@ export async function reconcileCheckpointInBand(args: {
     }
 
     console.error("Continuity reconciliation failed.", error);
+    throw error;
   }
 }
 
@@ -93,9 +94,9 @@ export async function finalizeAssistantTurn(args: {
   choiceGroupKey: string;
   recentMessages: FantasiaUIMessage[];
 }) {
-  const userMessage = ensureMessageId(args.userMessage);
-  const assistantMessage = ensureMessageId(args.assistantMessage);
-  const recentMessages = args.recentMessages.map((message) => ensureMessageId(message));
+  const userMessage = assignServerMessageId(args.userMessage);
+  const assistantMessage = assignServerMessageId(args.assistantMessage);
+  const recentMessages = args.recentMessages.map((message) => assignServerMessageId(message));
   const storedUser = toStoredMessage(userMessage);
   const storedAssistant = toStoredMessage(assistantMessage);
   const pendingReconcilePayload = buildReconcileJobPayload({
@@ -154,9 +155,11 @@ export async function rewriteCheckpointTurnInPlace(args: {
   assistantMessage: FantasiaUIMessage;
   recentMessages: FantasiaUIMessage[];
 }) {
-  const userMessage = args.userMessage ? ensureMessageId(args.userMessage) : null;
-  const assistantMessage = ensureMessageId(args.assistantMessage);
-  const recentMessages = args.recentMessages.map((message) => ensureMessageId(message));
+  // Rewrite path: IDs come from the server-owned checkpoint, not from the client.
+  // We preserve them as-is — no reassignment needed.
+  const userMessage = args.userMessage ?? null;
+  const assistantMessage = args.assistantMessage;
+  const recentMessages = args.recentMessages;
   const storedUser = userMessage ? toStoredMessage(userMessage) : null;
   const storedAssistant = toStoredMessage(assistantMessage);
   const reconcilePayload = buildReconcileJobPayload({

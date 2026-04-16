@@ -213,6 +213,21 @@ export async function switchActiveBranch(
   userId: string,
   args: { threadId: string; branchId: string },
 ) {
+  // Verify the branch belongs to the target thread before switching
+  const { data: branch, error: branchError } = await supabase
+    .from("chat_branches")
+    .select("id")
+    .eq("id", args.branchId)
+    .eq("thread_id", args.threadId)
+    .maybeSingle();
+
+  if (branchError) throw branchError;
+  if (!branch) {
+    throw new Error(
+      `Branch ${args.branchId} does not belong to thread ${args.threadId}.`,
+    );
+  }
+
   const { data, error } = await supabase
     .from("chat_threads")
     .update({ active_branch_id: args.branchId })

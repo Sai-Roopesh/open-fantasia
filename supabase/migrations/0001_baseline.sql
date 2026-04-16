@@ -710,6 +710,34 @@ declare
   created_thread public.chat_threads;
   created_branch public.chat_branches;
 begin
+  -- Validate that referenced records belong to the calling user
+  if not exists (
+    select 1
+    from public.characters characters
+    where characters.id = p_character_id
+      and characters.user_id = p_user_id
+  ) then
+    raise exception 'Character % not found for user %', p_character_id, p_user_id;
+  end if;
+
+  if not exists (
+    select 1
+    from public.ai_connections connections
+    where connections.id = p_connection_id
+      and connections.user_id = p_user_id
+  ) then
+    raise exception 'Connection % not found for user %', p_connection_id, p_user_id;
+  end if;
+
+  if p_persona_id is not null and not exists (
+    select 1
+    from public.user_personas personas
+    where personas.id = p_persona_id
+      and personas.user_id = p_user_id
+  ) then
+    raise exception 'Persona % not found for user %', p_persona_id, p_user_id;
+  end if;
+
   insert into public.chat_threads (
     user_id,
     character_id,
@@ -796,6 +824,8 @@ begin
     raise exception 'Branch % not found for thread %', p_branch_id, p_thread_id;
   end if;
 
+  -- Server always generates fresh IDs, so conflicts indicate a UUID collision.
+  -- Use DO NOTHING to prevent overwriting historical messages.
   insert into public.chat_messages (
     id,
     thread_id,
@@ -812,13 +842,11 @@ begin
     coalesce(p_user_message_content_text, ''),
     coalesce(p_user_message_metadata, '{}'::jsonb)
   )
-  on conflict (id) do update
-  set
-    thread_id = excluded.thread_id,
-    role = excluded.role,
-    parts = excluded.parts,
-    content_text = excluded.content_text,
-    metadata = excluded.metadata;
+  on conflict (id) do nothing;
+
+  if not found then
+    raise exception 'User message id % conflicts with an existing message', p_user_message_id;
+  end if;
 
   insert into public.chat_messages (
     id,
@@ -836,13 +864,11 @@ begin
     coalesce(p_assistant_message_content_text, ''),
     coalesce(p_assistant_message_metadata, '{}'::jsonb)
   )
-  on conflict (id) do update
-  set
-    thread_id = excluded.thread_id,
-    role = excluded.role,
-    parts = excluded.parts,
-    content_text = excluded.content_text,
-    metadata = excluded.metadata;
+  on conflict (id) do nothing;
+
+  if not found then
+    raise exception 'Assistant message id % conflicts with an existing message', p_assistant_message_id;
+  end if;
 
   insert into public.chat_checkpoints (
     thread_id,
