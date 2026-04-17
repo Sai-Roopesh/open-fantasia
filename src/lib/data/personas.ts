@@ -56,16 +56,7 @@ export async function getDefaultPersona(
     .maybeSingle();
 
   if (error) throw error;
-  if (data) {
-    return castRow<UserPersonaRecord>(data);
-  }
-
-  const personas = await listPersonas(supabase, userId);
-  if (personas.length === 1) {
-    return personas[0];
-  }
-
-  return null;
+  return data ? castRow<UserPersonaRecord>(data) : null;
 }
 
 export async function upsertPersona(
@@ -147,19 +138,13 @@ export async function setDefaultPersona(
   const personas = castRows<UserPersonaRecord>(data ?? [], "Default personas");
   const exactMatch =
     personas.find((persona) => persona.id === personaId && persona.is_default) ??
-    personas.find((persona) => persona.id === personaId) ??
     null;
 
   if (exactMatch) {
     return exactMatch;
   }
 
-  const persona = await getPersona(supabase, userId, personaId);
-  if (!persona) {
-    throw new Error("Default persona could not be reloaded.");
-  }
-
-  return persona;
+  throw new Error("Default persona RPC did not return the promoted persona.");
 }
 
 export async function duplicatePersona(

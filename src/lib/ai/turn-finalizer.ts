@@ -25,6 +25,10 @@ function buildReconcileJobPayload(args: {
   previousCheckpointId: string | null;
   recentMessages: FantasiaUIMessage[];
 }): ReconcileCheckpointJobPayload {
+  if (!args.thread.persona_id) {
+    throw new Error("Threads must carry an explicit persona before they can reconcile.");
+  }
+
   return {
     threadId: args.thread.id,
     branchId: args.branchId,

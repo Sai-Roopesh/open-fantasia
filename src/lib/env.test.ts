@@ -1,11 +1,14 @@
 import {
   getAllowedEmails,
   getPublicEnv,
+  getCronSecret,
   getSupabasePublicEnv,
+  getSupabaseServiceRoleKey,
   hasSupabaseEnv,
-  isLocalDevAuthBypassEnabled,
+  requireCronSecret,
   requirePublicSiteUrl,
   requirePublicEnv,
+  requireSupabaseServiceRoleKey,
   requireSupabasePublicEnv,
 } from "@/lib/env";
 
@@ -48,23 +51,22 @@ describe("env helpers", () => {
     expect(getAllowedEmails()).toEqual(["alice@example.com", "bob@example.com"]);
   });
 
-  it("only enables the dev auth bypass when every strict condition is met", () => {
-    process.env = {
-      ...process.env,
-      NODE_ENV: "development",
-      ENABLE_LOCAL_DEV_AUTH_BYPASS: "true",
-      SUPABASE_SERVICE_ROLE_KEY: "service-role",
-      NEXT_PUBLIC_SITE_URL: "http://localhost:3000",
-    };
+  it("requires the service role key and cron secret explicitly", () => {
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "service-role";
+    process.env.CRON_SECRET = "cron-secret";
 
-    expect(isLocalDevAuthBypassEnabled()).toBe(true);
+    expect(getSupabaseServiceRoleKey()).toBe("service-role");
+    expect(requireSupabaseServiceRoleKey()).toBe("service-role");
+    expect(getCronSecret()).toBe("cron-secret");
+    expect(requireCronSecret()).toBe("cron-secret");
 
-    process.env.NEXT_PUBLIC_SITE_URL = "https://preview.example.com";
-    expect(isLocalDevAuthBypassEnabled()).toBe(false);
+    delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+    delete process.env.CRON_SECRET;
 
-    process.env.NEXT_PUBLIC_SITE_URL = "http://127.0.0.1:3000";
-    process.env.ENABLE_LOCAL_DEV_AUTH_BYPASS = "false";
-    expect(isLocalDevAuthBypassEnabled()).toBe(false);
+    expect(() => requireSupabaseServiceRoleKey()).toThrow(
+      "Missing Supabase service role key",
+    );
+    expect(() => requireCronSecret()).toThrow("Missing CRON_SECRET");
   });
 
   it("only falls back to localhost siteUrl during development", () => {

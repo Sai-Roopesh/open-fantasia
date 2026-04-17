@@ -67,7 +67,7 @@ describe("persona data helpers", () => {
     expect(result.is_default).toBe(true);
   });
 
-  it("treats the only persona as the default fallback", async () => {
+  it("returns null when no explicit default persona exists", async () => {
     const persona = createPersonaRow();
     const maybeSingle = vi.fn().mockResolvedValue({ data: null, error: null });
     const defaultBuilder = {
@@ -75,25 +75,12 @@ describe("persona data helpers", () => {
       eq: vi.fn(() => defaultBuilder),
       maybeSingle,
     };
-
-    const listBuilder = {
-      select: vi.fn(() => listBuilder),
-      eq: vi.fn(() => listBuilder),
-      order: vi
-        .fn()
-        .mockImplementationOnce(() => listBuilder)
-        .mockResolvedValueOnce({ data: [persona], error: null }),
-    };
-
-    const from = vi
-      .fn()
-      .mockImplementationOnce(() => defaultBuilder)
-      .mockImplementationOnce(() => listBuilder);
+    const from = vi.fn().mockImplementationOnce(() => defaultBuilder);
     const supabase = { from } as never;
 
     const result = await getDefaultPersona(supabase, persona.user_id);
 
     expect(maybeSingle).toHaveBeenCalledTimes(1);
-    expect(result?.id).toBe(persona.id);
+    expect(result).toBeNull();
   });
 });

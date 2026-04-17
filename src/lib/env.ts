@@ -113,31 +113,26 @@ export function getSupabaseServiceRoleKey() {
   return process.env.SUPABASE_SERVICE_ROLE_KEY ?? null;
 }
 
+export function requireSupabaseServiceRoleKey() {
+  const serviceRoleKey = getSupabaseServiceRoleKey();
+  if (!serviceRoleKey) {
+    throw new Error(
+      "Missing Supabase service role key. Set SUPABASE_SERVICE_ROLE_KEY.",
+    );
+  }
+  return serviceRoleKey;
+}
+
 export function getCronSecret() {
   return process.env.CRON_SECRET ?? null;
 }
 
-export function isLocalDevAuthBypassEnabled() {
-  if (process.env.NODE_ENV !== "development") {
-    return false;
+export function requireCronSecret() {
+  const secret = getCronSecret();
+  if (!secret) {
+    throw new Error("Missing CRON_SECRET.");
   }
-
-  if (process.env.ENABLE_LOCAL_DEV_AUTH_BYPASS !== "true") {
-    return false;
-  }
-
-  const hostname = (() => {
-    try {
-      return new URL(getPublicEnv().siteUrl ?? "").hostname;
-    } catch {
-      return "";
-    }
-  })();
-
-  return (
-    (hostname === "localhost" || hostname === "127.0.0.1") &&
-    Boolean(getSupabaseServiceRoleKey())
-  );
+  return secret;
 }
 
 export function isConfigured() {

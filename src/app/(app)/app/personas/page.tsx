@@ -18,7 +18,7 @@ function reasonCopy(reason: string) {
     return "Give the persona a name so it is recognizable when you attach it to a thread.";
   }
   if (reason === "default") {
-    return "Create at least one persona before starting a new thread. A default persona only controls the starting selection.";
+    return "Create at least one persona before starting a new thread. If you do not set a default, thread launch will require you to choose the persona explicitly.";
   }
   return reason;
 }

@@ -158,7 +158,7 @@ export function ErrorBanner({
   activeError,
   composerBusy,
   failedDraft,
-  fallbackModels,
+  alternativeModels,
   onEditDraft,
   onRetry,
   onShowModelPicker,
@@ -166,7 +166,7 @@ export function ErrorBanner({
   activeError: string;
   composerBusy: boolean;
   failedDraft: string | null;
-  fallbackModels: Array<{
+  alternativeModels: Array<{
     connectionId: string;
     label: string;
     provider: string;
@@ -218,9 +218,9 @@ export function ErrorBanner({
         </button>
       </div>
 
-      {fallbackModels.length ? (
+      {alternativeModels.length ? (
         <div className="mt-4 flex flex-wrap gap-2">
-          {fallbackModels.map((option) => (
+          {alternativeModels.map((option) => (
             <span
               key={`${option.connectionId}-${option.model.id}`}
               className="rounded-full border border-brand/18 bg-white/8 px-3 py-1 text-xs"
@@ -230,6 +230,38 @@ export function ErrorBanner({
           ))}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+export function ContinuityBanner({
+  status,
+}: {
+  status: {
+    tone: "pending" | "error";
+    title: string;
+    detail: string;
+  };
+}) {
+  return (
+    <div
+      aria-live="polite"
+      className={cn(
+        "mt-4 rounded-[1.6rem] border p-4 text-sm",
+        status.tone === "error"
+          ? "border-red-900/40 bg-red-950/35 text-red-100"
+          : "border-brand/20 bg-brand/8 text-brand-strong",
+      )}
+    >
+      <p
+        className={cn(
+          "text-xs font-semibold uppercase tracking-[0.18em]",
+          status.tone === "error" ? "text-red-300" : "text-brand",
+        )}
+      >
+        {status.title}
+      </p>
+      <p className="mt-2 leading-7">{status.detail}</p>
     </div>
   );
 }

@@ -70,7 +70,7 @@ export async function POST(
   const { assistantMessage } = await generateAssistantReply({
     runtime,
     messages: [...runtime.threadView.modelContextMessages, starterMessage],
-    snapshot: runtime.threadView.resolvedSnapshot,
+    snapshot: runtime.threadView.headSnapshot,
   });
 
   const { checkpoint, reconcilePayload } = await finalizeAssistantTurn({

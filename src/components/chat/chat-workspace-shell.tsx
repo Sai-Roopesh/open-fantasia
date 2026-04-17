@@ -40,6 +40,7 @@ export function ChatFocusOverlay({
   displayConnectionLabel,
   displayModel,
   transcriptProps,
+  continuityBannerBlock,
   errorBannerBlock,
   composerProps,
 }: {
@@ -54,6 +55,7 @@ export function ChatFocusOverlay({
   displayConnectionLabel: string;
   displayModel: string;
   transcriptProps: TranscriptProps;
+  continuityBannerBlock: ReactNode;
   errorBannerBlock: ReactNode;
   composerProps: ComposerProps;
 }) {
@@ -121,6 +123,7 @@ export function ChatFocusOverlay({
         className="relative z-10 shrink-0 border-t border-white/6 px-3 pb-3 md:px-6"
         style={{ backgroundColor: "color-mix(in srgb, var(--focus-bg-base) 78%, transparent)" }}
       >
+        {continuityBannerBlock}
         {errorBannerBlock}
         <ChatComposer {...composerProps} focusMode />
       </div>
@@ -151,6 +154,7 @@ export function ChatScenePanel({
   suggestedStarters,
   triggerStarter,
   transcriptProps,
+  continuityBannerBlock,
   errorBannerBlock,
   composerProps,
   activeBranch,
@@ -183,6 +187,7 @@ export function ChatScenePanel({
   suggestedStarters: string[];
   triggerStarter: (starter: string, onSuccess?: () => void) => void;
   transcriptProps: TranscriptProps;
+  continuityBannerBlock: ReactNode;
   errorBannerBlock: ReactNode;
   composerProps: ComposerProps;
   activeBranch: ChatBranchRecord;
@@ -320,6 +325,7 @@ export function ChatScenePanel({
           <PretextTranscript {...transcriptProps} />
         </div>
 
+        {continuityBannerBlock}
         {errorBannerBlock}
 
         <ChatComposer {...composerProps} />

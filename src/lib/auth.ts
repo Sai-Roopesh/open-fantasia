@@ -1,6 +1,6 @@
 import type { User } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
-import { getAllowedEmails, hasSupabaseEnv } from "@/lib/env";
+import { getAllowedEmails } from "@/lib/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
 export function isAllowedEmail(email?: string | null) {
@@ -11,7 +11,6 @@ export function isAllowedEmail(email?: string | null) {
 
 async function syncProfileRecord(user: User) {
   const supabase = await createSupabaseServerClient();
-  if (!supabase) return;
 
   const { error } = await supabase.from("profiles").upsert({
     id: user.id,
@@ -21,16 +20,12 @@ async function syncProfileRecord(user: User) {
   });
 
   if (error) {
-    console.error("Failed to sync profile record", error);
+    throw error;
   }
 }
 
 export async function getCurrentUser() {
   const supabase = await createSupabaseServerClient();
-  if (!supabase) {
-    return { supabase: null, user: null, isAllowed: false };
-  }
-
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -43,16 +38,12 @@ export async function getCurrentUser() {
 }
 
 export async function requireAllowedUser() {
-  if (!hasSupabaseEnv()) {
-    redirect("/login?reason=setup");
-  }
-
   const context = await getCurrentUser();
-  if (!context.supabase || !context.user || !context.isAllowed) {
+  if (!context.user || !context.isAllowed) {
     redirect("/login");
   }
 
-  return context as { supabase: NonNullable<typeof context.supabase>; user: User; isAllowed: true };
+  return context as { supabase: typeof context.supabase; user: User; isAllowed: true };
 }
 
 export async function syncProfile(user: User) {

@@ -1,6 +1,6 @@
 import { getCurrentUser } from "@/lib/auth";
 import {
-  assertThreadReadyForGeneration,
+  assertThreadReadyForLatestRewrite,
   generateAssistantReply,
   loadThreadGenerationRuntime,
   toThreadGenerationErrorResponse,
@@ -38,7 +38,7 @@ export async function POST(
       userId: user.id,
       threadId,
     });
-    assertThreadReadyForGeneration(runtime.threadView);
+    assertThreadReadyForLatestRewrite(runtime.threadView);
   } catch (error) {
     return toThreadGenerationErrorResponse(error);
   }

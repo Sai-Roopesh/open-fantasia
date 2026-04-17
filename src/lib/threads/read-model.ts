@@ -1,5 +1,6 @@
 import { getTextFromMessageParts } from "@/lib/ai/message-text";
 import { toUIMessages } from "@/lib/data/messages";
+import type { CharacterBundle } from "@/lib/data/characters";
 import { normalizeJob } from "@/lib/data/jobs";
 import {
   castRecord,
@@ -12,6 +13,9 @@ import type {
   ChatBranchRecord,
   ChatCheckpointRecord,
   ChatPinRecord,
+  CharacterExampleConversationRecord,
+  CharacterRecord,
+  CharacterStarterRecord,
   FantasiaUIMessage,
   MessageMetadata,
   StoredMessageRecord,
@@ -27,8 +31,8 @@ export type ThreadGraphView = {
   activeBranch: ChatBranchRecord;
   checkpoints: ChatCheckpointRecord[];
   latestCheckpoint: ChatCheckpointRecord | null;
+  characterBundle: CharacterBundle | null;
   headSnapshot: ThreadStateSnapshot | null;
-  resolvedSnapshot: ThreadStateSnapshot | null;
   headSnapshotPending: boolean;
   headSnapshotFailed: boolean;
   headSnapshotFailureMessage: string | null;
@@ -44,6 +48,7 @@ type ThreadGraphPayload = {
   activeBranch: ChatBranchRecord;
   branches: ChatBranchRecord[];
   checkpoints: ChatCheckpointRecord[];
+  characterBundle: CharacterBundle | null;
   messages: StoredMessageRecord[];
   snapshots: ThreadStateSnapshot[];
   timeline: TimelineEventRecord[];
@@ -77,6 +82,28 @@ function normalizeSnapshot(row: Record<string, unknown>) {
   } satisfies ThreadStateSnapshot;
 }
 
+function normalizeCharacterBundle(value: unknown): CharacterBundle | null {
+  if (!value) {
+    return null;
+  }
+
+  const bundle = castRecord(value, "Thread graph character bundle");
+  return {
+    character: castRow<CharacterRecord>(
+      bundle.character,
+      "Thread graph character bundle character",
+    ),
+    starters: castRows<CharacterStarterRecord>(
+      bundle.starters,
+      "Thread graph character starters",
+    ),
+    exampleConversations: castRows<CharacterExampleConversationRecord>(
+      bundle.exampleConversations,
+      "Thread graph character examples",
+    ),
+  } satisfies CharacterBundle;
+}
+
 function normalizeThreadGraphPayload(value: unknown): ThreadGraphPayload {
   const payload = castRecord(value, "Thread graph payload");
 
@@ -91,6 +118,7 @@ function normalizeThreadGraphPayload(value: unknown): ThreadGraphPayload {
       payload.checkpoints,
       "Thread graph checkpoints",
     ),
+    characterBundle: normalizeCharacterBundle(payload.characterBundle),
     messages: castRows<Record<string, unknown>>(
       payload.messages,
       "Thread graph messages",
@@ -116,20 +144,12 @@ export function resolveSnapshotState(
   const headSnapshot = latestCheckpoint
     ? snapshotsByCheckpointId.get(latestCheckpoint.id) ?? null
     : null;
-  const resolvedSnapshot =
-    headSnapshot ??
-    [...checkpoints]
-      .reverse()
-      .map((checkpoint) => snapshotsByCheckpointId.get(checkpoint.id) ?? null)
-      .find((snapshot): snapshot is ThreadStateSnapshot => Boolean(snapshot)) ??
-    null;
   const headSnapshotFailed = Boolean(
     latestCheckpoint && !headSnapshot && latestReconcileJob?.status === "failed",
   );
 
   return {
     headSnapshot,
-    resolvedSnapshot,
     headSnapshotPending: Boolean(latestCheckpoint && !headSnapshot && !headSnapshotFailed),
     headSnapshotFailed,
     headSnapshotFailureMessage: headSnapshotFailed
@@ -234,7 +254,6 @@ export async function getThreadGraphView(
   const latestCheckpoint = payload.checkpoints.at(-1) ?? null;
   const {
     headSnapshot,
-    resolvedSnapshot,
     headSnapshotPending,
     headSnapshotFailed,
     headSnapshotFailureMessage,
@@ -250,8 +269,8 @@ export async function getThreadGraphView(
     activeBranch: payload.activeBranch,
     checkpoints: payload.checkpoints,
     latestCheckpoint,
+    characterBundle: payload.characterBundle,
     headSnapshot,
-    resolvedSnapshot,
     headSnapshotPending,
     headSnapshotFailed,
     headSnapshotFailureMessage,

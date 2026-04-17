@@ -1511,6 +1511,60 @@ begin
         coalesce((select value from message_ids), array[]::text[])
       )
     ),
+    character_row as (
+      select
+        characters.id,
+        characters.user_id,
+        characters.name,
+        characters.story,
+        characters.core_persona,
+        characters.greeting,
+        characters.appearance,
+        characters.style_rules,
+        characters.definition,
+        characters.negative_guidance,
+        characters.portrait_status,
+        characters.portrait_path,
+        characters.portrait_prompt,
+        characters.portrait_seed,
+        characters.portrait_source_hash,
+        characters.portrait_last_error,
+        characters.portrait_generated_at,
+        characters.temperature,
+        characters.top_p,
+        characters.max_output_tokens,
+        characters.created_at,
+        characters.updated_at
+      from public.characters characters
+      where characters.id = owned_thread.character_id
+        and characters.user_id = p_user_id
+      limit 1
+    ),
+    starter_rows as (
+      select
+        starters.id,
+        starters.character_id,
+        starters.text,
+        starters.sort_order,
+        starters.created_at,
+        starters.updated_at
+      from public.character_starters starters
+      where starters.character_id = owned_thread.character_id
+      order by starters.sort_order asc
+    ),
+    example_rows as (
+      select
+        examples.id,
+        examples.character_id,
+        examples.user_line,
+        examples.character_line,
+        examples.sort_order,
+        examples.created_at,
+        examples.updated_at
+      from public.character_example_conversations examples
+      where examples.character_id = owned_thread.character_id
+      order by examples.sort_order asc
+    ),
     snapshot_rows as (
       select
         snapshots.checkpoint_id,
@@ -1612,6 +1666,30 @@ begin
           from ordered_checkpoints checkpoints
         ),
         '[]'::jsonb
+      ),
+      'characterBundle',
+      (
+        select jsonb_build_object(
+          'character',
+          to_jsonb(character_row),
+          'starters',
+          coalesce(
+            (
+              select jsonb_agg(to_jsonb(starters) order by starters.sort_order asc)
+              from starter_rows starters
+            ),
+            '[]'::jsonb
+          ),
+          'exampleConversations',
+          coalesce(
+            (
+              select jsonb_agg(to_jsonb(examples) order by examples.sort_order asc)
+              from example_rows examples
+            ),
+            '[]'::jsonb
+          )
+        )
+        from character_row
       ),
       'messages',
       coalesce(

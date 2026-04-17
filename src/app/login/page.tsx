@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { BrandMark } from "@/components/brand-mark";
 import { SubmitButton } from "@/components/forms/submit-button";
-import { isConfigured, isLocalDevAuthBypassEnabled } from "@/lib/env";
+import { isConfigured } from "@/lib/env";
 import { getCurrentUser } from "@/lib/auth";
 import { requestMagicLink } from "@/app/login/actions";
 
@@ -10,23 +10,17 @@ function humanizeLoginReason(reason: string | null) {
   if (!reason) return null;
   const lower = reason.toLowerCase();
 
-  if (reason === "setup") {
-    return "Fantasia still needs its Supabase and encryption environment variables before sign-in can work.";
-  }
   if (reason === "signin") {
     return "Sign in to open your private workspace.";
   }
   if (reason === "invalid") {
     return "Enter the allowlisted email you want to use for this build.";
   }
-  if (lower.includes("rate limit")) {
-    return "Email sending is rate limited right now. On localhost, submitting an allowlisted email will still continue immediately.";
-  }
   if (lower.includes("email")) {
     return "That email could not be used for sign-in. Double-check the address and make sure it is on your allowlist.";
   }
 
-  return "Sign-in didn’t complete. Try again, or retry from localhost if you’re still building locally.";
+  return "Sign-in didn’t complete. Try again once the request path and mailbox delivery are healthy.";
 }
 
 async function LoginCard({
@@ -37,8 +31,10 @@ async function LoginCard({
   const params = await searchParams;
   const sent = params.sent === "1";
   const reason = typeof params.reason === "string" ? params.reason : null;
-  const { user, isAllowed } = await getCurrentUser();
-  const showLocalDevAccess = isLocalDevAuthBypassEnabled();
+  const configured = isConfigured();
+  const { user, isAllowed } = configured
+    ? await getCurrentUser()
+    : { user: null, isAllowed: false };
   const reasonMessage = humanizeLoginReason(reason);
 
   return (
@@ -54,14 +50,7 @@ async function LoginCard({
         to receive a magic link and continue on phone or laptop.
       </p>
 
-      {showLocalDevAccess ? (
-        <div className="mt-4 rounded-2xl border border-accent/25 bg-accent/10 p-4 text-sm leading-7 text-accent">
-          Localhost dev access is enabled. Submitting an allowlisted email here
-          will continue directly without waiting for mailbox delivery.
-        </div>
-      ) : null}
-
-      {!isConfigured() ? (
+      {!configured ? (
         <div className="mt-6 rounded-2xl border border-dashed border-brand/40 bg-brand/8 p-4 text-sm text-brand-strong">
           Add your Supabase keys, allowlist, and encryption secret in
           `.env.local` before sign-in can work.
@@ -109,7 +98,7 @@ async function LoginCard({
               />
             </label>
             <SubmitButton className="w-full" data-testid="login-submit-button">
-              {showLocalDevAccess ? "Continue" : "Send magic link"}
+              Send magic link
             </SubmitButton>
           </form>
         </div>

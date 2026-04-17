@@ -150,7 +150,7 @@ export const reconcileCheckpointJobPayloadSchema = z.object({
   connectionId: z.string().uuid(),
   modelId: z.string().min(1),
   characterId: z.string().uuid(),
-  personaId: z.string().uuid().nullable(),
+  personaId: z.string().uuid(),
   recentMessageIds: z.array(z.string().min(1)),
 });
 
