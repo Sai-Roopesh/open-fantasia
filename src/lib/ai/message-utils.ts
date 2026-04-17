@@ -1,6 +1,18 @@
 import type { FantasiaUIMessage, MessageMetadata } from "@/lib/types";
 import { getTextFromMessageParts } from "@/lib/ai/message-text";
 
+export function requireMessageId(
+  message: Pick<FantasiaUIMessage, "id">,
+  label = "Message",
+) {
+  const id = message.id.trim();
+  if (!id) {
+    throw new Error(`${label} id is required.`);
+  }
+
+  return id;
+}
+
 /**
  * Always assigns a fresh server-generated UUID, ignoring any client-supplied ID.
  * This prevents crafted requests from reusing an existing chat_messages.id
@@ -24,7 +36,7 @@ export function assignServerMessageId(message: FantasiaUIMessage): FantasiaUIMes
  */
 export function toStoredMessage(message: FantasiaUIMessage) {
   return {
-    id: message.id,
+    id: requireMessageId(message),
     role: message.role,
     parts: message.parts,
     content_text: getTextFromMessageParts(message.parts),

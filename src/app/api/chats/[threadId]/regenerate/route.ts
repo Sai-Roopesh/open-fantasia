@@ -76,11 +76,17 @@ export async function POST(
     assistantMessage,
     recentMessages: [...contextMessages, assistantMessage],
   });
-  await reconcileCheckpointInBand({
+  const reconcileResult = await reconcileCheckpointInBand({
     supabase,
     userId: user.id,
     payload: reconcilePayload,
   });
+  if (!reconcileResult.ok) {
+    console.error(
+      "Regeneration reconciliation failed; the worker will retry.",
+      reconcileResult.errorMessage,
+    );
+  }
 
   return Response.json({ ok: true, checkpointId: checkpoint.id });
 }

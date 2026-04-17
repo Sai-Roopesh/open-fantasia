@@ -1,5 +1,9 @@
-import { assignServerMessageId, toStoredMessage } from "@/lib/ai/message-utils";
-import { completeJob, getLatestReconcileJobForCheckpoint } from "@/lib/data/jobs";
+import { requireMessageId, toStoredMessage } from "@/lib/ai/message-utils";
+import {
+  completeJob,
+  failJob,
+  getLatestReconcileJobForCheckpoint,
+} from "@/lib/data/jobs";
 import type { DatabaseClient } from "@/lib/data/shared";
 import { reconcileCheckpoint } from "@/lib/jobs/reconcile-worker";
 import type {
@@ -30,7 +34,9 @@ function buildReconcileJobPayload(args: {
     modelId: args.thread.model_id,
     characterId: args.thread.character_id,
     personaId: args.thread.persona_id,
-    recentMessageIds: args.recentMessages.map((message) => message.id),
+    recentMessageIds: args.recentMessages.map((message, index) =>
+      requireMessageId(message, `Recent message ${index + 1}`),
+    ),
   };
 }
 
@@ -59,27 +65,27 @@ export async function reconcileCheckpointInBand(args: {
     if (job) {
       await completeJob(args.supabase, job.id);
     }
-  } catch (error) {
-    if (job) {
-      const message =
-        error instanceof Error ? error.message : "Continuity reconciliation failed.";
-      const { error: updateError } = await args.supabase
-        .from("background_jobs")
-        .update({
-          status: "failed",
-          locked_at: null,
-          last_error: message,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", job.id);
 
-      if (updateError) {
-        console.error("Failed to persist continuity job failure.", updateError);
+    return {
+      ok: true as const,
+    };
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Continuity reconciliation failed.";
+
+    if (job) {
+      try {
+        await failJob(args.supabase, job, message);
+      } catch (updateError) {
+        console.error("Failed to persist continuity retry state.", updateError);
       }
     }
 
     console.error("Continuity reconciliation failed.", error);
-    throw error;
+    return {
+      ok: false as const,
+      errorMessage: message,
+    };
   }
 }
 
@@ -94,17 +100,14 @@ export async function finalizeAssistantTurn(args: {
   choiceGroupKey: string;
   recentMessages: FantasiaUIMessage[];
 }) {
-  const userMessage = assignServerMessageId(args.userMessage);
-  const assistantMessage = assignServerMessageId(args.assistantMessage);
-  const recentMessages = args.recentMessages.map((message) => assignServerMessageId(message));
-  const storedUser = toStoredMessage(userMessage);
-  const storedAssistant = toStoredMessage(assistantMessage);
+  const storedUser = toStoredMessage(args.userMessage);
+  const storedAssistant = toStoredMessage(args.assistantMessage);
   const pendingReconcilePayload = buildReconcileJobPayload({
     thread: args.thread,
     branchId: args.branchId,
     checkpointId: "",
     previousCheckpointId: args.parentCheckpointId,
-    recentMessages,
+    recentMessages: args.recentMessages,
   });
 
   const { data, error } = await args.supabase.rpc("finalize_turn_and_enqueue_reconcile", {
@@ -122,7 +125,7 @@ export async function finalizeAssistantTurn(args: {
     p_assistant_message_content_text: storedAssistant.content_text,
     p_assistant_message_metadata: toJson(storedAssistant.metadata ?? {}),
     p_reconcile_payload: toJson(pendingReconcilePayload),
-    p_autotitle_text: getAutotitleText(userMessage),
+    p_autotitle_text: getAutotitleText(args.userMessage),
   });
 
   if (error) throw error;

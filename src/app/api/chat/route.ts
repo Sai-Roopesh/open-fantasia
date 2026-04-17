@@ -1,9 +1,14 @@
-import { createIdGenerator, validateUIMessages } from "ai";
+import {
+  createUIMessageStream,
+  createUIMessageStreamResponse,
+  validateUIMessages,
+} from "ai";
 import { getCurrentUser } from "@/lib/auth";
 import {
   assertThreadReadyForGeneration,
+  generateAssistantReply,
   loadThreadGenerationRuntime,
-  streamAssistantReply,
+  ThreadGenerationServiceError,
   toThreadGenerationErrorResponse,
 } from "@/lib/ai/thread-generation-service";
 import {
@@ -13,11 +18,6 @@ import {
 import { assignServerMessageId } from "@/lib/ai/message-utils";
 import { chatRequestSchema } from "@/lib/validation";
 import { messageMetadataSchema, type FantasiaUIMessage } from "@/lib/types";
-
-const generateMessageId = createIdGenerator({
-  prefix: "msg",
-  size: 16,
-});
 
 export async function POST(request: Request) {
   const context = await getCurrentUser();
@@ -63,69 +63,109 @@ export async function POST(request: Request) {
   }
 
   const stableUserMessage = assignServerMessageId(latestUserMessage);
-  const streamMessages = [...runtime.threadView.modelContextMessages, stableUserMessage];
+  const contextMessages = [...runtime.threadView.modelContextMessages, stableUserMessage];
   const continuitySnapshot = runtime.threadView.resolvedSnapshot;
+  const startedAt = Date.now();
 
-  const result = await streamAssistantReply({
-    runtime,
-    messages: streamMessages,
-    snapshot: continuitySnapshot,
-  });
+  try {
+    const { assistantMessage } = await generateAssistantReply({
+      runtime,
+      messages: contextMessages,
+      snapshot: continuitySnapshot,
+    });
+    const recentMessages = [
+      ...runtime.threadView.modelContextMessages,
+      stableUserMessage,
+      assistantMessage,
+    ];
+    const { reconcilePayload, storedAssistant } = await finalizeAssistantTurn({
+      supabase,
+      userId: user.id,
+      thread: runtime.threadView.thread,
+      branchId: runtime.threadView.activeBranch.id,
+      parentCheckpointId: runtime.threadView.activeBranch.head_checkpoint_id,
+      userMessage: stableUserMessage,
+      assistantMessage,
+      choiceGroupKey: `choice:${crypto.randomUUID()}`,
+      recentMessages,
+    });
+    const reconcileResult = await reconcileCheckpointInBand({
+      supabase,
+      userId: user.id,
+      payload: reconcilePayload,
+    });
 
-  return result.toUIMessageStreamResponse<FantasiaUIMessage>({
-    originalMessages: streamMessages,
-    generateMessageId,
-    messageMetadata: ({ part }) => {
-      if (part.type === "start") {
-        return {
-          provider: runtime.connection.provider,
-          model: runtime.threadView.thread.model_id,
-          connectionLabel: runtime.connection.label,
-          branchId: runtime.threadView.activeBranch.id,
-          startedAt: Date.now(),
-        };
-      }
+    if (!reconcileResult.ok) {
+      console.error(
+        "Immediate continuity reconciliation failed; queued retry.",
+        reconcileResult.errorMessage,
+      );
+    }
 
-      if (part.type === "finish") {
-        return {
-          provider: runtime.connection.provider,
-          model: runtime.threadView.thread.model_id,
-          connectionLabel: runtime.connection.label,
-          branchId: runtime.threadView.activeBranch.id,
-          finishReason: part.finishReason,
-          totalTokens: part.totalUsage.totalTokens,
-        };
-      }
+    const baseMetadata = {
+      provider: runtime.connection.provider,
+      model: runtime.threadView.thread.model_id,
+      connectionLabel: runtime.connection.label,
+      branchId: runtime.threadView.activeBranch.id,
+    };
+    const finishMetadata = {
+      ...baseMetadata,
+      finishReason: assistantMessage.metadata?.finishReason,
+      totalTokens: assistantMessage.metadata?.totalTokens,
+    };
+    const finishReason = assistantMessage.metadata?.finishReason;
 
-      return undefined;
-    },
-    onFinish: async ({ responseMessage, isAborted }) => {
-      if (isAborted) return;
+    return createUIMessageStreamResponse({
+      stream: createUIMessageStream<FantasiaUIMessage>({
+        execute: ({ writer }) => {
+          writer.write({
+            type: "start",
+            messageId: storedAssistant.id,
+            messageMetadata: {
+              ...baseMetadata,
+              startedAt,
+            },
+          });
+          writer.write({ type: "start-step" });
+          writer.write({ type: "text-start", id: "text-1" });
 
-      const assistantMessage = assignServerMessageId(responseMessage);
+          if (storedAssistant.content_text) {
+            writer.write({
+              type: "text-delta",
+              id: "text-1",
+              delta: storedAssistant.content_text,
+            });
+          }
 
-      const { reconcilePayload } = await finalizeAssistantTurn({
-        supabase,
-        userId: user.id,
-        thread: runtime.threadView.thread,
-        branchId: runtime.threadView.activeBranch.id,
-        parentCheckpointId: runtime.threadView.activeBranch.head_checkpoint_id,
-        userMessage: stableUserMessage,
-        assistantMessage,
-        choiceGroupKey: `choice:${crypto.randomUUID()}`,
-        recentMessages: [...streamMessages, assistantMessage],
-      });
-      // Reconciliation is post-response for streaming — the HTTP response is
-      // already committed, so we log failures instead of crashing the stream.
-      try {
-        await reconcileCheckpointInBand({
-          supabase,
-          userId: user.id,
-          payload: reconcilePayload,
-        });
-      } catch (reconcileError) {
-        console.error("Post-stream reconciliation failed (will surface on next turn).", reconcileError);
-      }
-    },
-  });
+          writer.write({ type: "text-end", id: "text-1" });
+          writer.write({ type: "finish-step" });
+          writer.write(
+            finishReason
+              ? {
+                  type: "finish",
+                  finishReason: finishReason as
+                    | "stop"
+                    | "length"
+                    | "content-filter"
+                    | "tool-calls"
+                    | "error"
+                    | "other",
+                  messageMetadata: finishMetadata,
+                }
+              : {
+                  type: "finish",
+                  messageMetadata: finishMetadata,
+                },
+          );
+        },
+      }),
+    });
+  } catch (error) {
+    if (error instanceof ThreadGenerationServiceError) {
+      return toThreadGenerationErrorResponse(error);
+    }
+
+    console.error("Failed to generate and persist chat turn.", error);
+    return Response.json({ error: "We couldn't persist that turn." }, { status: 500 });
+  }
 }
