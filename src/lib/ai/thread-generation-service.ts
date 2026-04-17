@@ -1,6 +1,5 @@
-import { convertToModelMessages, generateText, streamText } from "ai";
+import { convertToModelMessages, generateText } from "ai";
 import type { CharacterBundle } from "@/lib/data/characters";
-import { getCharacterBundle } from "@/lib/data/characters";
 import { getConnection } from "@/lib/data/connections";
 import { getPersona } from "@/lib/data/personas";
 import type { DatabaseClient } from "@/lib/data/shared";
@@ -55,15 +54,19 @@ export async function loadThreadGenerationRuntime(args: {
     throw new ThreadGenerationServiceError(404, "Thread not found.");
   }
 
-  const [character, connection, persona] = await Promise.all([
-    getCharacterBundle(args.supabase, args.userId, threadView.thread.character_id),
+  if (!threadView.thread.persona_id) {
+    throw new ThreadGenerationServiceError(
+      400,
+      "Threads must carry an explicit persona before generation can continue.",
+    );
+  }
+
+  const [connection, persona] = await Promise.all([
     getConnection(args.supabase, args.userId, threadView.thread.connection_id),
-    threadView.thread.persona_id
-      ? getPersona(args.supabase, args.userId, threadView.thread.persona_id)
-      : Promise.resolve(null),
+    getPersona(args.supabase, args.userId, threadView.thread.persona_id),
   ]);
 
-  if (!character || !connection || !persona) {
+  if (!threadView.characterBundle || !connection || !persona) {
     throw new ThreadGenerationServiceError(400, "Missing thread context.");
   }
 
@@ -71,18 +74,22 @@ export async function loadThreadGenerationRuntime(args: {
     supabase: args.supabase,
     userId: args.userId,
     threadView,
-    character,
+    character: threadView.characterBundle,
     connection,
     persona,
     generationSettings: resolveThreadGenerationSettings({
-      character: character.character,
+      character: threadView.characterBundle.character,
       thread: threadView.thread,
     }),
   } satisfies ThreadGenerationRuntime;
 }
 
-export function assertThreadReadyForGeneration(threadView: ThreadGraphView) {
-  if (!threadView.headSnapshotFailed) {
+function buildPendingContinuityMessage() {
+  return "The latest continuity snapshot is still being written. Wait for reconciliation to finish before sending the next turn.";
+}
+
+export function assertThreadReadyForNewTurn(threadView: ThreadGraphView) {
+  if (!threadView.latestCheckpoint || threadView.headSnapshot) {
     return;
   }
 
@@ -90,8 +97,19 @@ export function assertThreadReadyForGeneration(threadView: ThreadGraphView) {
     409,
     threadView.headSnapshotFailed
       ? threadView.headSnapshotFailureMessage ??
-          "The latest continuity reconciliation failed. Rewind or retry from the latest turn before continuing."
-      : "The latest continuity reconciliation failed.",
+          "The latest continuity reconciliation failed. Repair the latest turn before continuing."
+      : buildPendingContinuityMessage(),
+  );
+}
+
+export function assertThreadReadyForLatestRewrite(threadView: ThreadGraphView) {
+  if (!threadView.headSnapshotPending) {
+    return;
+  }
+
+  throw new ThreadGenerationServiceError(
+    409,
+    buildPendingContinuityMessage(),
   );
 }
 
@@ -101,29 +119,6 @@ export function toThreadGenerationErrorResponse(error: unknown) {
   }
 
   throw error;
-}
-
-export async function streamAssistantReply(args: {
-  runtime: ThreadGenerationRuntime;
-  messages: FantasiaUIMessage[];
-  snapshot: ThreadStateSnapshot | null;
-  pins?: ThreadGraphView["pins"];
-  timeline?: TimelineEventRecord[];
-}) {
-  return streamText({
-    model: createLanguageModel(args.runtime.connection, args.runtime.threadView.thread.model_id),
-    system: buildRoleplaySystemPrompt({
-      character: args.runtime.character,
-      persona: args.runtime.persona,
-      snapshot: args.snapshot,
-      pins: args.pins ?? args.runtime.threadView.pins,
-      timeline: toPromptTimeline(args.timeline ?? args.runtime.threadView.timeline),
-    }),
-    messages: await convertToModelMessages(args.messages),
-    temperature: args.runtime.generationSettings.temperature,
-    topP: args.runtime.generationSettings.topP,
-    maxOutputTokens: args.runtime.generationSettings.maxOutputTokens,
-  });
 }
 
 export async function generateAssistantReply(args: {

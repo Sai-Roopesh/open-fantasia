@@ -41,8 +41,8 @@ function buildThreadSetupSteps(options: {
       detail:
         options.personaCount > 0
           ? options.hasDefaultPersona
-            ? "Pick the persona you want per thread. The default is just the starting selection."
-            : "You can choose a persona when the thread starts, even without a global default."
+            ? "A default persona is ready, and you can still override it per thread."
+            : "At least one persona exists. You will need to choose it deliberately when the thread starts."
           : "Create at least one persona before you open a new scene.",
     },
     {
@@ -269,9 +269,15 @@ export default async function CharactersPage({
                         <span className="sr-only">Persona for this thread</span>
                         <select
                           name="personaId"
-                          defaultValue={defaultPersona?.id ?? personas[0]?.id ?? ""}
+                          defaultValue={defaultPersona?.id ?? ""}
+                          required
                           className="w-full rounded-full border border-border bg-white/5 px-4 py-2 text-sm text-foreground outline-none transition focus:border-brand"
                         >
+                          {!defaultPersona ? (
+                            <option value="" disabled>
+                              Choose a persona
+                            </option>
+                          ) : null}
                           {personas.map((persona) => (
                             <option key={persona.id} value={persona.id}>
                               {persona.name}

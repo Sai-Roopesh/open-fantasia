@@ -87,7 +87,7 @@ export function PretextTranscript({
   controlsByMessageId,
   pendingAction,
   focusMode = false,
-  continuityBlocked = false,
+  rewriteBlocked = false,
   onRegenerate,
   onOpenEditMessage,
   onOpenBranchFromCheckpoint,
@@ -100,7 +100,7 @@ export function PretextTranscript({
   controlsByMessageId: Record<string, TranscriptControl>;
   pendingAction: string | null;
   focusMode?: boolean;
-  continuityBlocked?: boolean;
+  rewriteBlocked?: boolean;
   onRegenerate: (checkpointId: string) => Promise<void>;
   onOpenEditMessage: (messageId: string, currentText: string) => void;
   onOpenBranchFromCheckpoint: (checkpointId: string) => void;
@@ -212,7 +212,7 @@ export function PretextTranscript({
                     <div className={cn("flex flex-wrap gap-2", isUser && "justify-end")}>
                       {controls.canEdit ? (
                         <ActionButton
-                          disabled={pendingAction !== null || continuityBlocked}
+                          disabled={pendingAction !== null || rewriteBlocked}
                           onClick={() => onOpenEditMessage(message.id, messageText)}
                           icon={PencilLine}
                         >
@@ -230,7 +230,7 @@ export function PretextTranscript({
                       ) : null}
                       {controls.canRegenerate ? (
                         <ActionButton
-                          disabled={pendingAction !== null || continuityBlocked}
+                          disabled={pendingAction !== null || rewriteBlocked}
                           onClick={() => onRegenerate(controls.checkpointId)}
                           icon={RefreshCcw}
                         >

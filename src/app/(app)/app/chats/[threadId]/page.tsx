@@ -4,7 +4,6 @@ import { resolveCharacterPortraitUrl } from "@/lib/characters/portraits";
 import { ConfirmSubmitButton } from "@/components/forms/confirm-submit-button";
 import { getTextFromMessage } from "@/lib/ai/message-text";
 import { requireAllowedUser } from "@/lib/auth";
-import { getCharacterBundle } from "@/lib/data/characters";
 import { listConnections } from "@/lib/data/connections";
 import { listPersonas } from "@/lib/data/personas";
 import { getThreadGraphView } from "@/lib/threads/read-model";
@@ -27,57 +26,64 @@ export default async function ChatThreadPage({
   const threadViewPromise = getThreadGraphView(supabase, user.id, threadId);
   const connectionsPromise = listConnections(supabase, user.id);
   const personasPromise = listPersonas(supabase, user.id);
-  const characterPromise = threadViewPromise.then((threadView) =>
-    threadView
-      ? getCharacterBundle(supabase, user.id, threadView.thread.character_id)
-      : null,
-  );
-  const [threadView, connections, personas, character] = await Promise.all([
+  const [threadView, connections, personas] = await Promise.all([
     threadViewPromise,
     connectionsPromise,
     personasPromise,
-    characterPromise,
   ]);
 
   if (!threadView) {
     notFound();
   }
   const view = threadView;
+  const character = view.characterBundle;
 
   if (!character) {
     redirect("/app/characters");
+  }
+  if (!view.thread.persona_id) {
+    redirect("/app/personas?reason=default");
   }
   const characterBackgroundUrl = resolveCharacterPortraitUrl(
     supabase,
     character.character.portrait_path,
   );
 
-  const currentConnection =
-    connections.find((connection) => connection.id === view.thread.connection_id) ??
-    connections[0];
-  const currentPersona =
-    personas.find((persona) => persona.id === view.thread.persona_id) ?? null;
+  const currentConnection = connections.find(
+    (connection) => connection.id === view.thread.connection_id,
+  );
+  if (!currentConnection) {
+    redirect("/app/settings/providers?reason=connection");
+  }
+
+  const currentPersona = personas.find(
+    (persona) => persona.id === view.thread.persona_id,
+  );
+  if (!currentPersona) {
+    redirect("/app/personas?reason=default");
+  }
+
   const messageTextById = new Map(
     view.canonicalMessages.map((message) => [message.id, getTextFromMessage(message)]),
   );
   const parentBranch = view.branches.find(
     (branch) => branch.id === view.activeBranch.parent_branch_id,
   );
-  const continuitySnapshot = view.resolvedSnapshot;
+  const continuitySnapshot = view.headSnapshot;
   const continuityStatus = view.headSnapshotFailed
     ? {
         tone: "error" as const,
         title: "Continuity reconciliation failed",
         detail:
           view.headSnapshotFailureMessage ??
-          "The active branch could not reconcile its latest turn. New turns stay blocked until you rewrite, rewind, or repair this checkpoint.",
+          "The active branch could not reconcile its latest turn. New turns stay blocked until you rewrite, regenerate, or rewind the branch head.",
       }
     : view.headSnapshotPending
       ? {
           tone: "pending" as const,
           title: "Continuity reconciliation is still running",
           detail:
-            "The latest turn is still being folded into the branch snapshot. You can keep chatting while the next head snapshot catches up.",
+            "The latest turn has not produced a committed head snapshot yet. New turns stay blocked until reconciliation finishes.",
         }
       : null;
 
@@ -201,7 +207,7 @@ export default async function ChatThreadPage({
             <div className="rounded-[1.5rem] bg-white/5 px-5 py-4 text-sm text-ink-soft">
               <p className="text-xs uppercase tracking-[0.22em]">Current lane</p>
               <p className="mt-2 font-medium text-foreground">
-                {currentConnection?.label ?? "No connection"}
+                {currentConnection.label}
               </p>
               <p className="mt-1">{threadView.thread.model_id}</p>
             </div>
@@ -224,7 +230,7 @@ export default async function ChatThreadPage({
         characterName={character.character.name}
         characterBackgroundUrl={characterBackgroundUrl}
         currentModel={view.thread.model_id}
-        currentConnectionLabel={currentConnection?.label ?? "Unknown lane"}
+        currentConnectionLabel={currentConnection.label}
         activeBranch={view.activeBranch}
         branches={view.branches}
         currentPersona={currentPersona}

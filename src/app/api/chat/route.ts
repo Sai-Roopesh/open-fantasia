@@ -5,7 +5,7 @@ import {
 } from "ai";
 import { getCurrentUser } from "@/lib/auth";
 import {
-  assertThreadReadyForGeneration,
+  assertThreadReadyForNewTurn,
   generateAssistantReply,
   loadThreadGenerationRuntime,
   ThreadGenerationServiceError,
@@ -41,7 +41,7 @@ export async function POST(request: Request) {
       userId: user.id,
       threadId,
     });
-    assertThreadReadyForGeneration(runtime.threadView);
+    assertThreadReadyForNewTurn(runtime.threadView);
   } catch (error) {
     return toThreadGenerationErrorResponse(error);
   }
@@ -64,7 +64,7 @@ export async function POST(request: Request) {
 
   const stableUserMessage = assignServerMessageId(latestUserMessage);
   const contextMessages = [...runtime.threadView.modelContextMessages, stableUserMessage];
-  const continuitySnapshot = runtime.threadView.resolvedSnapshot;
+  const continuitySnapshot = runtime.threadView.headSnapshot;
   const startedAt = Date.now();
 
   try {

@@ -48,16 +48,14 @@ export async function reconcileCheckpoint(args: {
   const [connection, character, persona, previousSnapshot, recentMessages] = await Promise.all([
     getConnection(args.supabase, args.userId, args.payload.connectionId),
     getCharacterBundle(args.supabase, args.userId, args.payload.characterId),
-    args.payload.personaId
-      ? getPersona(args.supabase, args.userId, args.payload.personaId)
-      : Promise.resolve(null),
+    getPersona(args.supabase, args.userId, args.payload.personaId),
     getPreviousSnapshot(args.supabase, args.userId, args.payload),
     getMessagesByIds(args.supabase, args.payload.recentMessageIds),
   ]);
 
   if (!connection) throw new Error("Reconciliation skipped: connection is missing.");
   if (!character) throw new Error("Reconciliation skipped: character is missing.");
-  if (args.payload.personaId && !persona) throw new Error("Reconciliation skipped: persona not found.");
+  if (!persona) throw new Error("Reconciliation skipped: persona not found.");
 
   const reconciliation = await reconcileTurnState({
     connection,
@@ -219,8 +217,8 @@ async function syncPortraitFailureState(
       portrait_status: job.attempts >= job.max_attempts ? "failed" : "pending",
       portrait_last_error: errorMessage,
     });
-  } catch {
-    // Best-effort only. The job failure record remains the durable fallback.
+  } catch (error) {
+    console.error("Failed to sync portrait failure state.", error);
   }
 }
 

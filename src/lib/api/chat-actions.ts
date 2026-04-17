@@ -1,14 +1,12 @@
-export async function throwIfFailed(response: Response, fallback: string) {
+export async function throwIfFailed(response: Response) {
   if (response.ok) return;
 
-  let message = fallback;
-  try {
-    const body = (await response.json()) as { error?: string };
-    if (body?.error) message = body.error;
-  } catch {
-    // response body wasn't JSON — use the fallback
+  const body = await response.json().catch(() => null) as { error?: string } | null;
+  if (body?.error) {
+    throw new Error(body.error);
   }
-  throw new Error(message);
+
+  throw new Error("Action response was malformed.");
 }
 
 export async function regenerateCheckpoint(threadId: string, checkpointId: string) {
@@ -17,7 +15,7 @@ export async function regenerateCheckpoint(threadId: string, checkpointId: strin
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ checkpointId }),
   });
-  await throwIfFailed(response, "Regenerate failed.");
+  await throwIfFailed(response);
 }
 
 export async function rewindCheckpoint(threadId: string, checkpointId: string) {
@@ -25,7 +23,7 @@ export async function rewindCheckpoint(threadId: string, checkpointId: string) {
     `/api/chats/${threadId}/checkpoints/${checkpointId}/rewind`,
     { method: "POST" },
   );
-  await throwIfFailed(response, "Rewind failed.");
+  await throwIfFailed(response);
 }
 
 export async function rateCheckpoint(threadId: string, checkpointId: string, rating: number) {
@@ -37,7 +35,7 @@ export async function rateCheckpoint(threadId: string, checkpointId: string, rat
       body: JSON.stringify({ rating }),
     },
   );
-  await throwIfFailed(response, "Rating failed.");
+  await throwIfFailed(response);
 }
 
 export async function editMessage(threadId: string, messageId: string, content: string) {
@@ -49,7 +47,7 @@ export async function editMessage(threadId: string, messageId: string, content: 
       body: JSON.stringify({ content }),
     },
   );
-  await throwIfFailed(response, "Edit failed.");
+  await throwIfFailed(response);
 }
 
 export async function createBranch(
@@ -65,7 +63,7 @@ export async function createBranch(
       makeActive: opts.makeActive ?? true,
     }),
   });
-  await throwIfFailed(response, "Branch creation failed.");
+  await throwIfFailed(response);
 }
 
 export async function createPin(threadId: string, sourceMessageId: string, body: string) {
@@ -74,14 +72,14 @@ export async function createPin(threadId: string, sourceMessageId: string, body:
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ sourceMessageId, body }),
   });
-  await throwIfFailed(response, "Pin failed.");
+  await throwIfFailed(response);
 }
 
 export async function removePin(threadId: string, pinId: string) {
   const response = await fetch(`/api/chats/${threadId}/pins/${pinId}`, {
     method: "DELETE",
   });
-  await throwIfFailed(response, "Failed to remove pin.");
+  await throwIfFailed(response);
 }
 
 export async function triggerStarter(threadId: string, starter: string) {
@@ -90,5 +88,5 @@ export async function triggerStarter(threadId: string, starter: string) {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ starter }),
   });
-  await throwIfFailed(response, "Starter generation failed.");
+  await throwIfFailed(response);
 }

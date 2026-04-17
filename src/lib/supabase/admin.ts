@@ -1,14 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
-import { getSupabasePublicEnv, getSupabaseServiceRoleKey } from "@/lib/env";
+import {
+  requireSupabasePublicEnv,
+  requireSupabaseServiceRoleKey,
+} from "@/lib/env";
 import type { Database } from "@/lib/supabase/database.types";
 
 export function createSupabaseAdminClient() {
-  const { supabaseUrl } = getSupabasePublicEnv();
-  const serviceRoleKey = getSupabaseServiceRoleKey();
-
-  if (!supabaseUrl || !serviceRoleKey) {
-    return null;
-  }
+  const { supabaseUrl } = requireSupabasePublicEnv();
+  const serviceRoleKey = requireSupabaseServiceRoleKey();
 
   return createClient<Database>(supabaseUrl, serviceRoleKey, {
     auth: {

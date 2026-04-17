@@ -25,18 +25,20 @@ describe("chat-actions", () => {
   describe("throwIfFailed", () => {
     it("returns when ok is true", async () => {
       await expect(
-        actions.throwIfFailed({ ok: true } as Response, "Fallback"),
+        actions.throwIfFailed({ ok: true } as Response),
       ).resolves.toBeUndefined();
     });
 
-    it("throws fallback when json parsing fails", async () => {
+    it("throws a malformed-response error when json parsing fails", async () => {
       const response = {
         ok: false,
         json: async () => {
           throw new Error("Parse err");
         },
       } as unknown as Response;
-      await expect(actions.throwIfFailed(response, "Fallback")).rejects.toThrow("Fallback");
+      await expect(actions.throwIfFailed(response)).rejects.toThrow(
+        "Action response was malformed.",
+      );
     });
 
     it("throws server error message if returned", async () => {
@@ -44,7 +46,7 @@ describe("chat-actions", () => {
         ok: false,
         json: async () => ({ error: "Server said no." }),
       } as unknown as Response;
-      await expect(actions.throwIfFailed(response, "Fallback")).rejects.toThrow(
+      await expect(actions.throwIfFailed(response)).rejects.toThrow(
         "Server said no.",
       );
     });
@@ -52,7 +54,7 @@ describe("chat-actions", () => {
 
   describe("regenerateCheckpoint", () => {
     it("calls correctly and throws on fail", async () => {
-      mockFetchResponse(false);
+      mockFetchResponse(false, { error: "Regenerate failed." });
       await expect(actions.regenerateCheckpoint("t1", "c1")).rejects.toThrow(
         "Regenerate failed.",
       );

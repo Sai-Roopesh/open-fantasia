@@ -55,7 +55,8 @@ function buildReadiness(args: {
     },
   ];
 
-  const next = ordered.find((step) => !step.done) ?? ordered.at(-1)!;
+  const next =
+    ordered.find((step) => !step.done) ?? ordered[ordered.length - 1];
   const completedSteps = ordered.filter((step) => step.done).length;
 
   return {

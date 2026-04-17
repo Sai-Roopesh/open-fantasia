@@ -218,7 +218,7 @@ export type ReconcileCheckpointJobPayload = {
   connectionId: string;
   modelId: string;
   characterId: string;
-  personaId: string | null;
+  personaId: string;
   recentMessageIds: string[];
 };
 

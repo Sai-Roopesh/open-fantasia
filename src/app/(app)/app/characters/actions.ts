@@ -190,9 +190,9 @@ export async function startThreadAction(formData: FormData) {
 
   const thread = await createThread(supabase, user.id, {
     characterId: parsed.data.characterId,
-    connection: usableConnection!,
-    modelId: usableConnection!.model_cache[0].id,
-    personaId: persona!.id,
+    connection: usableConnection,
+    modelId: usableConnection.model_cache[0].id,
+    personaId: persona.id,
     title: `Scene with ${character.name}`,
   });
 

@@ -1,14 +1,3 @@
-export async function throwIfFailed(response: Response, fallbackMessage: string) {
-  if (response.ok) return;
-  let payload: { error?: string } | null = null;
-  try {
-    payload = (await response.json()) as { error?: string };
-  } catch {
-    payload = null;
-  }
-  throw new Error(payload?.error ?? fallbackMessage);
-}
-
 export function humanizeChatError(message: string) {
   const lower = message.toLowerCase();
   if (lower.includes("rate limit")) {

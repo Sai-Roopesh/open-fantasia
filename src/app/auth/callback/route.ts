@@ -25,7 +25,7 @@ export async function GET(request: Request) {
   const supabase = await createSupabaseServerClient();
   const siteUrl = requirePublicSiteUrl();
 
-  if ((!code && !tokenHash) || !supabase) {
+  if (!code && !tokenHash) {
     return NextResponse.redirect(`${siteUrl}/login?reason=missing+code`);
   }
 

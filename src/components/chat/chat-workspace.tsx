@@ -16,7 +16,10 @@ import {
   ChatFocusOverlay,
   ChatScenePanel,
 } from "@/components/chat/chat-workspace-shell";
-import { ErrorBanner } from "@/components/chat/chat-composer-ui";
+import {
+  ContinuityBanner,
+  ErrorBanner,
+} from "@/components/chat/chat-composer-ui";
 import { humanizeChatError } from "@/components/chat/chat-workspace-helpers";
 import { useChatActions } from "@/components/chat/use-chat-actions";
 import { useOptimisticSwitches } from "@/components/chat/use-optimistic-switches";
@@ -64,7 +67,7 @@ export function ChatWorkspace({
   switchBranchAction: (input: { threadId: string; branchId: string; }) => Promise<void>;
   switchPersonaAction: (input: { threadId: string; personaId: string; }) => Promise<void>;
 }) {
-  const { isNavigating, refreshWithTransition } = useNavTransition();
+  const { refreshWithTransition } = useNavTransition();
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const attemptedDraftRef = useRef<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -167,7 +170,7 @@ export function ChatWorkspace({
     },
   });
 
-  const fallbackModels = useMemo(
+  const alternativeModels = useMemo(
     () =>
       modelChoices
         .flatMap((choice) =>
@@ -184,14 +187,15 @@ export function ChatWorkspace({
   );
 
   const activeError = surfaceError || (error ? humanizeChatError(error.message) : null);
-  const continuityBlocked = inspectorView.continuityStatus?.tone === "error";
+  const continuityStatus = inspectorView.continuityStatus;
+  const composerContinuityBlocked = Boolean(continuityStatus);
+  const rewriteBlocked = continuityStatus?.tone === "pending";
   const composerBusy =
     status === "streaming" ||
     status === "submitted" ||
     pendingAction !== null ||
     switchPending ||
-    isNavigating ||
-    continuityBlocked;
+    composerContinuityBlocked;
 
   async function submitCurrentDraft(value: string) {
     const nextValue = value.trim();
@@ -231,7 +235,7 @@ export function ChatWorkspace({
     assistantLabel: characterName,
     controlsByMessageId,
     pendingAction,
-    continuityBlocked,
+    rewriteBlocked,
     onRegenerate: regenerate,
     onOpenEditMessage: (messageId: string, currentText: string) =>
       setSheet({ kind: "edit", messageId, value: currentText }),
@@ -268,7 +272,7 @@ export function ChatWorkspace({
       activeError={activeError}
       composerBusy={composerBusy}
       failedDraft={failedDraft}
-      fallbackModels={fallbackModels}
+      alternativeModels={alternativeModels}
       onEditDraft={(value) => {
         setDraft(value);
         requestAnimationFrame(() => composerRef.current?.focus());
@@ -276,6 +280,9 @@ export function ChatWorkspace({
       onRetry={(value) => void submitCurrentDraft(value)}
       onShowModelPicker={() => setShowModelPicker(true)}
     />
+  ) : null;
+  const continuityBannerBlock = continuityStatus ? (
+    <ContinuityBanner status={continuityStatus} />
   ) : null;
   const focusBackdropColor = portraitState === "ready" ? "#120f0d" : "#0f0c0a";
 
@@ -293,6 +300,7 @@ export function ChatWorkspace({
         displayConnectionLabel={displayConnectionLabel}
         displayModel={displayModel}
         transcriptProps={transcriptProps}
+        continuityBannerBlock={continuityBannerBlock}
         errorBannerBlock={errorBannerBlock}
         composerProps={composerProps}
       />
@@ -320,6 +328,7 @@ export function ChatWorkspace({
         suggestedStarters={suggestedStarters}
         triggerStarter={triggerStarter}
         transcriptProps={transcriptProps}
+        continuityBannerBlock={continuityBannerBlock}
         errorBannerBlock={errorBannerBlock}
         composerProps={composerProps}
         activeBranch={activeBranch}

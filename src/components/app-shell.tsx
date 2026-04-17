@@ -258,7 +258,7 @@ function SidebarThreadList({ promise }: { promise: Promise<ThreadListItem[]> }) 
   return (
     <div className="mt-3 space-y-2">
       {threads.length ? (
-        threads.slice(0, 6).map((thread) => {
+        threads.map((thread) => {
           const active = pathname === `/app/chats/${thread.id}`;
           return (
             <Link
