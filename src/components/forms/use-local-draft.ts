@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from "react";
 
 export function useLocalDraft<T>({
   storageKey,
@@ -19,14 +27,25 @@ export function useLocalDraft<T>({
   const [isDirty, setIsDirty] = useState(false);
   const ignoredInitialDraft = useRef(false);
   const [readyToPersist, setReadyToPersist] = useState(false);
+  const initialSerializedRef = useRef(initialSerialized);
+  const valueRef = useRef(value);
+
+  const commitValue = useCallback((nextValue: T) => {
+    valueRef.current = nextValue;
+    setValue(nextValue);
+    setIsDirty(JSON.stringify(nextValue) !== initialSerializedRef.current);
+  }, []);
 
   useEffect(() => {
+    initialSerializedRef.current = initialSerialized;
     ignoredInitialDraft.current = false;
     setReadyToPersist(false);
     setHasStoredDraft(false);
     setRestoredFromDraft(false);
     setIsDirty(false);
-    setValue(JSON.parse(initialSerialized) as T);
+    const nextValue = JSON.parse(initialSerialized) as T;
+    valueRef.current = nextValue;
+    setValue(nextValue);
   }, [initialSerialized, storageKey]);
 
   useEffect(() => {
@@ -61,21 +80,29 @@ export function useLocalDraft<T>({
     }
   }, [initialSerialized, readyToPersist, storageKey, value]);
 
-  useEffect(() => {
-    setIsDirty(JSON.stringify(value) !== initialSerialized);
-  }, [initialSerialized, value]);
+  const setDraftValue = useCallback<Dispatch<SetStateAction<T>>>(
+    (nextValue) => {
+      const resolved =
+        typeof nextValue === "function"
+          ? (nextValue as (currentValue: T) => T)(valueRef.current)
+          : nextValue;
+
+      commitValue(resolved);
+    },
+    [commitValue],
+  );
 
   const restoreDraft = useCallback(() => {
     try {
       const raw = window.localStorage.getItem(storageKey);
       if (!raw) return;
-      setValue(JSON.parse(raw) as T);
+      commitValue(JSON.parse(raw) as T);
       setHasStoredDraft(false);
       setRestoredFromDraft(true);
     } catch {
       // Ignore malformed draft payloads.
     }
-  }, [storageKey]);
+  }, [commitValue, storageKey]);
 
   const discardDraft = useCallback(() => {
     try {
@@ -86,10 +113,10 @@ export function useLocalDraft<T>({
 
     setHasStoredDraft(false);
     if (!ignoredInitialDraft.current) {
-      setValue(JSON.parse(initialSerialized) as T);
+      commitValue(JSON.parse(initialSerialized) as T);
       ignoredInitialDraft.current = true;
     }
-  }, [initialSerialized, storageKey]);
+  }, [commitValue, initialSerialized, storageKey]);
 
   const clearDraft = useCallback(() => {
     try {
@@ -104,7 +131,7 @@ export function useLocalDraft<T>({
 
   return {
     value,
-    setValue,
+    setValue: setDraftValue,
     hasStoredDraft,
     restoredFromDraft,
     restoreDraft,

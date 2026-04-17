@@ -70,6 +70,12 @@ describe("turn-finalizer", () => {
       parts: [{ type: "text" as const, text: "She leans in and lowers her voice." }],
       metadata: { model: "model-1" },
     };
+    const priorMessage = {
+      id: "history-msg-1",
+      role: "assistant" as const,
+      parts: [{ type: "text" as const, text: "Earlier context stays reachable." }],
+      metadata: { model: "model-1" },
+    };
 
     const result = await finalizeAssistantTurn({
       supabase,
@@ -80,7 +86,7 @@ describe("turn-finalizer", () => {
       userMessage,
       assistantMessage,
       choiceGroupKey: "choice-1",
-      recentMessages: [userMessage, assistantMessage],
+      recentMessages: [priorMessage, userMessage, assistantMessage],
     });
 
     const rpcArgs = rpcMock.mock.calls[0];
@@ -96,26 +102,20 @@ describe("turn-finalizer", () => {
     expect(params.p_assistant_message_content_text).toBe("She leans in and lowers her voice.");
     expect(params.p_autotitle_text).toBe("Open with a secret.");
 
-    // Server always generates fresh IDs — originals should NOT be preserved
-    expect(params.p_user_message_id).not.toBe("user-msg-1");
-    expect(params.p_assistant_message_id).not.toBe("assistant-msg-1");
-    expect(params.p_user_message_id).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
-    );
-    expect(params.p_assistant_message_id).toMatch(
-      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
-    );
+    expect(params.p_user_message_id).toBe("user-msg-1");
+    expect(params.p_assistant_message_id).toBe("assistant-msg-1");
 
-    // Reconcile payload should reference the server-generated IDs
-    expect(params.p_reconcile_payload.recentMessageIds).toHaveLength(2);
-    expect(params.p_reconcile_payload.recentMessageIds).not.toContain("user-msg-1");
-    expect(params.p_reconcile_payload.recentMessageIds).not.toContain("assistant-msg-1");
+    // Reconcile payload should preserve real historical IDs instead of rewriting them.
+    expect(params.p_reconcile_payload.recentMessageIds).toEqual([
+      "history-msg-1",
+      "user-msg-1",
+      "assistant-msg-1",
+    ]);
 
     expect(result.checkpoint.id).toBeDefined();
     expect(result.reconcilePayload.checkpointId).toBe(result.checkpoint.id);
-    // Stored messages should also have server-generated IDs
-    expect(result.storedUser.id).not.toBe("user-msg-1");
-    expect(result.storedAssistant.id).not.toBe("assistant-msg-1");
+    expect(result.storedUser.id).toBe("user-msg-1");
+    expect(result.storedAssistant.id).toBe("assistant-msg-1");
   });
 
   it("rewrites an existing checkpoint in place and clears user fields when not provided", async () => {

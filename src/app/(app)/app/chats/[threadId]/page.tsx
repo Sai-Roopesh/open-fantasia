@@ -24,11 +24,19 @@ export default async function ChatThreadPage({
   const { threadId } = await params;
   const { supabase, user } = await requireAllowedUser();
 
-  // Parallelize independent fetches — connections and personas don't depend on threadView
-  const [threadView, connections, personas] = await Promise.all([
-    getThreadGraphView(supabase, user.id, threadId),
-    listConnections(supabase, user.id),
-    listPersonas(supabase, user.id),
+  const threadViewPromise = getThreadGraphView(supabase, user.id, threadId);
+  const connectionsPromise = listConnections(supabase, user.id);
+  const personasPromise = listPersonas(supabase, user.id);
+  const characterPromise = threadViewPromise.then((threadView) =>
+    threadView
+      ? getCharacterBundle(supabase, user.id, threadView.thread.character_id)
+      : null,
+  );
+  const [threadView, connections, personas, character] = await Promise.all([
+    threadViewPromise,
+    connectionsPromise,
+    personasPromise,
+    characterPromise,
   ]);
 
   if (!threadView) {
@@ -36,12 +44,10 @@ export default async function ChatThreadPage({
   }
   const view = threadView;
 
-  const character = await getCharacterBundle(supabase, user.id, view.thread.character_id);
-
   if (!character) {
     redirect("/app/characters");
   }
-  const characterBackgroundUrl = await resolveCharacterPortraitUrl(
+  const characterBackgroundUrl = resolveCharacterPortraitUrl(
     supabase,
     character.character.portrait_path,
   );

@@ -88,21 +88,31 @@ export async function POST(
       assistantMessage,
     ],
   });
-  await reconcileCheckpointInBand({
+  const reconcileResult = await reconcileCheckpointInBand({
     supabase,
     userId: user.id,
     payload: reconcilePayload,
   });
+  if (!reconcileResult.ok) {
+    console.error(
+      "Starter reconciliation failed; the worker will retry.",
+      reconcileResult.errorMessage,
+    );
+  }
 
-  await insertTimelineEvent(supabase, {
-    thread_id: threadId,
-    branch_id: runtime.threadView.activeBranch.id,
-    checkpoint_id: checkpoint.id,
-    source_message_id: checkpoint.assistant_message_id,
-    title: "Starter opening generated",
-    detail: "Opened the scene from a seeded first-turn prompt.",
-    importance: 2,
-  });
+  try {
+    await insertTimelineEvent(supabase, {
+      thread_id: threadId,
+      branch_id: runtime.threadView.activeBranch.id,
+      checkpoint_id: checkpoint.id,
+      source_message_id: checkpoint.assistant_message_id,
+      title: "Starter opening generated",
+      detail: "Opened the scene from a seeded first-turn prompt.",
+      importance: 2,
+    });
+  } catch (error) {
+    console.error("Failed to record the starter timeline event.", error);
+  }
 
   return Response.json({ ok: true, checkpointId: checkpoint.id });
 }

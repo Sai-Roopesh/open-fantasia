@@ -25,46 +25,55 @@ export const threadSelect = [
   "updated_at",
 ].join(", ");
 
-const threadListSelect = `${threadSelect}, characters(name), user_personas(name)`;
+type ThreadLibraryRow = ThreadRecord & {
+  character_name: string | null;
+  persona_name: string | null;
+};
 
-function sortThreads<T extends ThreadRecord>(threads: T[]) {
-  return [...threads].sort((left, right) => {
-    const leftPinned = left.pinned_at ? new Date(left.pinned_at).getTime() : 0;
-    const rightPinned = right.pinned_at ? new Date(right.pinned_at).getTime() : 0;
-    if (leftPinned !== rightPinned) return rightPinned - leftPinned;
-    return new Date(right.updated_at).getTime() - new Date(left.updated_at).getTime();
-  });
+function normalizeThreadLibraryRows(rows: unknown[]) {
+  return castRows<ThreadLibraryRow>(rows, "Thread library rows").map(
+    ({ character_name, persona_name, ...thread }) =>
+      ({
+        ...thread,
+        characters: character_name ? { name: character_name } : null,
+        user_personas: persona_name ? { name: persona_name } : null,
+      }) satisfies ThreadListItem,
+  );
 }
 
-function buildThreadListQuery(
+async function searchThreadLibrary(
   supabase: DatabaseClient,
   userId: string,
-  status: "active" | "archived" | "all",
+  options?: {
+    query?: string;
+    status?: "active" | "archived" | "all";
+    limit?: number;
+  },
 ) {
-  let queryBuilder = supabase
-    .from("chat_threads")
-    .select(threadListSelect)
-    .eq("user_id", userId)
-    .not("active_branch_id", "is", null);
-
-  if (status !== "all") {
-    queryBuilder = queryBuilder.eq("status", status);
-  }
-
-  return queryBuilder;
-}
-
-async function selectThreadItems(
-  query: ReturnType<typeof buildThreadListQuery>,
-) {
-  const { data, error } = await query;
+  const { data, error } = await supabase.rpc("search_thread_library", {
+    p_user_id: userId,
+    p_query: options?.query?.trim() || null,
+    p_status: options?.status ?? "all",
+    p_limit: options?.limit ?? null,
+  });
 
   if (error) throw error;
-  return castRows<ThreadListItem>(data, "Thread list items");
+  return normalizeThreadLibraryRows(data ?? []);
 }
 
 export async function listThreads(supabase: DatabaseClient, userId: string) {
   return listThreadItems(supabase, userId, { status: "active" });
+}
+
+export async function listRecentThreads(
+  supabase: DatabaseClient,
+  userId: string,
+  limit = 6,
+) {
+  return searchThreadLibrary(supabase, userId, {
+    status: "active",
+    limit,
+  });
 }
 
 export async function listThreadItems(
@@ -75,60 +84,10 @@ export async function listThreadItems(
     status?: "active" | "archived" | "all";
   },
 ) {
-  const status = options?.status ?? "all";
-  const query = options?.query?.trim() ?? "";
-
-  if (!query) {
-    return sortThreads(
-      await selectThreadItems(buildThreadListQuery(supabase, userId, status)),
-    );
-  }
-
-  const [titleMatches, characterIdRows, personaIdRows] = await Promise.all([
-    selectThreadItems(
-      buildThreadListQuery(supabase, userId, status).ilike("title", `%${query}%`),
-    ),
-    supabase
-      .from("characters")
-      .select("id")
-      .eq("user_id", userId)
-      .ilike("name", `%${query}%`),
-    supabase
-      .from("user_personas")
-      .select("id")
-      .eq("user_id", userId)
-      .ilike("name", `%${query}%`),
-  ]);
-
-  if (characterIdRows.error) throw characterIdRows.error;
-  if (personaIdRows.error) throw personaIdRows.error;
-
-  const characterIds = castRows<{ id: string }>(characterIdRows.data ?? [], "Character ids").map(
-    (row) => row.id,
-  );
-  const personaIds = castRows<{ id: string }>(personaIdRows.data ?? [], "Persona ids").map(
-    (row) => row.id,
-  );
-
-  const relatedMatches = await Promise.all([
-    characterIds.length
-      ? selectThreadItems(
-          buildThreadListQuery(supabase, userId, status).in("character_id", characterIds),
-        )
-      : Promise.resolve([] as ThreadListItem[]),
-    personaIds.length
-      ? selectThreadItems(
-          buildThreadListQuery(supabase, userId, status).in("persona_id", personaIds),
-        )
-      : Promise.resolve([] as ThreadListItem[]),
-  ]);
-
-  const merged = new Map<string, ThreadListItem>();
-  for (const thread of [titleMatches, ...relatedMatches].flat()) {
-    merged.set(thread.id, thread);
-  }
-
-  return sortThreads(Array.from(merged.values()));
+  return searchThreadLibrary(supabase, userId, {
+    query: options?.query,
+    status: options?.status ?? "all",
+  });
 }
 
 export async function getThread(

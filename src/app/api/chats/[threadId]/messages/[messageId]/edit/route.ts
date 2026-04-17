@@ -88,11 +88,17 @@ export async function POST(
     assistantMessage,
     recentMessages: [...contextMessages, editedUserMessage, assistantMessage],
   });
-  await reconcileCheckpointInBand({
+  const reconcileResult = await reconcileCheckpointInBand({
     supabase,
     userId: user.id,
     payload: reconcilePayload,
   });
+  if (!reconcileResult.ok) {
+    console.error(
+      "Edited-turn reconciliation failed; the worker will retry.",
+      reconcileResult.errorMessage,
+    );
+  }
 
   return Response.json({
     ok: true,
