@@ -1,17 +1,10 @@
 import { discoverModels } from "@/lib/ai/model-discovery";
 import { validateOllamaBaseUrl } from "@/lib/ai/ollama-url";
 import { encryptSecret } from "@/lib/crypto";
-import type {
-  ConnectionRecord,
-  ModelCatalogEntry,
-  ProviderId,
-} from "@/lib/types";
 import { isConfigurationError } from "@/lib/errors";
-import {
-  castRecord,
-  castRows,
-  type DatabaseClient,
-} from "@/lib/data/shared";
+import { parseRow, parseRows, type DatabaseClient } from "@/lib/data/shared";
+import type { ConnectionRecord, ProviderId } from "@/lib/types";
+import { connectionRecordSchema } from "@/lib/validation";
 
 const connectionSelect = [
   "id",
@@ -21,6 +14,7 @@ const connectionSelect = [
   "base_url",
   "encrypted_api_key",
   "enabled",
+  "default_model_id",
   "model_cache",
   "health_status",
   "health_message",
@@ -31,20 +25,52 @@ const connectionSelect = [
   "updated_at",
 ].join(", ");
 
-function normalizeConnection(connection: Record<string, unknown>) {
-  const modelCache = Array.isArray(connection.model_cache)
-    ? (connection.model_cache as ModelCatalogEntry[])
-    : [];
+function normalizeConnection(value: unknown, label = "Connection") {
+  return parseRow(value, connectionRecordSchema, label);
+}
 
-  return {
-    ...(connection as ConnectionRecord),
-    model_cache: modelCache,
-    health_status: (connection.health_status as ConnectionRecord["health_status"]) ?? "untested",
-    health_message: String(connection.health_message ?? ""),
-    last_checked_at: (connection.last_checked_at as string | null) ?? null,
-    last_model_refresh_at:
-      (connection.last_model_refresh_at as string | null) ?? null,
-  } satisfies ConnectionRecord;
+function normalizeConnections(value: unknown, label = "Connections") {
+  return parseRows(value, connectionRecordSchema, label);
+}
+
+function extractErrorStatus(error: unknown) {
+  if (!error || typeof error !== "object") {
+    return null;
+  }
+
+  const candidate = error as {
+    status?: unknown;
+    statusCode?: unknown;
+    code?: unknown;
+    cause?: unknown;
+  };
+
+  if (typeof candidate.status === "number") {
+    return { status: candidate.status, code: null as string | null };
+  }
+
+  if (typeof candidate.statusCode === "number") {
+    return { status: candidate.statusCode, code: null as string | null };
+  }
+
+  if (typeof candidate.code === "string") {
+    return { status: null as number | null, code: candidate.code };
+  }
+
+  if (candidate.cause && typeof candidate.cause === "object") {
+    const nested = candidate.cause as { code?: unknown; status?: unknown; statusCode?: unknown };
+    return {
+      status:
+        typeof nested.status === "number"
+          ? nested.status
+          : typeof nested.statusCode === "number"
+            ? nested.statusCode
+            : null,
+      code: typeof nested.code === "string" ? nested.code : null,
+    };
+  }
+
+  return null;
 }
 
 export function classifyConnectionError(error: unknown) {
@@ -55,74 +81,78 @@ export function classifyConnectionError(error: unknown) {
     };
   }
 
-  const rawMessage =
-    error instanceof Error ? error.message : "Connection check failed.";
-  const message = rawMessage.toLowerCase();
-
-  if (
-    message.includes("429") ||
-    message.includes("rate limit") ||
-    message.includes("quota")
-  ) {
+  const detail = extractErrorStatus(error);
+  if (detail?.status === 429) {
     return {
       status: "rate_limited" as const,
-      message:
-        "The provider accepted the request, but the connection is currently rate limited.",
+      message: "The provider accepted the request, but the connection is currently rate limited.",
     };
   }
 
-  if (
-    message.includes("401") ||
-    message.includes("403") ||
-    message.includes("unauthorized") ||
-    message.includes("forbidden") ||
-    message.includes("invalid api key") ||
-    message.includes("authentication")
-  ) {
+  if (detail?.status === 401 || detail?.status === 403) {
     return {
       status: "auth_failed" as const,
-      message:
-        "The provider rejected this key. Double-check the API key and account permissions.",
+      message: "The provider rejected this key. Double-check the API key and account permissions.",
     };
   }
 
   if (
-    message.includes("enotfound") ||
-    message.includes("econnrefused") ||
-    message.includes("getaddrinfo") ||
-    message.includes("fetch failed") ||
-    message.includes("failed to fetch") ||
-    message.includes("404") ||
-    message.includes("not found")
+    detail?.status === 404 ||
+    detail?.code === "ENOTFOUND" ||
+    detail?.code === "ECONNREFUSED" ||
+    detail?.code === "EHOSTUNREACH"
   ) {
     return {
       status: "bad_base_url" as const,
-      message:
-        "Fantasia could not reach that provider endpoint. Check the base URL and network path.",
+      message: "Fantasia could not reach that provider endpoint. Check the base URL and network path.",
+    };
+  }
+
+  const rawMessage =
+    error instanceof Error ? error.message.toLowerCase() : "connection check failed";
+
+  if (rawMessage.includes("rate limit") || rawMessage.includes("quota")) {
+    return {
+      status: "rate_limited" as const,
+      message: "The provider accepted the request, but the connection is currently rate limited.",
+    };
+  }
+
+  if (
+    rawMessage.includes("unauthorized") ||
+    rawMessage.includes("forbidden") ||
+    rawMessage.includes("invalid api key") ||
+    rawMessage.includes("authentication")
+  ) {
+    return {
+      status: "auth_failed" as const,
+      message: "The provider rejected this key. Double-check the API key and account permissions.",
+    };
+  }
+
+  if (
+    rawMessage.includes("fetch failed") ||
+    rawMessage.includes("failed to fetch") ||
+    rawMessage.includes("econnrefused") ||
+    rawMessage.includes("getaddrinfo")
+  ) {
+    return {
+      status: "bad_base_url" as const,
+      message: "Fantasia could not reach that provider endpoint. Check the base URL and network path.",
     };
   }
 
   return {
     status: "error" as const,
-    message: rawMessage || "Fantasia could not verify this connection.",
+    message: "Fantasia could not verify this connection.",
   };
 }
 
-async function updateConnectionHealth(
+async function updateConnection(
   supabase: DatabaseClient,
   connectionId: string,
   userId: string,
-  payload: Partial<
-    Pick<
-      ConnectionRecord,
-      | "health_status"
-      | "health_message"
-      | "last_checked_at"
-      | "last_model_refresh_at"
-      | "model_cache"
-      | "last_synced_at"
-    >
-  >,
+  payload: Record<string, unknown>,
 ) {
   const { data, error } = await supabase
     .from("ai_connections")
@@ -132,8 +162,11 @@ async function updateConnectionHealth(
     .select(connectionSelect)
     .single();
 
-  if (error) throw error;
-  return normalizeConnection(castRecord(data));
+  if (error) {
+    throw error;
+  }
+
+  return normalizeConnection(data, "Updated connection");
 }
 
 export async function listConnections(supabase: DatabaseClient, userId: string) {
@@ -143,8 +176,11 @@ export async function listConnections(supabase: DatabaseClient, userId: string) 
     .eq("user_id", userId)
     .order("updated_at", { ascending: false });
 
-  if (error) throw error;
-  return castRows<unknown>(data).map((row) => normalizeConnection(castRecord(row)));
+  if (error) {
+    throw error;
+  }
+
+  return normalizeConnections(data ?? [], "Connection list");
 }
 
 export async function getConnection(
@@ -159,10 +195,29 @@ export async function getConnection(
     .eq("id", connectionId)
     .maybeSingle();
 
-  if (error) throw error;
-  if (!data) return null;
+  if (error) {
+    throw error;
+  }
 
-  return normalizeConnection(castRecord(data));
+  return data ? normalizeConnection(data, "Connection") : null;
+}
+
+function resolveNextDefaultModelId(
+  current: ConnectionRecord | null,
+  payload: {
+    defaultModelId?: string | null;
+    connectionChanged: boolean;
+  },
+) {
+  if (payload.connectionChanged) {
+    return null;
+  }
+
+  if (payload.defaultModelId !== undefined) {
+    return payload.defaultModelId;
+  }
+
+  return current?.default_model_id ?? null;
 }
 
 export async function saveConnection(
@@ -175,61 +230,68 @@ export async function saveConnection(
     baseUrl?: string | null;
     apiKey?: string | null;
     enabled: boolean;
+    defaultModelId?: string | null;
   },
 ) {
-  if (payload.provider === "ollama" && payload.baseUrl?.trim()) {
-    validateOllamaBaseUrl(payload.baseUrl.trim());
+  const nextBaseUrl = payload.baseUrl?.trim() || null;
+  if (payload.provider === "ollama" && nextBaseUrl) {
+    validateOllamaBaseUrl(nextBaseUrl);
   }
 
   const current = payload.id
     ? await getConnection(supabase, userId, payload.id)
     : null;
-  const keyExplicitlyChanged = Boolean(payload.apiKey && payload.apiKey.trim().length > 0);
+  const keyExplicitlyChanged = Boolean(payload.apiKey?.trim());
   const nextEncryptedApiKey = keyExplicitlyChanged
     ? encryptSecret(payload.apiKey!.trim())
     : current?.encrypted_api_key ?? null;
-  const nextBaseUrl = payload.baseUrl?.trim() || null;
   const connectionChanged =
     !current ||
     current.provider !== payload.provider ||
-    (current.base_url ?? null) !== nextBaseUrl ||
+    current.base_url !== nextBaseUrl ||
     keyExplicitlyChanged;
 
-  const next = {
+  const nextRecord = {
     user_id: userId,
     provider: payload.provider,
     label: payload.label,
     base_url: nextBaseUrl,
     encrypted_api_key: nextEncryptedApiKey,
     enabled: payload.enabled,
+    default_model_id: resolveNextDefaultModelId(current, {
+      defaultModelId: payload.defaultModelId,
+      connectionChanged,
+    }),
+    model_cache: connectionChanged ? [] : current?.model_cache ?? [],
     health_status:
       connectionChanged ? "untested" : current?.health_status ?? "untested",
     health_message: connectionChanged ? "" : current?.health_message ?? "",
     last_checked_at: connectionChanged ? null : current?.last_checked_at ?? null,
     last_model_refresh_at:
       connectionChanged ? null : current?.last_model_refresh_at ?? null,
-    model_cache: connectionChanged ? [] : current?.model_cache ?? [],
     last_synced_at: connectionChanged ? null : current?.last_synced_at ?? null,
   };
 
   const query = payload.id
     ? supabase
         .from("ai_connections")
-        .update(next)
+        .update(nextRecord)
         .eq("id", payload.id)
         .eq("user_id", userId)
         .select(connectionSelect)
         .single()
     : supabase
         .from("ai_connections")
-        .insert(next)
+        .insert(nextRecord)
         .select(connectionSelect)
         .single();
 
   const { data, error } = await query;
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 
-  return normalizeConnection(castRecord(data));
+  return normalizeConnection(data, "Saved connection");
 }
 
 export async function deleteConnection(
@@ -243,7 +305,9 @@ export async function deleteConnection(
     .eq("id", connectionId)
     .eq("user_id", userId);
 
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 }
 
 export async function refreshConnectionModels(
@@ -253,8 +317,15 @@ export async function refreshConnectionModels(
   try {
     const models = await discoverModels(connection);
     const now = new Date().toISOString();
-    return await updateConnectionHealth(supabase, connection.id, connection.user_id, {
+    const nextDefaultModelId = models.some(
+      (model) => model.id === connection.default_model_id,
+    )
+      ? connection.default_model_id
+      : models[0]?.id ?? null;
+
+    return await updateConnection(supabase, connection.id, connection.user_id, {
       model_cache: models,
+      default_model_id: nextDefaultModelId,
       last_synced_at: now,
       last_checked_at: now,
       last_model_refresh_at: now,
@@ -265,7 +336,7 @@ export async function refreshConnectionModels(
     });
   } catch (error) {
     const failure = classifyConnectionError(error);
-    await updateConnectionHealth(supabase, connection.id, connection.user_id, {
+    await updateConnection(supabase, connection.id, connection.user_id, {
       last_checked_at: new Date().toISOString(),
       health_status: failure.status,
       health_message: failure.message,
@@ -281,7 +352,8 @@ export async function testConnection(
   try {
     const models = await discoverModels(connection);
     const now = new Date().toISOString();
-    return await updateConnectionHealth(supabase, connection.id, connection.user_id, {
+
+    return await updateConnection(supabase, connection.id, connection.user_id, {
       last_checked_at: now,
       health_status: "healthy",
       health_message: models.length
@@ -290,7 +362,7 @@ export async function testConnection(
     });
   } catch (error) {
     const failure = classifyConnectionError(error);
-    return updateConnectionHealth(supabase, connection.id, connection.user_id, {
+    return updateConnection(supabase, connection.id, connection.user_id, {
       last_checked_at: new Date().toISOString(),
       health_status: failure.status,
       health_message: failure.message,

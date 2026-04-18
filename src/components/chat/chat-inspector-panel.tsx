@@ -199,20 +199,20 @@ export function InspectorPanel({
                   value={inspectorView.branch.parentBranchName ?? "Root branch"}
                 />
                 <BranchMetric
-                  label="Fork checkpoint"
-                  value={inspectorView.branch.forkCheckpointId ?? "Started at the root"}
+                  label="Fork turn"
+                  value={inspectorView.branch.forkTurnId ?? "Started at the root"}
                 />
                 <BranchMetric
-                  label="Head checkpoint"
-                  value={inspectorView.branch.headCheckpointId ?? "No assistant turn yet"}
+                  label="Head turn"
+                  value={inspectorView.branch.headTurnId ?? "No assistant turn yet"}
                 />
                 <BranchMetric
                   label="Total branches"
                   value={String(inspectorView.branch.totalBranches)}
                 />
                 <BranchMetric
-                  label="Total checkpoints"
-                  value={String(inspectorView.branch.totalCheckpoints)}
+                  label="Total turns"
+                  value={String(inspectorView.branch.totalTurns)}
                 />
               </dl>
             </div>

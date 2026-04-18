@@ -1,6 +1,5 @@
 import { getCurrentUser } from "@/lib/auth";
-import { createBranch } from "@/lib/data/branches";
-import { switchActiveBranch } from "@/lib/data/threads";
+import { createBranchFromTurn } from "@/lib/data/branches";
 import { insertTimelineEvent } from "@/lib/data/timeline";
 import { getThreadGraphView } from "@/lib/threads/read-model";
 import { createBranchRequestSchema } from "@/lib/validation";
@@ -25,40 +24,29 @@ export async function POST(
     return Response.json({ error: "Thread not found." }, { status: 404 });
   }
 
-  const baseCheckpoint = threadView.checkpoints.find(
-    (checkpoint) => checkpoint.id === parsedBody.data.checkpointId,
+  const sourceTurn = threadView.turns.find(
+    (turn) => turn.id === parsedBody.data.sourceTurnId,
   );
-
-  if (!baseCheckpoint) {
+  if (!sourceTurn) {
     return Response.json(
-      { error: "Branches can only be created from a visible user turn on the active path." },
+      { error: "Branches can only be created from a visible turn on the active path." },
       { status: 404 },
     );
   }
 
-  const branch = await createBranch(context.supabase, {
-    threadId,
+  const branch = await createBranchFromTurn(context.supabase, {
+    sourceBranchId: threadView.activeBranch.id,
+    sourceTurnId: sourceTurn.id,
     name: parsedBody.data.name,
-    createdBy: context.user.id,
-    parentBranchId: threadView.activeBranch.id,
-    forkCheckpointId: baseCheckpoint?.id ?? null,
-    headCheckpointId: baseCheckpoint?.id ?? null,
+    makeActive: parsedBody.data.makeActive,
   });
-
-  if (parsedBody.data.makeActive) {
-    await switchActiveBranch(context.supabase, context.user.id, {
-      threadId,
-      branchId: branch.id,
-    });
-  }
 
   await insertTimelineEvent(context.supabase, {
     thread_id: threadId,
     branch_id: branch.id,
-    checkpoint_id: baseCheckpoint.id,
-    source_message_id: baseCheckpoint.user_message_id,
+    turn_id: sourceTurn.id,
     title: "Branch created",
-    detail: `Created ${branch.name} from this user turn.`,
+    detail: `Created ${branch.name} from this turn.`,
     importance: 2,
   });
 

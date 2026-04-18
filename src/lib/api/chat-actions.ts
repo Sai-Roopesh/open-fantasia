@@ -1,7 +1,9 @@
 export async function throwIfFailed(response: Response) {
-  if (response.ok) return;
+  if (response.ok) {
+    return;
+  }
 
-  const body = await response.json().catch(() => null) as { error?: string } | null;
+  const body = (await response.json().catch(() => null)) as { error?: string } | null;
   if (body?.error) {
     throw new Error(body.error);
   }
@@ -9,56 +11,60 @@ export async function throwIfFailed(response: Response) {
   throw new Error("Action response was malformed.");
 }
 
-export async function regenerateCheckpoint(threadId: string, checkpointId: string) {
+export async function regenerateTurn(
+  threadId: string,
+  branchId: string,
+  expectedHeadTurnId: string,
+) {
   const response = await fetch(`/api/chats/${threadId}/regenerate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ checkpointId }),
+    body: JSON.stringify({ branchId, expectedHeadTurnId }),
   });
   await throwIfFailed(response);
 }
 
-export async function rewindCheckpoint(threadId: string, checkpointId: string) {
-  const response = await fetch(
-    `/api/chats/${threadId}/checkpoints/${checkpointId}/rewind`,
-    { method: "POST" },
-  );
+export async function rewindTurn(threadId: string, turnId: string, branchId: string) {
+  const response = await fetch(`/api/chats/${threadId}/turns/${turnId}/rewind`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ branchId }),
+  });
   await throwIfFailed(response);
 }
 
-export async function rateCheckpoint(threadId: string, checkpointId: string, rating: number) {
-  const response = await fetch(
-    `/api/chats/${threadId}/checkpoints/${checkpointId}/rate`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ rating }),
-    },
-  );
+export async function rateTurn(threadId: string, turnId: string, rating: number) {
+  const response = await fetch(`/api/chats/${threadId}/turns/${turnId}/rate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ rating }),
+  });
   await throwIfFailed(response);
 }
 
-export async function editMessage(threadId: string, messageId: string, content: string) {
-  const response = await fetch(
-    `/api/chats/${threadId}/messages/${messageId}/edit`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ content }),
-    },
-  );
+export async function editLatestTurn(
+  threadId: string,
+  branchId: string,
+  expectedHeadTurnId: string,
+  content: string,
+) {
+  const response = await fetch(`/api/chats/${threadId}/edit`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ branchId, expectedHeadTurnId, text: content }),
+  });
   await throwIfFailed(response);
 }
 
 export async function createBranch(
   threadId: string,
-  opts: { checkpointId: string; name: string; makeActive?: boolean },
+  opts: { sourceTurnId: string; name: string; makeActive?: boolean },
 ) {
   const response = await fetch(`/api/chats/${threadId}/branches`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      checkpointId: opts.checkpointId,
+      sourceTurnId: opts.sourceTurnId,
       name: opts.name,
       makeActive: opts.makeActive ?? true,
     }),
@@ -66,11 +72,11 @@ export async function createBranch(
   await throwIfFailed(response);
 }
 
-export async function createPin(threadId: string, sourceMessageId: string, body: string) {
+export async function createPin(threadId: string, turnId: string, body: string) {
   const response = await fetch(`/api/chats/${threadId}/pins`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ sourceMessageId, body }),
+    body: JSON.stringify({ turnId, body }),
   });
   await throwIfFailed(response);
 }

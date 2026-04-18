@@ -9,7 +9,7 @@ import {
 import { getSnapshot } from "@/lib/data/snapshots";
 import { beginTurn, commitTurn } from "@/lib/data/turns";
 import { createTextMessage } from "@/lib/threads/read-model";
-import { regenerateTurnRequestSchema } from "@/lib/validation";
+import { editTurnRequestSchema } from "@/lib/validation";
 
 export async function POST(
   request: Request,
@@ -21,9 +21,9 @@ export async function POST(
   }
 
   const { threadId } = await params;
-  const parsedBody = regenerateTurnRequestSchema.safeParse(await request.json());
+  const parsedBody = editTurnRequestSchema.safeParse(await request.json());
   if (!parsedBody.success) {
-    return Response.json({ error: "Fantasia needs the latest head to regenerate." }, { status: 400 });
+    return Response.json({ error: "A rewritten turn is required." }, { status: 400 });
   }
 
   let runtime: Awaited<ReturnType<typeof loadThreadGenerationRuntime>>;
@@ -41,7 +41,7 @@ export async function POST(
   const latestTurn = runtime.threadView.latestTurn;
   if (!latestTurn || latestTurn.id !== parsedBody.data.expectedHeadTurnId) {
     return Response.json(
-      { error: "The branch head changed before Fantasia could regenerate the latest turn." },
+      { error: "The branch head changed before Fantasia could rewrite the latest turn." },
       { status: 409 },
     );
   }
@@ -51,34 +51,29 @@ export async function POST(
     .flatMap((turn) => runtime.threadView.modelContextMessages.filter((message) =>
       message.metadata?.turnId === turn.id,
     ));
-  const regeneratedUserMessage = createTextMessage({
+  const rewrittenUserMessage = createTextMessage({
     role: "user",
-    text: latestTurn.user_input_text,
+    text: parsedBody.data.text,
     metadata: {
       turnId: latestTurn.id,
       branchId: parsedBody.data.branchId,
-      hiddenFromTranscript: latestTurn.user_input_hidden,
-      starterSeed: latestTurn.starter_seed,
     },
   });
 
   const reservedTurn = await beginTurn(context.supabase, {
     branchId: parsedBody.data.branchId,
     expectedHeadTurnId: parsedBody.data.expectedHeadTurnId,
-    text: latestTurn.user_input_text,
+    text: parsedBody.data.text,
     parentTurnIdOverride: latestTurn.parent_turn_id,
     forceParentOverride: true,
-    hiddenFromTranscript: latestTurn.user_input_hidden,
-    starterSeed: latestTurn.starter_seed,
   });
-  const previousSnapshot = latestTurn.parent_turn_id
-    ? await getSnapshot(context.supabase, context.user.id, latestTurn.parent_turn_id)
-    : null;
 
   const { assistantMessage, result } = await generateAssistantReply({
     runtime,
-    messages: [...previousMessages, regeneratedUserMessage],
-    snapshot: previousSnapshot,
+    messages: [...previousMessages, rewrittenUserMessage],
+    snapshot: latestTurn.parent_turn_id
+      ? await getSnapshot(context.supabase, context.user.id, latestTurn.parent_turn_id)
+      : null,
   });
 
   await commitTurn(context.supabase, {

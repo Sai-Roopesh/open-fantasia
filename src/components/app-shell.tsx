@@ -280,8 +280,8 @@ function SidebarThreadList({ promise }: { promise: Promise<ThreadListItem[]> }) 
                 ) : null}
               </div>
               <p className={cn("mt-1 truncate text-xs", active ? "text-foreground/70" : "text-ink-soft")}>
-                {thread.characters?.name ?? "Unknown character"}
-                {thread.user_personas?.name ? ` • ${thread.user_personas.name}` : ""}
+                {thread.character_name ?? "Unknown character"}
+                {thread.persona_name ? ` • ${thread.persona_name}` : ""}
               </p>
             </Link>
           );

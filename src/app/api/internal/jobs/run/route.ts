@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { requireCronSecret } from "@/lib/env";
-import { drainPendingJobs } from "@/lib/jobs/reconcile-worker";
+import { drainPendingTasks } from "@/lib/jobs/reconcile-worker";
 
 export async function POST(request: Request) {
   const secret = requireCronSecret();
@@ -12,6 +12,6 @@ export async function POST(request: Request) {
   }
 
   const supabase = createSupabaseAdminClient();
-  const processed = await drainPendingJobs(supabase, 10);
-  return NextResponse.json({ processed });
+  const processed = await drainPendingTasks(supabase, 10);
+  return NextResponse.json(processed);
 }

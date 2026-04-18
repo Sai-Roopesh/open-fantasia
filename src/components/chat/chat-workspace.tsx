@@ -4,6 +4,7 @@ import { DefaultChatTransport } from "ai";
 import { useChat } from "@ai-sdk/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavTransition } from "@/components/transition-provider";
+import { getTextFromMessage } from "@/lib/ai/message-text";
 import type {
   ChatBranchRecord,
   ContinuityInspectorView,
@@ -99,7 +100,11 @@ export function ChatWorkspace({
     createPin,
     removePin,
     triggerStarter
-  } = useChatActions(threadId);
+  } = useChatActions({
+    threadId,
+    branchId: activeBranch.id,
+    headTurnId: activeBranch.head_turn_id,
+  });
 
   const {
     switchPending,
@@ -151,6 +156,20 @@ export function ChatWorkspace({
     transport: new DefaultChatTransport({
       api: "/api/chat",
       body: { threadId },
+      prepareSendMessagesRequest({ body, messages }) {
+        const latestUserMessage = [...messages]
+          .reverse()
+          .find((message) => message.role === "user");
+
+        return {
+          body: {
+            threadId: body?.threadId,
+            branchId: body?.branchId,
+            expectedHeadTurnId: body?.expectedHeadTurnId,
+            text: latestUserMessage ? getTextFromMessage(latestUserMessage) : "",
+          },
+        };
+      },
     }),
     async onFinish() {
       attemptedDraftRef.current = null;
@@ -207,7 +226,15 @@ export function ChatWorkspace({
     setDraft("");
 
     try {
-      await sendMessage({ text: nextValue });
+      await sendMessage(
+        { text: nextValue },
+        {
+          body: {
+            branchId: displayBranchId,
+            expectedHeadTurnId: activeBranch.head_turn_id,
+          },
+        },
+      );
     } catch (nextError) {
       attemptedDraftRef.current = null;
       const nextMessage =
@@ -221,10 +248,10 @@ export function ChatWorkspace({
     }
   }
 
-  function openBranchSheet(checkpointId: string) {
+  function openBranchSheet(turnId: string) {
     setSheet({
       kind: "branch",
-      checkpointId,
+      turnId,
       value: `branch-${branches.length + 1}`,
     });
   }
@@ -240,16 +267,16 @@ export function ChatWorkspace({
     onOpenEditMessage: (messageId: string, currentText: string) =>
       setSheet({ kind: "edit", messageId, value: currentText }),
     onOpenBranchFromCheckpoint: openBranchSheet,
-    onRewindCheckpoint: async (checkpointId: string) => {
+    onRewindCheckpoint: async (turnId: string) => {
       if (
         typeof window !== "undefined" &&
         !window.confirm(
-          "Rewind to this turn? This keeps the selected checkpoint as the branch head and permanently deletes every descendant path below it.",
+          "Rewind to this turn? This moves the branch head back without deleting any historical turns.",
         )
       ) {
         return;
       }
-      rewind(checkpointId, () => {
+      rewind(turnId, () => {
         requestAnimationFrame(() => composerRef.current?.focus());
       });
     },
@@ -344,7 +371,7 @@ export function ChatWorkspace({
         <ActionSheet
           key={
             sheet.kind === "branch"
-                ? `branch-${sheet.checkpointId}`
+                ? `branch-${sheet.turnId}`
                 : sheet.kind === "edit"
                   ? `edit-${sheet.messageId}`
                   : `pin-${sheet.messageId}`
@@ -356,9 +383,13 @@ export function ChatWorkspace({
             if (sheet.kind === "edit") {
               await editMessage(sheet.messageId, value);
             } else if (sheet.kind === "branch") {
-              await createBranch({ checkpointId: sheet.checkpointId, name: value });
+              await createBranch({ sourceTurnId: sheet.turnId, name: value });
             } else {
-              await createPin(sheet.messageId, value);
+              const turnId = controlsByMessageId[sheet.messageId]?.turnId;
+              if (!turnId) {
+                throw new Error("Fantasia could not find the source turn for this pin.");
+              }
+              await createPin(turnId, value);
             }
             setSheet(null);
           }}

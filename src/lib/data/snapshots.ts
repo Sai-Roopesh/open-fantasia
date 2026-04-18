@@ -1,16 +1,17 @@
-import type { ThreadStateSnapshot } from "@/lib/types";
 import type { Json } from "@/lib/supabase/database.types";
+import type { ThreadStateSnapshot } from "@/lib/types";
 import {
-  castRecord,
-  castRows,
+  parseRow,
+  parseRows,
   type DatabaseClient,
 } from "@/lib/data/shared";
+import { snapshotRecordSchema } from "@/lib/validation";
 
 const snapshotSelect = [
-  "checkpoint_id",
+  "turn_id",
   "thread_id",
   "branch_id",
-  "based_on_snapshot_id",
+  "based_on_turn_id",
   "scenario_state",
   "relationship_state",
   "rolling_summary",
@@ -23,31 +24,24 @@ const snapshotSelect = [
   "updated_at",
 ].join(", ");
 
-function normalizeSnapshot(data: Record<string, unknown>) {
-  return {
-    ...(data as ThreadStateSnapshot),
-    user_facts: Array.isArray(data.user_facts) ? (data.user_facts as string[]) : [],
-    open_loops: Array.isArray(data.open_loops) ? (data.open_loops as string[]) : [],
-    resolved_loops: Array.isArray(data.resolved_loops) ? (data.resolved_loops as string[]) : [],
-    narrative_hooks: Array.isArray(data.narrative_hooks) ? (data.narrative_hooks as string[]) : [],
-    scene_goals: Array.isArray(data.scene_goals) ? (data.scene_goals as string[]) : [],
-  } satisfies ThreadStateSnapshot;
-}
-
 export async function getSnapshot(
   supabase: DatabaseClient,
   userId: string,
-  checkpointId: string,
+  turnId: string,
 ) {
   const { data, error } = await supabase
-    .from("chat_state_snapshots")
-    .select(`${snapshotSelect}, chat_checkpoints!inner(thread_id, chat_threads!inner(user_id))`)
-    .eq("checkpoint_id", checkpointId)
-    .eq("chat_checkpoints.chat_threads.user_id", userId)
+    .from("chat_turn_snapshots")
+    .select(snapshotSelect)
+    .eq("turn_id", turnId)
     .maybeSingle();
 
-  if (error) throw error;
-  return data ? normalizeSnapshot(castRecord(data)) : null;
+  if (error) {
+    throw error;
+  }
+
+  return data
+    ? (parseRow(data, snapshotRecordSchema, "Snapshot") as ThreadStateSnapshot)
+    : null;
 }
 
 export async function listSnapshots(
@@ -56,26 +50,30 @@ export async function listSnapshots(
   threadId: string,
 ) {
   const { data, error } = await supabase
-    .from("chat_state_snapshots")
-    .select(`${snapshotSelect}, chat_checkpoints!inner(thread_id, chat_threads!inner(user_id))`)
-    .eq("thread_id", threadId)
-    .eq("chat_checkpoints.chat_threads.user_id", userId);
+    .from("chat_turn_snapshots")
+    .select(snapshotSelect)
+    .eq("thread_id", threadId);
 
-  if (error) throw error;
-  return castRows<unknown>(data).map((snapshot) =>
-    normalizeSnapshot(castRecord(snapshot)),
-  );
+  if (error) {
+    throw error;
+  }
+
+  return parseRows(
+    data ?? [],
+    snapshotRecordSchema,
+    "Thread snapshots",
+  ) as ThreadStateSnapshot[];
 }
 
 export async function saveSnapshot(
   supabase: DatabaseClient,
   snapshot: ThreadStateSnapshot,
 ) {
-  const { error } = await supabase.from("chat_state_snapshots").upsert({
-    checkpoint_id: snapshot.checkpoint_id,
+  const { error } = await supabase.from("chat_turn_snapshots").upsert({
+    turn_id: snapshot.turn_id,
     thread_id: snapshot.thread_id,
     branch_id: snapshot.branch_id,
-    based_on_snapshot_id: snapshot.based_on_snapshot_id,
+    based_on_turn_id: snapshot.based_on_turn_id,
     scenario_state: snapshot.scenario_state,
     relationship_state: snapshot.relationship_state,
     rolling_summary: snapshot.rolling_summary,
@@ -88,5 +86,7 @@ export async function saveSnapshot(
     updated_at: snapshot.updated_at,
   });
 
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 }

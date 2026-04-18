@@ -1,15 +1,23 @@
 import type { ChatPinRecord } from "@/lib/types";
-import {
-  assertThreadOwnership,
-  castRow,
-  type DatabaseClient,
-} from "@/lib/data/shared";
+import { parseRow, type DatabaseClient } from "@/lib/data/shared";
+import { z } from "zod";
+
+const pinRecordSchema = z.object({
+  id: z.string().uuid(),
+  thread_id: z.string().uuid(),
+  branch_id: z.string().uuid(),
+  turn_id: z.string().uuid().nullable(),
+  body: z.string(),
+  status: z.string(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
 
 const pinSelect = [
   "id",
   "thread_id",
   "branch_id",
-  "source_message_id",
+  "turn_id",
   "body",
   "status",
   "created_at",
@@ -18,37 +26,42 @@ const pinSelect = [
 
 export async function createPin(
   supabase: DatabaseClient,
-  userId: string,
+  _userId: string,
   payload: Omit<ChatPinRecord, "id" | "created_at" | "updated_at">,
 ) {
-  await assertThreadOwnership(supabase, userId, payload.thread_id);
-
   const { data, error } = await supabase
     .from("chat_pins")
     .insert(payload)
     .select(pinSelect)
     .single();
 
-  if (error) throw error;
-  return castRow<ChatPinRecord>(data);
+  if (error) {
+    throw error;
+  }
+
+  return parseRow(data, pinRecordSchema, "Created pin") as ChatPinRecord;
 }
 
 export async function resolvePin(
   supabase: DatabaseClient,
-  userId: string,
+  _userId: string,
   threadId: string,
   pinId: string,
 ) {
-  await assertThreadOwnership(supabase, userId, threadId);
-
   const { data, error } = await supabase
     .from("chat_pins")
-    .update({ status: "resolved" })
+    .update({
+      status: "resolved",
+      updated_at: new Date().toISOString(),
+    })
     .eq("id", pinId)
     .eq("thread_id", threadId)
     .select(pinSelect)
     .single();
 
-  if (error) throw error;
-  return castRow<ChatPinRecord>(data);
+  if (error) {
+    throw error;
+  }
+
+  return parseRow(data, pinRecordSchema, "Resolved pin") as ChatPinRecord;
 }

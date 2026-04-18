@@ -117,8 +117,8 @@ export default async function ThreadsPage({
                   </div>
 
                   <p className="mt-3 text-xs uppercase tracking-[0.18em] text-ink-soft">
-                    {thread.characters?.name ?? "Unknown character"}
-                    {thread.user_personas?.name ? ` • ${thread.user_personas.name}` : ""}
+                    {thread.character_name ?? "Unknown character"}
+                    {thread.persona_name ? ` • ${thread.persona_name}` : ""}
                   </p>
                   <p className="mt-3 text-sm leading-7 text-ink-soft">
                     Updated {formatDateTime(thread.updated_at)}

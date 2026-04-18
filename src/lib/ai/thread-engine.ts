@@ -34,7 +34,7 @@ export async function reconcileTurnState(args: {
 }
 
 export function buildSnapshotFromReconciliation(args: {
-  checkpointId: string;
+  turnId: string;
   threadId: string;
   branchId: string;
   previousSnapshot: ThreadStateSnapshot | null;
@@ -54,10 +54,10 @@ export function buildSnapshotFromReconciliation(args: {
   ]).filter((loop) => !resolvedSet.has(loop.toLowerCase().trim()));
 
   return {
-    checkpoint_id: args.checkpointId,
+    turn_id: args.turnId,
     thread_id: args.threadId,
     branch_id: args.branchId,
-    based_on_snapshot_id: args.previousSnapshot?.checkpoint_id ?? null,
+    based_on_turn_id: args.previousSnapshot?.turn_id ?? null,
     scenario_state: args.reconciliation.scenarioState,
     relationship_state: args.reconciliation.relationshipState,
     rolling_summary: args.reconciliation.rollingSummary,

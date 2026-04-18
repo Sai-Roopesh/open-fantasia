@@ -1,13 +1,11 @@
+import { getTextFromMessage } from "@/lib/ai/message-text";
 import { getCurrentUser } from "@/lib/auth";
 import {
   generateAssistantReply,
   loadThreadGenerationRuntime,
   toThreadGenerationErrorResponse,
 } from "@/lib/ai/thread-generation-service";
-import {
-  finalizeAssistantTurn,
-  reconcileCheckpointInBand,
-} from "@/lib/ai/turn-finalizer";
+import { beginTurn, commitTurn } from "@/lib/data/turns";
 import { insertTimelineEvent } from "@/lib/data/timeline";
 import { createTextMessage } from "@/lib/threads/read-model";
 import { starterSeedRequestSchema } from "@/lib/validation";
@@ -31,8 +29,6 @@ export async function POST(
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabase = context.supabase;
-  const user = context.user;
   const { threadId } = await params;
   const parsedBody = starterSeedRequestSchema.safeParse(await request.json());
 
@@ -43,76 +39,67 @@ export async function POST(
   let runtime: Awaited<ReturnType<typeof loadThreadGenerationRuntime>>;
   try {
     runtime = await loadThreadGenerationRuntime({
-      supabase,
-      userId: user.id,
+      supabase: context.supabase,
+      userId: context.user.id,
       threadId,
     });
   } catch (error) {
     return toThreadGenerationErrorResponse(error);
   }
 
-  if (runtime.threadView.checkpoints.length > 0) {
+  if (runtime.threadView.turns.length > 0) {
     return Response.json(
       { error: "Starter openings can only be used before the first turn." },
       { status: 400 },
     );
   }
 
+  const starterText = buildStarterSeedPrompt(parsedBody.data.starter);
+  const reservedTurn = await beginTurn(context.supabase, {
+    branchId: runtime.threadView.activeBranch.id,
+    expectedHeadTurnId: runtime.threadView.activeBranch.head_turn_id,
+    text: starterText,
+    hiddenFromTranscript: true,
+    starterSeed: true,
+  });
   const starterMessage = createTextMessage({
     role: "user",
-    text: buildStarterSeedPrompt(parsedBody.data.starter),
+    text: starterText,
     metadata: {
       hiddenFromTranscript: true,
       starterSeed: true,
+      turnId: reservedTurn.id,
+      branchId: runtime.threadView.activeBranch.id,
     },
   });
 
-  const { assistantMessage } = await generateAssistantReply({
+  const { assistantMessage, result } = await generateAssistantReply({
     runtime,
     messages: [...runtime.threadView.modelContextMessages, starterMessage],
     snapshot: runtime.threadView.headSnapshot,
   });
 
-  const { checkpoint, reconcilePayload } = await finalizeAssistantTurn({
-    supabase,
-    userId: user.id,
-    thread: runtime.threadView.thread,
+  await commitTurn(context.supabase, {
     branchId: runtime.threadView.activeBranch.id,
-    parentCheckpointId: runtime.threadView.activeBranch.head_checkpoint_id,
-    userMessage: starterMessage,
-    assistantMessage,
-    choiceGroupKey: `choice:${crypto.randomUUID()}`,
-    recentMessages: [
-      ...runtime.threadView.modelContextMessages,
-      starterMessage,
-      assistantMessage,
-    ],
+    turnId: reservedTurn.id,
+    assistantText: getTextFromMessage(assistantMessage),
+    provider: runtime.connection.provider,
+    model: runtime.threadView.thread.model_id,
+    connectionLabel: runtime.connection.label,
+    finishReason: assistantMessage.metadata?.finishReason ?? null,
+    totalTokens: result.usage.totalTokens ?? null,
+    promptTokens: result.usage.inputTokens ?? null,
+    completionTokens: result.usage.outputTokens ?? null,
   });
-  const reconcileResult = await reconcileCheckpointInBand({
-    supabase,
-    userId: user.id,
-    payload: reconcilePayload,
+
+  await insertTimelineEvent(context.supabase, {
+    thread_id: threadId,
+    branch_id: runtime.threadView.activeBranch.id,
+    turn_id: reservedTurn.id,
+    title: "Starter opening generated",
+    detail: "Opened the scene from a seeded first-turn prompt.",
+    importance: 2,
   });
-  if (!reconcileResult.ok) {
-    console.error(
-      "Starter reconciliation failed; the worker will retry.",
-      reconcileResult.errorMessage,
-    );
-  }
 
-  try {
-    await insertTimelineEvent(supabase, {
-      thread_id: threadId,
-      branch_id: runtime.threadView.activeBranch.id,
-      checkpoint_id: checkpoint.id,
-      source_message_id: checkpoint.assistant_message_id,
-      title: "Starter opening generated",
-      detail: "Opened the scene from a seeded first-turn prompt.",
-      importance: 2,
-    });
-  } catch (error) {
-    console.error("Failed to record the starter timeline event.", error);
-  }
-
-  return Response.json({ ok: true, checkpointId: checkpoint.id });
+  return Response.json({ ok: true, turnId: reservedTurn.id });
 }

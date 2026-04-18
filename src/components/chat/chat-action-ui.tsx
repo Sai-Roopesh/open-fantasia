@@ -38,7 +38,7 @@ export function ActionSheet({
             {sheet.kind === "edit"
               ? "Edit last user turn"
               : sheet.kind === "branch"
-                ? "Branch from checkpoint"
+                ? "Branch from turn"
                 : "Pin fact"}
           </p>
           <h3 className="mt-3 font-serif text-3xl text-foreground">
@@ -52,7 +52,7 @@ export function ActionSheet({
             {sheet.kind === "edit"
               ? "Saving this rewrites the latest visible user turn and regenerates the assistant reply on the current branch."
               : sheet.kind === "branch"
-                ? "This forks a new branch from the selected user turn and switches you onto that path."
+                ? "This forks a new branch from the selected turn and switches you onto that path."
                 : "Pinned facts stay local to the active branch and influence future replies on this path only."}
           </p>
 

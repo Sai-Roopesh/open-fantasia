@@ -60,6 +60,8 @@ describe("character portraits", () => {
         style_rules: "",
         definition: "",
         negative_guidance: "",
+        starters: [],
+        example_conversations: [],
         portrait_status: "ready",
         portrait_path: "user/char/old.jpg",
         portrait_prompt: "old prompt",

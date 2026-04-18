@@ -12,11 +12,56 @@ export const providerIds = [
 
 export type ProviderId = (typeof providerIds)[number];
 
+export const connectionHealthStatuses = [
+  "untested",
+  "healthy",
+  "auth_failed",
+  "rate_limited",
+  "bad_base_url",
+  "bad_config",
+  "needs_attention",
+  "error",
+] as const;
+
+export type ConnectionHealthStatus = (typeof connectionHealthStatuses)[number];
+
+export const turnGenerationStatuses = [
+  "reserved",
+  "streaming",
+  "committed",
+  "failed",
+] as const;
+
+export type TurnGenerationStatus = (typeof turnGenerationStatuses)[number];
+
+export const taskStatuses = [
+  "pending",
+  "running",
+  "succeeded",
+  "failed",
+] as const;
+
+export type TaskStatus = (typeof taskStatuses)[number];
+
 type PublicTables = Database["public"]["Tables"];
 export type DbTableName = keyof PublicTables;
 export type DbRow<TableName extends DbTableName> = PublicTables[TableName]["Row"];
 export type DbInsert<TableName extends DbTableName> = PublicTables[TableName]["Insert"];
 export type DbUpdate<TableName extends DbTableName> = PublicTables[TableName]["Update"];
+
+export const characterStarterSchema = z.object({
+  text: z.string(),
+});
+
+export const characterExampleConversationSchema = z.object({
+  user_line: z.string(),
+  character_line: z.string(),
+});
+
+export type CharacterStarter = z.infer<typeof characterStarterSchema>;
+export type CharacterExampleConversation = z.infer<
+  typeof characterExampleConversationSchema
+>;
 
 export type ModelCatalogEntry = {
   id: string;
@@ -35,27 +80,50 @@ export type ProviderCatalog = {
   defaultBaseUrl?: string;
 };
 
+export type ProfileRecord = DbRow<"profiles">;
+
 export type ConnectionRecord = Omit<DbRow<"ai_connections">, "model_cache"> & {
+  provider: ProviderId;
+  health_status: ConnectionHealthStatus;
   model_cache: ModelCatalogEntry[];
 };
 
-export type ConnectionInsert = Omit<DbInsert<"ai_connections">, "model_cache"> & {
-  model_cache?: ModelCatalogEntry[];
-};
-
-export type CharacterRecord = DbRow<"characters">;
-export type CharacterInsert = DbInsert<"characters">;
-export type CharacterStarterRecord = DbRow<"character_starters">;
-export type CharacterExampleConversationRecord =
-  DbRow<"character_example_conversations">;
 export type UserPersonaRecord = DbRow<"user_personas">;
+
+export type CharacterRecord = Omit<
+  DbRow<"characters">,
+  "starters" | "example_conversations"
+> & {
+  starters: CharacterStarter[];
+  example_conversations: CharacterExampleConversation[];
+};
+export type CharacterPortraitStatus = CharacterRecord["portrait_status"];
+
 export type ThreadRecord = DbRow<"chat_threads">;
 export type ChatBranchRecord = DbRow<"chat_branches">;
-export type ChatCheckpointRecord = DbRow<"chat_checkpoints">;
+export type ChatTurnRecord = DbRow<"chat_turns"> & {
+  generation_status: TurnGenerationStatus;
+};
 export type TimelineEventRecord = DbRow<"chat_timeline_events">;
 export type ChatPinRecord = DbRow<"chat_pins">;
-export type BackgroundJobRecord = DbRow<"background_jobs">;
-export type CharacterPortraitStatus = CharacterRecord["portrait_status"];
+export type TurnReconcileTaskRecord = DbRow<"turn_reconcile_tasks"> & {
+  status: TaskStatus;
+};
+export type CharacterPortraitTaskRecord = DbRow<"character_portrait_tasks"> & {
+  status: TaskStatus;
+};
+
+export type TurnSnapshotRecord = Omit<
+  DbRow<"chat_turn_snapshots">,
+  "user_facts" | "open_loops" | "resolved_loops" | "narrative_hooks" | "scene_goals"
+> & {
+  user_facts: string[];
+  open_loops: string[];
+  resolved_loops: string[];
+  narrative_hooks: string[];
+  scene_goals: string[];
+};
+export type ThreadStateSnapshot = TurnSnapshotRecord;
 
 export const messageMetadataSchema = z
   .object({
@@ -66,39 +134,18 @@ export const messageMetadataSchema = z
     startedAt: z.number().optional(),
     totalTokens: z.number().optional(),
     finishReason: z.string().optional(),
-    checkpointId: z.string().optional(),
+    turnId: z.string().optional(),
     branchId: z.string().optional(),
-    choiceGroupKey: z.string().optional(),
     hiddenFromTranscript: z.boolean().optional(),
     starterSeed: z.boolean().optional(),
   })
   .default({});
 
 export type MessageMetadata = z.infer<typeof messageMetadataSchema>;
-
 export type FantasiaUIMessage = UIMessage<MessageMetadata>;
 
-export type StoredMessageRecord = Omit<
-  DbRow<"chat_messages">,
-  "parts" | "metadata"
-> & {
-  parts: unknown[];
-  metadata: MessageMetadata | null;
-};
-
-export type ThreadStateSnapshot = Omit<
-  DbRow<"chat_state_snapshots">,
-  "user_facts" | "open_loops" | "resolved_loops" | "narrative_hooks" | "scene_goals"
-> & {
-  user_facts: string[];
-  open_loops: string[];
-  resolved_loops: string[];
-  narrative_hooks: string[];
-  scene_goals: string[];
-};
-
 export type TranscriptControl = {
-  checkpointId: string;
+  turnId: string;
   branchId: string;
   canEdit: boolean;
   canRegenerate: boolean;
@@ -130,8 +177,9 @@ export const reconciliationSchema = z.object({
 export type ReconciliationOutput = z.infer<typeof reconciliationSchema>;
 
 export type ThreadListItem = ThreadRecord & {
-  characters?: { name?: string } | null;
-  user_personas?: { name?: string } | null;
+  character_name: string | null;
+  persona_name: string | null;
+  active_branch_id: string | null;
 };
 
 export type DashboardReadiness = {
@@ -148,7 +196,7 @@ export type DashboardReadiness = {
 };
 
 export type ProviderHealth = {
-  status: ConnectionRecord["health_status"];
+  status: ConnectionHealthStatus;
   message: string;
   lastCheckedAt: string | null;
   lastModelRefreshAt: string | null;
@@ -191,10 +239,10 @@ export type ContinuityInspectorView = {
     activeBranchId: string;
     activeBranchName: string;
     parentBranchName: string | null;
-    forkCheckpointId: string | null;
-    headCheckpointId: string | null;
+    forkTurnId: string | null;
+    headTurnId: string | null;
     totalBranches: number;
-    totalCheckpoints: number;
+    totalTurns: number;
   };
 };
 
@@ -210,19 +258,18 @@ export type ThreadGenerationSettings = {
   maxOutputTokens: number;
 };
 
-export type ReconcileCheckpointJobPayload = {
+export type ReconcileTurnTaskPayload = {
+  turnId: string;
   threadId: string;
   branchId: string;
-  checkpointId: string;
-  previousCheckpointId: string | null;
+  previousTurnId: string | null;
   connectionId: string;
   modelId: string;
   characterId: string;
   personaId: string;
-  recentMessageIds: string[];
 };
 
-export type GenerateCharacterPortraitJobPayload = {
+export type CharacterPortraitPayload = {
   characterId: string;
   prompt: string;
   seed: number;

@@ -6,5 +6,7 @@ export async function insertTimelineEvent(
   payload: Omit<TimelineEventRecord, "id" | "created_at">,
 ) {
   const { error } = await supabase.from("chat_timeline_events").insert(payload);
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 }

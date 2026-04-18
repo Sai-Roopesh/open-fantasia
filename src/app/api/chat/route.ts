@@ -1,23 +1,41 @@
-import {
-  createUIMessageStream,
-  createUIMessageStreamResponse,
-  validateUIMessages,
-} from "ai";
+import { convertToModelMessages, streamText } from "ai";
+import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
+import { createLanguageModel } from "@/lib/ai/provider-factory";
+import { buildRoleplaySystemPrompt } from "@/lib/ai/roleplay-prompt";
 import {
   assertThreadReadyForNewTurn,
-  generateAssistantReply,
   loadThreadGenerationRuntime,
   ThreadGenerationServiceError,
   toThreadGenerationErrorResponse,
 } from "@/lib/ai/thread-generation-service";
 import {
-  finalizeAssistantTurn,
-  reconcileCheckpointInBand,
-} from "@/lib/ai/turn-finalizer";
-import { assignServerMessageId } from "@/lib/ai/message-utils";
-import { chatRequestSchema } from "@/lib/validation";
-import { messageMetadataSchema, type FantasiaUIMessage } from "@/lib/types";
+  beginTurn,
+  commitTurn,
+  failTurn,
+  markTurnStreaming,
+} from "@/lib/data/turns";
+import { createTextMessage } from "@/lib/threads/read-model";
+import { chatTurnRequestSchema } from "@/lib/validation";
+
+const chatRouteRequestSchema = z.object({
+  threadId: z.string().uuid(),
+  branchId: chatTurnRequestSchema.shape.branchId,
+  expectedHeadTurnId: chatTurnRequestSchema.shape.expectedHeadTurnId,
+  text: chatTurnRequestSchema.shape.text,
+});
+
+function toRouteError(error: unknown) {
+  if (error instanceof ThreadGenerationServiceError) {
+    return Response.json({ error: error.message }, { status: error.status });
+  }
+
+  if (error instanceof Error) {
+    return Response.json({ error: error.message }, { status: 409 });
+  }
+
+  return Response.json({ error: "Fantasia could not start that turn." }, { status: 409 });
+}
 
 export async function POST(request: Request) {
   const context = await getCurrentUser();
@@ -25,20 +43,18 @@ export async function POST(request: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabase = context.supabase;
-  const user = context.user;
-
-  const parsedBody = chatRequestSchema.safeParse(await request.json());
+  const parsedBody = chatRouteRequestSchema.safeParse(await request.json());
   if (!parsedBody.success) {
     return Response.json({ error: "Invalid chat payload." }, { status: 400 });
   }
 
-  const { threadId, messages } = parsedBody.data;
+  const { branchId, expectedHeadTurnId, text, threadId } = parsedBody.data;
+
   let runtime: Awaited<ReturnType<typeof loadThreadGenerationRuntime>>;
   try {
     runtime = await loadThreadGenerationRuntime({
-      supabase,
-      userId: user.id,
+      supabase: context.supabase,
+      userId: context.user.id,
       threadId,
     });
     assertThreadReadyForNewTurn(runtime.threadView);
@@ -46,126 +62,117 @@ export async function POST(request: Request) {
     return toThreadGenerationErrorResponse(error);
   }
 
-  const incomingMessages = await validateUIMessages<FantasiaUIMessage>({
-    messages,
-    metadataSchema: messageMetadataSchema,
-  });
-
-  const latestUserMessage = [...incomingMessages]
-    .reverse()
-    .find((message) => message.role === "user");
-
-  if (!latestUserMessage) {
+  if (runtime.threadView.activeBranch.id !== branchId) {
     return Response.json(
-      { error: "A user message is required to continue the thread." },
-      { status: 400 },
+      { error: "The active branch changed before this turn was sent." },
+      { status: 409 },
     );
   }
 
-  const stableUserMessage = assignServerMessageId(latestUserMessage);
-  const contextMessages = [...runtime.threadView.modelContextMessages, stableUserMessage];
-  const continuitySnapshot = runtime.threadView.headSnapshot;
-  const startedAt = Date.now();
-
+  let reservedTurn;
   try {
-    const { assistantMessage } = await generateAssistantReply({
-      runtime,
-      messages: contextMessages,
-      snapshot: continuitySnapshot,
+    reservedTurn = await beginTurn(context.supabase, {
+      branchId,
+      expectedHeadTurnId,
+      text,
     });
-    const recentMessages = [
+    await markTurnStreaming(context.supabase, reservedTurn.thread_id, reservedTurn.id);
+  } catch (error) {
+    return toRouteError(error);
+  }
+
+  const userMessage = createTextMessage({
+    id: `${reservedTurn.id}:user`,
+    role: "user",
+    text,
+    metadata: {
+      createdAt: reservedTurn.created_at,
+      turnId: reservedTurn.id,
+      branchId,
+    },
+  });
+
+  let turnSettled = false;
+  const result = streamText({
+    model: createLanguageModel(runtime.connection, runtime.threadView.thread.model_id),
+    system: buildRoleplaySystemPrompt({
+      character: runtime.character,
+      persona: runtime.persona,
+      snapshot: runtime.threadView.headSnapshot,
+      pins: runtime.threadView.pins,
+      timeline: [...runtime.threadView.timeline].reverse(),
+    }),
+    messages: await convertToModelMessages([
       ...runtime.threadView.modelContextMessages,
-      stableUserMessage,
-      assistantMessage,
-    ];
-    const { reconcilePayload, storedAssistant } = await finalizeAssistantTurn({
-      supabase,
-      userId: user.id,
-      thread: runtime.threadView.thread,
-      branchId: runtime.threadView.activeBranch.id,
-      parentCheckpointId: runtime.threadView.activeBranch.head_checkpoint_id,
-      userMessage: stableUserMessage,
-      assistantMessage,
-      choiceGroupKey: `choice:${crypto.randomUUID()}`,
-      recentMessages,
-    });
-    const reconcileResult = await reconcileCheckpointInBand({
-      supabase,
-      userId: user.id,
-      payload: reconcilePayload,
-    });
+      userMessage,
+    ]),
+    temperature: runtime.generationSettings.temperature,
+    topP: runtime.generationSettings.topP,
+    maxOutputTokens: runtime.generationSettings.maxOutputTokens,
+    onError: async ({ error }) => {
+      if (turnSettled) {
+        return;
+      }
 
-    if (!reconcileResult.ok) {
-      console.error(
-        "Immediate continuity reconciliation failed; queued retry.",
-        reconcileResult.errorMessage,
-      );
-    }
+      turnSettled = true;
+      await failTurn(context.supabase, {
+        branchId,
+        turnId: reservedTurn.id,
+        failureCode: "generation_error",
+        failureMessage:
+          error instanceof Error ? error.message : "The model stream failed before completion.",
+      }).catch((persistError) => {
+        console.error("Failed to persist streaming failure.", {
+          threadId,
+          branchId,
+          turnId: reservedTurn.id,
+          error:
+            persistError instanceof Error
+              ? persistError.message
+              : String(persistError),
+        });
+      });
+    },
+    onFinish: async (event) => {
+      if (turnSettled) {
+        return;
+      }
 
-    const baseMetadata = {
+      turnSettled = true;
+      try {
+        await commitTurn(context.supabase, {
+          branchId,
+          turnId: reservedTurn.id,
+          assistantText: event.text,
+          provider: event.model.provider,
+          model: event.model.modelId,
+          connectionLabel: runtime.connection.label,
+          finishReason: event.finishReason ?? null,
+          totalTokens: event.totalUsage.totalTokens ?? null,
+          promptTokens: event.totalUsage.inputTokens ?? null,
+          completionTokens: event.totalUsage.outputTokens ?? null,
+        });
+      } catch (error) {
+        await failTurn(context.supabase, {
+          branchId,
+          turnId: reservedTurn.id,
+          failureCode: "commit_error",
+          failureMessage:
+            error instanceof Error ? error.message : "Fantasia could not persist the completed turn.",
+        }).catch(() => undefined);
+        throw error;
+      }
+    },
+  });
+
+  return result.toUIMessageStreamResponse({
+    generateMessageId: () => `${reservedTurn.id}:assistant`,
+    messageMetadata: () => ({
       provider: runtime.connection.provider,
       model: runtime.threadView.thread.model_id,
       connectionLabel: runtime.connection.label,
-      branchId: runtime.threadView.activeBranch.id,
-    };
-    const finishMetadata = {
-      ...baseMetadata,
-      finishReason: assistantMessage.metadata?.finishReason,
-      totalTokens: assistantMessage.metadata?.totalTokens,
-    };
-    const finishReason = assistantMessage.metadata?.finishReason;
-
-    return createUIMessageStreamResponse({
-      stream: createUIMessageStream<FantasiaUIMessage>({
-        execute: ({ writer }) => {
-          writer.write({
-            type: "start",
-            messageId: storedAssistant.id,
-            messageMetadata: {
-              ...baseMetadata,
-              startedAt,
-            },
-          });
-          writer.write({ type: "start-step" });
-          writer.write({ type: "text-start", id: "text-1" });
-
-          if (storedAssistant.content_text) {
-            writer.write({
-              type: "text-delta",
-              id: "text-1",
-              delta: storedAssistant.content_text,
-            });
-          }
-
-          writer.write({ type: "text-end", id: "text-1" });
-          writer.write({ type: "finish-step" });
-          writer.write(
-            finishReason
-              ? {
-                  type: "finish",
-                  finishReason: finishReason as
-                    | "stop"
-                    | "length"
-                    | "content-filter"
-                    | "tool-calls"
-                    | "error"
-                    | "other",
-                  messageMetadata: finishMetadata,
-                }
-              : {
-                  type: "finish",
-                  messageMetadata: finishMetadata,
-                },
-          );
-        },
-      }),
-    });
-  } catch (error) {
-    if (error instanceof ThreadGenerationServiceError) {
-      return toThreadGenerationErrorResponse(error);
-    }
-
-    console.error("Failed to generate and persist chat turn.", error);
-    return Response.json({ error: "We couldn't persist that turn." }, { status: 500 });
-  }
+      branchId,
+      turnId: reservedTurn.id,
+    }),
+  });
 }

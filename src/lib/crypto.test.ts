@@ -5,7 +5,7 @@ describe("crypto helpers", () => {
   const originalEnv = { ...process.env };
 
   beforeEach(() => {
-    process.env.APP_ENCRYPTION_KEY = "test-encryption-secret";
+    process.env.APP_ENCRYPTION_KEY = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
   });
 
   afterEach(() => {

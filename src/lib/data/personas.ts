@@ -1,5 +1,21 @@
+import { parseRow, parseRows, type DatabaseClient } from "@/lib/data/shared";
 import type { PersonaUsageSummary, UserPersonaRecord } from "@/lib/types";
-import { castRow, castRows, type DatabaseClient } from "@/lib/data/shared";
+import { z } from "zod";
+
+const personaRecordSchema = z.object({
+  id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  name: z.string(),
+  identity: z.string(),
+  backstory: z.string(),
+  voice_style: z.string(),
+  goals: z.string(),
+  boundaries: z.string(),
+  private_notes: z.string(),
+  is_default: z.boolean(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
 
 const personaSelect = [
   "id",
@@ -16,6 +32,14 @@ const personaSelect = [
   "updated_at",
 ].join(", ");
 
+function normalizePersona(value: unknown, label = "Persona") {
+  return parseRow(value, personaRecordSchema, label) as UserPersonaRecord;
+}
+
+function normalizePersonas(value: unknown, label = "Personas") {
+  return parseRows(value, personaRecordSchema, label) as UserPersonaRecord[];
+}
+
 export async function listPersonas(supabase: DatabaseClient, userId: string) {
   const { data, error } = await supabase
     .from("user_personas")
@@ -24,8 +48,11 @@ export async function listPersonas(supabase: DatabaseClient, userId: string) {
     .order("is_default", { ascending: false })
     .order("updated_at", { ascending: false });
 
-  if (error) throw error;
-  return castRows<UserPersonaRecord>(data);
+  if (error) {
+    throw error;
+  }
+
+  return normalizePersonas(data ?? [], "Persona list");
 }
 
 export async function getPersona(
@@ -40,8 +67,11 @@ export async function getPersona(
     .eq("id", personaId)
     .maybeSingle();
 
-  if (error) throw error;
-  return data ? castRow<UserPersonaRecord>(data) : null;
+  if (error) {
+    throw error;
+  }
+
+  return data ? normalizePersona(data) : null;
 }
 
 export async function getDefaultPersona(
@@ -55,8 +85,11 @@ export async function getDefaultPersona(
     .eq("is_default", true)
     .maybeSingle();
 
-  if (error) throw error;
-  return data ? castRow<UserPersonaRecord>(data) : null;
+  if (error) {
+    throw error;
+  }
+
+  return data ? normalizePersona(data, "Default persona") : null;
 }
 
 export async function upsertPersona(
@@ -66,7 +99,6 @@ export async function upsertPersona(
 ) {
   const shouldSetDefault = Boolean(payload.is_default);
   const next = {
-    id: payload.id,
     user_id: userId,
     name: payload.name,
     identity: payload.identity ?? "",
@@ -93,58 +125,28 @@ export async function upsertPersona(
         .single();
 
   const { data, error } = await query;
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 
-  const persona = castRow<UserPersonaRecord>(data, "User persona");
+  const persona = normalizePersona(data, "Saved persona");
   return shouldSetDefault ? setDefaultPersona(supabase, userId, persona.id) : persona;
-}
-
-export async function listPersonaUsage(
-  supabase: DatabaseClient,
-  userId: string,
-) {
-  const { data, error } = await supabase.rpc("list_persona_usage", {
-    p_user_id: userId,
-  });
-
-  if (error) throw error;
-  return castRows<{
-    persona_id: string;
-    total_threads: number;
-    active_threads: number;
-  }>(data ?? [], "Persona usage").map(
-    (row) =>
-      ({
-        personaId: row.persona_id,
-        totalThreads: Number(row.total_threads),
-        activeThreads: Number(row.active_threads),
-      }) satisfies PersonaUsageSummary,
-  );
 }
 
 export async function setDefaultPersona(
   supabase: DatabaseClient,
-  userId: string,
+  _userId: string,
   personaId: string,
 ) {
-  const { data, error } = await supabase
-    .rpc("set_default_persona", {
-      target_persona_id: personaId,
-      target_user_id: userId,
-    });
+  const { data, error } = await supabase.rpc("set_default_persona", {
+    target_persona_id: personaId,
+  });
 
-  if (error) throw error;
-
-  const personas = castRows<UserPersonaRecord>(data ?? [], "Default personas");
-  const exactMatch =
-    personas.find((persona) => persona.id === personaId && persona.is_default) ??
-    null;
-
-  if (exactMatch) {
-    return exactMatch;
+  if (error) {
+    throw error;
   }
 
-  throw new Error("Default persona RPC did not return the promoted persona.");
+  return normalizePersona(data, "Promoted default persona");
 }
 
 export async function duplicatePersona(
@@ -173,8 +175,48 @@ export async function duplicatePersona(
     .select(personaSelect)
     .single();
 
-  if (error) throw error;
-  return castRow<UserPersonaRecord>(data);
+  if (error) {
+    throw error;
+  }
+
+  return normalizePersona(data, "Duplicated persona");
+}
+
+export async function listPersonaUsage(
+  supabase: DatabaseClient,
+  userId: string,
+) {
+  const { data, error } = await supabase
+    .from("chat_threads")
+    .select("persona_id, status")
+    .eq("user_id", userId)
+    .not("persona_id", "is", null);
+
+  if (error) {
+    throw error;
+  }
+
+  const counts = new Map<string, PersonaUsageSummary>();
+  for (const row of data ?? []) {
+    if (!row.persona_id) {
+      continue;
+    }
+
+    const current = counts.get(row.persona_id) ?? {
+      personaId: row.persona_id,
+      totalThreads: 0,
+      activeThreads: 0,
+    };
+    current.totalThreads += 1;
+    if (row.status === "active") {
+      current.activeThreads += 1;
+    }
+    counts.set(row.persona_id, current);
+  }
+
+  return [...counts.values()].sort((left, right) =>
+    right.totalThreads - left.totalThreads || right.activeThreads - left.activeThreads,
+  );
 }
 
 export async function deletePersona(
@@ -182,10 +224,40 @@ export async function deletePersona(
   userId: string,
   personaId: string,
 ) {
-  const { error } = await supabase.rpc("delete_persona_and_reassign", {
-    p_user_id: userId,
-    p_persona_id: personaId,
-  });
+  const persona = await getPersona(supabase, userId, personaId);
+  if (!persona) {
+    return;
+  }
 
-  if (error) throw error;
+  const personas = await listPersonas(supabase, userId);
+  const replacement =
+    personas.find((entry) => entry.id !== personaId && entry.is_default) ??
+    personas.find((entry) => entry.id !== personaId) ??
+    null;
+
+  if (replacement) {
+    const { error: reassignError } = await supabase
+      .from("chat_threads")
+      .update({ persona_id: replacement.id })
+      .eq("user_id", userId)
+      .eq("persona_id", personaId);
+
+    if (reassignError) {
+      throw reassignError;
+    }
+
+    if (persona.is_default && !replacement.is_default) {
+      await setDefaultPersona(supabase, userId, replacement.id);
+    }
+  }
+
+  const { error } = await supabase
+    .from("user_personas")
+    .delete()
+    .eq("user_id", userId)
+    .eq("id", personaId);
+
+  if (error) {
+    throw error;
+  }
 }

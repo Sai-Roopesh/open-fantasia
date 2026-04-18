@@ -7,6 +7,8 @@ type PublicEnv = SupabasePublicEnv & {
   siteUrl: string | null;
 };
 
+const ENCRYPTION_KEY_HEX_RE = /^[0-9a-fA-F]{64}$/;
+
 function normalizeUrl(value: string | null | undefined) {
   if (!value) {
     return null;
@@ -107,6 +109,17 @@ export function getAllowedEmails() {
 
 export function getEncryptionKeySecret() {
   return process.env.APP_ENCRYPTION_KEY ?? null;
+}
+
+export function requireEncryptionKeyHex() {
+  const secret = getEncryptionKeySecret()?.trim() ?? "";
+  if (!ENCRYPTION_KEY_HEX_RE.test(secret)) {
+    throw new Error(
+      "APP_ENCRYPTION_KEY must be a 64-character hex string (32 random bytes).",
+    );
+  }
+
+  return secret.toLowerCase();
 }
 
 export function getSupabaseServiceRoleKey() {

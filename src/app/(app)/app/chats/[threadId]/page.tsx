@@ -2,7 +2,6 @@ import { notFound, redirect } from "next/navigation";
 import { ChatWorkspace } from "@/components/chat/chat-workspace";
 import { resolveCharacterPortraitUrl } from "@/lib/characters/portraits";
 import { ConfirmSubmitButton } from "@/components/forms/confirm-submit-button";
-import { getTextFromMessage } from "@/lib/ai/message-text";
 import { requireAllowedUser } from "@/lib/auth";
 import { listConnections } from "@/lib/data/connections";
 import { listPersonas } from "@/lib/data/personas";
@@ -63,8 +62,13 @@ export default async function ChatThreadPage({
     redirect("/app/personas?reason=default");
   }
 
-  const messageTextById = new Map(
-    view.canonicalMessages.map((message) => [message.id, getTextFromMessage(message)]),
+  const turnExcerptById = new Map(
+    view.turns.map((turn) => {
+      const transcript = [turn.user_input_text, turn.assistant_output_text ?? ""]
+        .filter(Boolean)
+        .join("\n");
+      return [turn.id, transcript];
+    }),
   );
   const parentBranch = view.branches.find(
     (branch) => branch.id === view.activeBranch.parent_branch_id,
@@ -163,9 +167,9 @@ export default async function ChatThreadPage({
       id: pin.id,
       body: pin.body,
       createdAt: pin.created_at,
-      sourceLabel: pin.source_message_id ? "Pinned from transcript" : "Pinned manually",
-      sourceExcerpt: pin.source_message_id
-        ? truncateCopy(messageTextById.get(pin.source_message_id) ?? "Source message is no longer on this branch.", 120)
+      sourceLabel: pin.turn_id ? "Pinned from transcript" : "Pinned manually",
+      sourceExcerpt: pin.turn_id
+        ? truncateCopy(turnExcerptById.get(pin.turn_id) ?? "Source turn is no longer on this branch.", 120)
         : "This pin was saved without a direct source message.",
     })),
     timeline: view.timeline.map((event) => ({
@@ -179,10 +183,10 @@ export default async function ChatThreadPage({
       activeBranchId: view.activeBranch.id,
       activeBranchName: view.activeBranch.name,
       parentBranchName: parentBranch?.name ?? null,
-      forkCheckpointId: view.activeBranch.fork_checkpoint_id,
-      headCheckpointId: view.activeBranch.head_checkpoint_id,
+      forkTurnId: view.activeBranch.fork_turn_id,
+      headTurnId: view.activeBranch.head_turn_id,
       totalBranches: view.branches.length,
-      totalCheckpoints: view.checkpoints.length,
+      totalTurns: view.turns.length,
     },
   };
 

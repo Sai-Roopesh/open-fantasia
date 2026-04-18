@@ -15,6 +15,8 @@ const mockCharacter: CharacterBundle = {
     style_rules: "Use slang",
     definition: "An expert",
     negative_guidance: "Do not flirt",
+    starters: [],
+    example_conversations: [],
     portrait_status: "idle",
     portrait_path: "",
     portrait_prompt: "",
@@ -86,7 +88,7 @@ describe("buildRoleplaySystemPrompt", () => {
 
   it("should format timeline events correctly", () => {
     const timeline: TimelineEventRecord[] = [
-      { id: "1", thread_id: "t1", title: "Met Alex", detail: "Shook hands", importance: 3, branch_id: null, checkpoint_id: null, source_message_id: null, created_at: "" },
+      { id: "1", thread_id: "t1", title: "Met Alex", detail: "Shook hands", importance: 3, branch_id: "b1", turn_id: "turn_1", created_at: "" },
     ];
     const prompt = buildRoleplaySystemPrompt({
       character: mockCharacter,
@@ -100,10 +102,10 @@ describe("buildRoleplaySystemPrompt", () => {
 
   it("should format snapshot lists defensively avoiding undefined crashes", () => {
     const snapshot = {
-      checkpoint_id: "1",
+      turn_id: "1",
       thread_id: "t1",
       branch_id: "b1",
-      based_on_snapshot_id: null,
+      based_on_turn_id: null,
       version: 1,
       scenario_state: "Stranded",
       relationship_state: "Wary",

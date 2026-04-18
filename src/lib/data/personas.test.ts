@@ -25,14 +25,13 @@ describe("persona data helpers", () => {
 
   it("routes default persona selection through the RPC", async () => {
     const persona = { ...createPersonaRow(), is_default: true };
-    const rpc = vi.fn().mockResolvedValue({ data: [persona], error: null });
+    const rpc = vi.fn().mockResolvedValue({ data: persona, error: null });
     const supabase = { rpc } as never;
 
     const result = await setDefaultPersona(supabase, persona.user_id, persona.id);
 
     expect(rpc).toHaveBeenCalledWith("set_default_persona", {
       target_persona_id: persona.id,
-      target_user_id: persona.user_id,
     });
     expect(result.is_default).toBe(true);
   });
@@ -46,7 +45,7 @@ describe("persona data helpers", () => {
     }));
     const from = vi.fn(() => ({ insert }));
     const rpc = vi.fn().mockResolvedValue({
-      data: [promotedPersona],
+      data: promotedPersona,
       error: null,
     });
     const supabase = { from, rpc } as never;

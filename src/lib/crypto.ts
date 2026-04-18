@@ -1,14 +1,9 @@
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
-import { getEncryptionKeySecret } from "@/lib/env";
+import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { requireEncryptionKeyHex } from "@/lib/env";
 import { ConfigurationError } from "@/lib/errors";
 
 function deriveKey() {
-  const secret = getEncryptionKeySecret();
-  if (!secret) {
-    throw new Error("APP_ENCRYPTION_KEY is missing.");
-  }
-
-  return createHash("sha256").update(secret).digest();
+  return Buffer.from(requireEncryptionKeyHex(), "hex");
 }
 
 export function encryptSecret(value: string) {

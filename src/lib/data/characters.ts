@@ -1,16 +1,47 @@
+import { z } from "zod";
+import { parseRow, parseRows, type DatabaseClient } from "@/lib/data/shared";
 import type {
-  CharacterExampleConversationRecord,
+  CharacterExampleConversation,
   CharacterRecord,
-  CharacterStarterRecord,
+  CharacterStarter,
 } from "@/lib/types";
-import type { Json } from "@/lib/supabase/database.types";
-import { castRow, castRows, type DatabaseClient } from "@/lib/data/shared";
+import {
+  characterExampleConversationSchema,
+  characterStarterSchema,
+} from "@/lib/types";
 
 export type CharacterBundle = {
   character: CharacterRecord;
-  starters: CharacterStarterRecord[];
-  exampleConversations: CharacterExampleConversationRecord[];
+  starters: CharacterStarter[];
+  exampleConversations: CharacterExampleConversation[];
 };
+
+const characterRecordSchema = z.object({
+  id: z.string().uuid(),
+  user_id: z.string().uuid(),
+  name: z.string(),
+  story: z.string(),
+  core_persona: z.string(),
+  greeting: z.string(),
+  appearance: z.string(),
+  style_rules: z.string(),
+  definition: z.string(),
+  negative_guidance: z.string(),
+  starters: z.array(characterStarterSchema),
+  example_conversations: z.array(characterExampleConversationSchema),
+  portrait_status: z.enum(["idle", "pending", "ready", "failed"]),
+  portrait_path: z.string(),
+  portrait_prompt: z.string(),
+  portrait_seed: z.number().int().nullable(),
+  portrait_source_hash: z.string(),
+  portrait_last_error: z.string(),
+  portrait_generated_at: z.string().nullable(),
+  temperature: z.number(),
+  top_p: z.number(),
+  max_output_tokens: z.number().int(),
+  created_at: z.string(),
+  updated_at: z.string(),
+});
 
 const characterSelect = [
   "id",
@@ -23,6 +54,8 @@ const characterSelect = [
   "style_rules",
   "definition",
   "negative_guidance",
+  "starters",
+  "example_conversations",
   "portrait_status",
   "portrait_path",
   "portrait_prompt",
@@ -37,24 +70,21 @@ const characterSelect = [
   "updated_at",
 ].join(", ");
 
-const starterSelect = [
-  "id",
-  "character_id",
-  "text",
-  "sort_order",
-  "created_at",
-  "updated_at",
-].join(", ");
+function normalizeCharacter(value: unknown, label = "Character") {
+  return parseRow(value, characterRecordSchema, label) as CharacterRecord;
+}
 
-const exampleSelect = [
-  "id",
-  "character_id",
-  "user_line",
-  "character_line",
-  "sort_order",
-  "created_at",
-  "updated_at",
-].join(", ");
+function normalizeCharacters(value: unknown, label = "Characters") {
+  return parseRows(value, characterRecordSchema, label) as CharacterRecord[];
+}
+
+function toBundle(character: CharacterRecord): CharacterBundle {
+  return {
+    character,
+    starters: character.starters,
+    exampleConversations: character.example_conversations,
+  };
+}
 
 export async function listCharacters(supabase: DatabaseClient, userId: string) {
   const { data, error } = await supabase
@@ -63,49 +93,11 @@ export async function listCharacters(supabase: DatabaseClient, userId: string) {
     .eq("user_id", userId)
     .order("updated_at", { ascending: false });
 
-  if (error) throw error;
-  return castRows<CharacterRecord>(data);
-}
+  if (error) {
+    throw error;
+  }
 
-export async function getCharacterBundle(
-  supabase: DatabaseClient,
-  userId: string,
-  characterId: string,
-) {
-  const { data: character, error: characterError } = await supabase
-    .from("characters")
-    .select(characterSelect)
-    .eq("user_id", userId)
-    .eq("id", characterId)
-    .maybeSingle();
-
-  if (characterError) throw characterError;
-  if (!character) return null;
-
-  const [
-    { data: starters, error: startersError },
-    { data: examples, error: examplesError },
-  ] = await Promise.all([
-    supabase
-      .from("character_starters")
-      .select(starterSelect)
-      .eq("character_id", characterId)
-      .order("sort_order", { ascending: true }),
-    supabase
-      .from("character_example_conversations")
-      .select(exampleSelect)
-      .eq("character_id", characterId)
-      .order("sort_order", { ascending: true }),
-  ]);
-
-  if (startersError) throw startersError;
-  if (examplesError) throw examplesError;
-
-  return {
-    character: castRow<CharacterRecord>(character),
-    starters: castRows<CharacterStarterRecord>(starters),
-    exampleConversations: castRows<CharacterExampleConversationRecord>(examples),
-  } satisfies CharacterBundle;
+  return normalizeCharacters(data ?? [], "Character list");
 }
 
 export async function getCharacter(
@@ -120,22 +112,44 @@ export async function getCharacter(
     .eq("id", characterId)
     .maybeSingle();
 
-  if (error) throw error;
-  return data ? castRow<CharacterRecord>(data) : null;
+  if (error) {
+    throw error;
+  }
+
+  return data ? normalizeCharacter(data) : null;
+}
+
+export async function getCharacterBundle(
+  supabase: DatabaseClient,
+  userId: string,
+  characterId: string,
+) {
+  const character = await getCharacter(supabase, userId, characterId);
+  return character ? toBundle(character) : null;
 }
 
 export async function upsertCharacterBundle(
   supabase: DatabaseClient,
   userId: string,
-  payload: Partial<CharacterRecord> & {
+  payload: Omit<Partial<CharacterRecord>, "starters" | "example_conversations"> & {
     id?: string;
     name: string;
     starters: string[];
     exampleConversations: Array<{ user_line: string; character_line: string }>;
   },
 ) {
-  const characterPayload = {
-    id: payload.id ?? undefined,
+  const starters = payload.starters
+    .map((text) => ({ text: text.trim() }))
+    .filter((entry) => entry.text.length > 0);
+  const exampleConversations = payload.exampleConversations
+    .map((entry) => ({
+      user_line: entry.user_line.trim(),
+      character_line: entry.character_line.trim(),
+    }))
+    .filter((entry) => entry.user_line || entry.character_line);
+
+  const next = {
+    user_id: userId,
     name: payload.name,
     story: payload.story ?? "",
     core_persona: payload.core_persona ?? "",
@@ -144,6 +158,8 @@ export async function upsertCharacterBundle(
     style_rules: payload.style_rules ?? "",
     definition: payload.definition ?? "",
     negative_guidance: payload.negative_guidance ?? "",
+    starters,
+    example_conversations: exampleConversations,
     portrait_status: payload.portrait_status ?? "idle",
     portrait_path: payload.portrait_path ?? "",
     portrait_prompt: payload.portrait_prompt ?? "",
@@ -156,32 +172,26 @@ export async function upsertCharacterBundle(
     max_output_tokens: payload.max_output_tokens ?? 750,
   };
 
-  const starters = payload.starters
-    .map((text) => ({ text: text.trim() }))
-    .filter((s) => s.text.length > 0);
+  const query = payload.id
+    ? supabase
+        .from("characters")
+        .update(next)
+        .eq("id", payload.id)
+        .eq("user_id", userId)
+        .select(characterSelect)
+        .single()
+    : supabase
+        .from("characters")
+        .insert(next)
+        .select(characterSelect)
+        .single();
 
-  const examples = payload.exampleConversations
-    .map((e) => ({
-      user_line: e.user_line.trim(),
-      character_line: e.character_line.trim(),
-    }))
-    .filter((e) => e.user_line || e.character_line);
-
-  const { data: characterId, error } = await supabase.rpc("upsert_character_bundle", {
-    p_user_id: userId,
-    p_character: characterPayload as unknown as Json,
-    p_starters: starters as unknown as Json,
-    p_examples: examples as unknown as Json,
-  });
-
-  if (error) throw error;
-
-  const bundle = await getCharacterBundle(supabase, userId, String(characterId));
-  if (!bundle) {
-    throw new Error("Failed to reload character bundle.");
+  const { data, error } = await query;
+  if (error) {
+    throw error;
   }
 
-  return bundle;
+  return toBundle(normalizeCharacter(data, "Saved character"));
 }
 
 export async function updateCharacterPortrait(
@@ -212,8 +222,11 @@ export async function updateCharacterPortrait(
     .select(characterSelect)
     .single();
 
-  if (error) throw error;
-  return castRow<CharacterRecord>(data);
+  if (error) {
+    throw error;
+  }
+
+  return normalizeCharacter(data, "Updated character portrait");
 }
 
 export async function deleteCharacter(
@@ -227,5 +240,7 @@ export async function deleteCharacter(
     .eq("id", characterId)
     .eq("user_id", userId);
 
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 }

@@ -1,88 +1,93 @@
 import { buildSnapshotFromReconciliation, reconcileTurnState } from "@/lib/ai/thread-engine";
 import {
-  getCharacter,
-  getCharacterBundle,
-  updateCharacterPortrait,
-} from "@/lib/data/characters";
-import {
   buildCharacterPortraitObjectPath,
   CHARACTER_PORTRAITS_BUCKET,
   fetchCharacterPortraitFromPollinations,
 } from "@/lib/characters/portraits";
+import {
+  getCharacter,
+  getCharacterBundle,
+  updateCharacterPortrait,
+} from "@/lib/data/characters";
 import { getConnection } from "@/lib/data/connections";
-import { getMessagesByIds, toUIMessages } from "@/lib/data/messages";
+import {
+  claimCharacterPortraitTasks,
+  claimTurnReconcileTasks,
+  cleanupStaleGenerationLocks,
+  completeCharacterPortraitTask,
+  completeTurnReconcileTask,
+  failCharacterPortraitTask,
+  failTurnReconcileTask,
+} from "@/lib/data/jobs";
 import { getPersona } from "@/lib/data/personas";
 import { getSnapshot, saveSnapshot } from "@/lib/data/snapshots";
 import { insertTimelineEvent } from "@/lib/data/timeline";
-import { claimPendingJobs, completeJob, failJob } from "@/lib/data/jobs";
-import type {
-  BackgroundJobRecord,
-  GenerateCharacterPortraitJobPayload,
-  ReconcileCheckpointJobPayload,
-} from "@/lib/types";
+import { listTurnsForThread, toTranscriptMessages } from "@/lib/data/turns";
 import type { DatabaseClient } from "@/lib/data/shared";
-import {
-  generateCharacterPortraitJobPayloadSchema,
-  reconcileCheckpointJobPayloadSchema,
-} from "@/lib/validation";
+import type {
+  CharacterPortraitTaskRecord,
+  TurnReconcileTaskRecord,
+} from "@/lib/types";
+import { buildTurnPath } from "@/lib/threads/read-model";
 
-export function parseJobPayload(payload: BackgroundJobRecord["payload"]) {
-  return reconcileCheckpointJobPayloadSchema.parse(
-    payload,
-  ) as ReconcileCheckpointJobPayload;
-}
-
-export function parseGenerateCharacterPortraitJobPayload(
-  payload: BackgroundJobRecord["payload"],
+async function reconcileTurnTask(
+  supabase: DatabaseClient,
+  task: TurnReconcileTaskRecord,
 ) {
-  return generateCharacterPortraitJobPayloadSchema.parse(
-    payload,
-  ) as GenerateCharacterPortraitJobPayload;
-}
+  const turns = await listTurnsForThread(supabase, task.thread_id);
+  const turnPath = buildTurnPath(turns, task.turn_id);
+  const currentTurn = turnPath.at(-1);
+  if (!currentTurn || currentTurn.id !== task.turn_id) {
+    throw new Error("Reconciliation skipped: task turn is not reachable.");
+  }
 
-export async function reconcileCheckpoint(args: {
-  supabase: DatabaseClient;
-  userId: string;
-  payload: ReconcileCheckpointJobPayload;
-}) {
-  const [connection, character, persona, previousSnapshot, recentMessages] = await Promise.all([
-    getConnection(args.supabase, args.userId, args.payload.connectionId),
-    getCharacterBundle(args.supabase, args.userId, args.payload.characterId),
-    getPersona(args.supabase, args.userId, args.payload.personaId),
-    getPreviousSnapshot(args.supabase, args.userId, args.payload),
-    getMessagesByIds(args.supabase, args.payload.recentMessageIds),
+  const [connection, character, persona, previousSnapshot] = await Promise.all([
+    getConnection(supabase, task.user_id, task.connection_id),
+    getCharacterBundle(supabase, task.user_id, task.character_id),
+    getPersona(supabase, task.user_id, task.persona_id),
+    currentTurn.parent_turn_id
+      ? getSnapshot(supabase, task.user_id, currentTurn.parent_turn_id)
+      : Promise.resolve(null),
   ]);
 
-  if (!connection) throw new Error("Reconciliation skipped: connection is missing.");
-  if (!character) throw new Error("Reconciliation skipped: character is missing.");
-  if (!persona) throw new Error("Reconciliation skipped: persona not found.");
+  if (!connection) {
+    throw new Error("Reconciliation skipped: connection is missing.");
+  }
+  if (!character) {
+    throw new Error("Reconciliation skipped: character is missing.");
+  }
+  if (!persona) {
+    throw new Error("Reconciliation skipped: persona is missing.");
+  }
+
+  const recentMessages = turnPath
+    .slice(-6)
+    .flatMap((turn) => toTranscriptMessages(turn));
 
   const reconciliation = await reconcileTurnState({
     connection,
-    modelId: args.payload.modelId,
+    modelId: task.model_id,
     character,
     previousSnapshot,
-    recentMessages: toUIMessages(recentMessages, { includeHidden: true }),
+    recentMessages,
   });
 
   await saveSnapshot(
-    args.supabase,
+    supabase,
     buildSnapshotFromReconciliation({
-      checkpointId: args.payload.checkpointId,
-      threadId: args.payload.threadId,
-      branchId: args.payload.branchId,
+      turnId: task.turn_id,
+      threadId: task.thread_id,
+      branchId: task.branch_id,
       previousSnapshot,
       reconciliation,
     }),
   );
 
   if (reconciliation.timelineEvent) {
-    const sourceMessageId = recentMessages.at(-1)?.id ?? null;
-    await insertTimelineEvent(args.supabase, {
-      thread_id: args.payload.threadId,
-      branch_id: args.payload.branchId,
-      checkpoint_id: args.payload.checkpointId,
-      source_message_id: sourceMessageId,
+    await insertTimelineEvent(supabase, {
+      thread_id: task.thread_id,
+      branch_id: task.branch_id,
+      turn_id: task.turn_id,
       title: reconciliation.timelineEvent.title,
       detail: reconciliation.timelineEvent.detail,
       importance: reconciliation.timelineEvent.importance,
@@ -90,44 +95,17 @@ export async function reconcileCheckpoint(args: {
   }
 }
 
-async function runReconcileCheckpointJob(
+async function runCharacterPortraitTask(
   supabase: DatabaseClient,
-  job: BackgroundJobRecord,
+  task: CharacterPortraitTaskRecord,
 ) {
-  const payload = parseJobPayload(job.payload);
-
-  await reconcileCheckpoint({
-    supabase,
-    userId: job.user_id,
-    payload,
-  });
-}
-
-async function getPreviousSnapshot(
-  supabase: DatabaseClient,
-  userId: string,
-  payload: ReconcileCheckpointJobPayload,
-) {
-  if (!payload.previousCheckpointId) {
-    return null;
-  }
-
-  return getSnapshot(supabase, userId, payload.previousCheckpointId);
-}
-
-async function runGenerateCharacterPortraitJob(
-  supabase: DatabaseClient,
-  job: BackgroundJobRecord,
-) {
-  const payload = parseGenerateCharacterPortraitJobPayload(job.payload);
-  const character = await getCharacter(supabase, job.user_id, payload.characterId);
-
+  const character = await getCharacter(supabase, task.user_id, task.character_id);
   if (!character) {
     return;
   }
 
   if (!character.appearance.trim()) {
-    await updateCharacterPortrait(supabase, job.user_id, character.id, {
+    await updateCharacterPortrait(supabase, task.user_id, character.id, {
       portrait_status: "idle",
       portrait_path: "",
       portrait_prompt: "",
@@ -139,19 +117,19 @@ async function runGenerateCharacterPortraitJob(
     return;
   }
 
-  if (character.portrait_source_hash !== payload.sourceHash) {
+  if (character.portrait_source_hash !== task.source_hash) {
     return;
   }
 
   const image = await fetchCharacterPortraitFromPollinations({
-    prompt: payload.prompt,
-    seed: payload.seed,
+    prompt: task.prompt,
+    seed: task.seed,
   });
   const path = buildCharacterPortraitObjectPath({
-    userId: job.user_id,
+    userId: task.user_id,
     characterId: character.id,
-    sourceHash: payload.sourceHash,
-    seed: payload.seed,
+    sourceHash: task.source_hash,
+    seed: task.seed,
   });
 
   const uploadResult = await supabase.storage
@@ -171,15 +149,15 @@ async function runGenerateCharacterPortraitJob(
     .update({
       portrait_status: "ready",
       portrait_path: path,
-      portrait_prompt: payload.prompt,
-      portrait_seed: payload.seed,
+      portrait_prompt: task.prompt,
+      portrait_seed: task.seed,
       portrait_last_error: "",
       portrait_generated_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
     .eq("id", character.id)
-    .eq("user_id", job.user_id)
-    .eq("portrait_source_hash", payload.sourceHash)
+    .eq("user_id", task.user_id)
+    .eq("portrait_source_hash", task.source_hash)
     .select("id")
     .maybeSingle();
 
@@ -194,54 +172,113 @@ async function runGenerateCharacterPortraitJob(
 
 async function syncPortraitFailureState(
   supabase: DatabaseClient,
-  job: BackgroundJobRecord,
+  task: CharacterPortraitTaskRecord,
   errorMessage: string,
 ) {
-  if (job.type !== "generate_character_portrait") {
-    return;
-  }
-
   try {
-    const payload = parseGenerateCharacterPortraitJobPayload(job.payload);
-    const character = await getCharacter(supabase, job.user_id, payload.characterId);
-
+    const character = await getCharacter(supabase, task.user_id, task.character_id);
     if (!character) {
       return;
     }
 
-    if (character.portrait_source_hash !== payload.sourceHash) {
+    if (character.portrait_source_hash !== task.source_hash) {
       return;
     }
 
-    await updateCharacterPortrait(supabase, job.user_id, character.id, {
-      portrait_status: job.attempts >= job.max_attempts ? "failed" : "pending",
+    await updateCharacterPortrait(supabase, task.user_id, character.id, {
+      portrait_status: task.attempts >= task.max_attempts ? "failed" : "pending",
       portrait_last_error: errorMessage,
     });
   } catch (error) {
-    console.error("Failed to sync portrait failure state.", error);
+    console.error("Failed to sync portrait failure state.", {
+      taskId: task.id,
+      characterId: task.character_id,
+      userId: task.user_id,
+      error: error instanceof Error ? error.message : String(error),
+    });
   }
 }
 
-export async function drainPendingJobs(
+export async function drainPendingTasks(
   supabase: DatabaseClient,
-  limit = 5,
+  limit = 10,
 ) {
-  const jobs = await claimPendingJobs(supabase, limit);
+  await cleanupStaleGenerationLocks(supabase).catch((error) => {
+    console.error("Failed to clean up stale generation locks.", {
+      error: error instanceof Error ? error.message : String(error),
+    });
+  });
 
-  for (const job of jobs) {
+  const reconcileLimit = Math.max(1, Math.ceil(limit * 0.7));
+  const portraitLimit = Math.max(1, limit - reconcileLimit);
+
+  const [reconcileTasks, portraitTasks] = await Promise.all([
+    claimTurnReconcileTasks(supabase, reconcileLimit),
+    claimCharacterPortraitTasks(supabase, portraitLimit),
+  ]);
+
+  for (const task of reconcileTasks) {
     try {
-      if (job.type === "reconcile_checkpoint") {
-        await runReconcileCheckpointJob(supabase, job);
-      } else if (job.type === "generate_character_portrait") {
-        await runGenerateCharacterPortraitJob(supabase, job);
-      }
-      await completeJob(supabase, job.id);
+      await reconcileTurnTask(supabase, task);
+      await completeTurnReconcileTask(supabase, task.id);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Background job failed.";
-      await syncPortraitFailureState(supabase, job, message);
-      await failJob(supabase, job, message);
+      const message =
+        error instanceof Error ? error.message : "Turn reconciliation failed.";
+      console.error("Turn reconcile task failed.", {
+        taskId: task.id,
+        turnId: task.turn_id,
+        threadId: task.thread_id,
+        branchId: task.branch_id,
+        userId: task.user_id,
+        error: message,
+      });
+      try {
+        await failTurnReconcileTask(supabase, task, message);
+      } catch (persistError) {
+        console.error("Failed to persist reconcile task failure.", {
+          taskId: task.id,
+          turnId: task.turn_id,
+          error:
+            persistError instanceof Error
+              ? persistError.message
+              : String(persistError),
+        });
+      }
     }
   }
 
-  return jobs.length;
+  for (const task of portraitTasks) {
+    try {
+      await runCharacterPortraitTask(supabase, task);
+      await completeCharacterPortraitTask(supabase, task.id);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Character portrait generation failed.";
+      console.error("Portrait task failed.", {
+        taskId: task.id,
+        characterId: task.character_id,
+        userId: task.user_id,
+        error: message,
+      });
+      await syncPortraitFailureState(supabase, task, message);
+      try {
+        await failCharacterPortraitTask(supabase, task, message);
+      } catch (persistError) {
+        console.error("Failed to persist portrait task failure.", {
+          taskId: task.id,
+          characterId: task.character_id,
+          error:
+            persistError instanceof Error
+              ? persistError.message
+              : String(persistError),
+        });
+      }
+    }
+  }
+
+  return {
+    reconcileProcessed: reconcileTasks.length,
+    portraitProcessed: portraitTasks.length,
+    totalProcessed: reconcileTasks.length + portraitTasks.length,
+  };
 }

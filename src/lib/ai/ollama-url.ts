@@ -65,9 +65,5 @@ export function normalizeOllamaApiBaseUrl(baseUrl?: string | null) {
     return fallback;
   }
 
-  const normalized = raw.endsWith("/api") ? raw : `${raw.replace(/\/+$/, "")}/api`;
-
-  validateOllamaBaseUrl(normalized);
-
-  return normalized;
+  return raw.endsWith("/api") ? raw : `${raw.replace(/\/+$/, "")}/api`;
 }
