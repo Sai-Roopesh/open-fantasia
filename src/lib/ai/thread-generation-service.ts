@@ -138,7 +138,7 @@ export function toThreadGenerationErrorResponse(error: unknown) {
     error instanceof Error
       ? error.message
       : typeof error === "object" && error && "message" in error
-        ? String((error as any).message)
+        ? String((error as Record<string, unknown>).message)
         : "An unexpected error occurred.";
 
   return Response.json({ error: message }, { status: 500 });

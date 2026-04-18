@@ -54,6 +54,7 @@ export async function POST(
     );
   }
 
+  const starterText = buildStarterSeedPrompt(parsedBody.data.starter);
   let reservedTurn: Awaited<ReturnType<typeof beginTurn>> | undefined;
   try {
     reservedTurn = await beginTurn(context.supabase, {

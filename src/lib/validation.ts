@@ -6,7 +6,6 @@ const MAX_LABEL = 80;
 const MAX_NAME = 120;
 const MAX_SHORT_TEXT = 500;
 const MAX_MEDIUM_TEXT = 2_000;
-const MAX_LONG_TEXT = 6_000;
 const MAX_STARTERS = 20;
 const MAX_EXAMPLES = 20;
 
