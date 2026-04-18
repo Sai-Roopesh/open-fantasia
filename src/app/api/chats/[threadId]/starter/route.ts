@@ -5,7 +5,7 @@ import {
   loadThreadGenerationRuntime,
   toThreadGenerationErrorResponse,
 } from "@/lib/ai/thread-generation-service";
-import { beginTurn, commitTurn } from "@/lib/data/turns";
+import { beginTurn, commitTurn, failTurn } from "@/lib/data/turns";
 import { insertTimelineEvent } from "@/lib/data/timeline";
 import { createTextMessage } from "@/lib/threads/read-model";
 import { starterSeedRequestSchema } from "@/lib/validation";
@@ -73,33 +73,43 @@ export async function POST(
     },
   });
 
-  const { assistantMessage, result } = await generateAssistantReply({
-    runtime,
-    messages: [...runtime.threadView.modelContextMessages, starterMessage],
-    snapshot: runtime.threadView.headSnapshot,
-  });
+  try {
+    const { assistantMessage, result } = await generateAssistantReply({
+      runtime,
+      messages: [...runtime.threadView.modelContextMessages, starterMessage],
+      snapshot: runtime.threadView.headSnapshot,
+    });
 
-  await commitTurn(context.supabase, {
-    branchId: runtime.threadView.activeBranch.id,
-    turnId: reservedTurn.id,
-    assistantText: getTextFromMessage(assistantMessage),
-    provider: runtime.connection.provider,
-    model: runtime.threadView.thread.model_id,
-    connectionLabel: runtime.connection.label,
-    finishReason: assistantMessage.metadata?.finishReason ?? null,
-    totalTokens: result.usage.totalTokens ?? null,
-    promptTokens: result.usage.inputTokens ?? null,
-    completionTokens: result.usage.outputTokens ?? null,
-  });
+    await commitTurn(context.supabase, {
+      branchId: runtime.threadView.activeBranch.id,
+      turnId: reservedTurn.id,
+      assistantText: getTextFromMessage(assistantMessage),
+      provider: runtime.connection.provider,
+      model: runtime.threadView.thread.model_id,
+      connectionLabel: runtime.connection.label,
+      finishReason: assistantMessage.metadata?.finishReason ?? null,
+      totalTokens: result.usage.totalTokens ?? null,
+      promptTokens: result.usage.inputTokens ?? null,
+      completionTokens: result.usage.outputTokens ?? null,
+    });
 
-  await insertTimelineEvent(context.supabase, {
-    thread_id: threadId,
-    branch_id: runtime.threadView.activeBranch.id,
-    turn_id: reservedTurn.id,
-    title: "Starter opening generated",
-    detail: "Opened the scene from a seeded first-turn prompt.",
-    importance: 2,
-  });
+    await insertTimelineEvent(context.supabase, {
+      thread_id: threadId,
+      branch_id: runtime.threadView.activeBranch.id,
+      turn_id: reservedTurn.id,
+      title: "Starter opening generated",
+      detail: "Opened the scene from a seeded first-turn prompt.",
+      importance: 2,
+    });
+  } catch (error) {
+    await failTurn(context.supabase, {
+      branchId: runtime.threadView.activeBranch.id,
+      turnId: reservedTurn.id,
+      failureCode: "GENERATION_FAILED",
+      failureMessage: error instanceof Error ? error.message : "An unknown error occurred during generation.",
+    });
+    return toThreadGenerationErrorResponse(error);
+  }
 
   return Response.json({ ok: true, turnId: reservedTurn.id });
 }

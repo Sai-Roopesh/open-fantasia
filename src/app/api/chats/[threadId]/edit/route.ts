@@ -7,7 +7,7 @@ import {
   toThreadGenerationErrorResponse,
 } from "@/lib/ai/thread-generation-service";
 import { getSnapshot } from "@/lib/data/snapshots";
-import { beginTurn, commitTurn } from "@/lib/data/turns";
+import { beginTurn, commitTurn, failTurn } from "@/lib/data/turns";
 import { createTextMessage } from "@/lib/threads/read-model";
 import { editTurnRequestSchema } from "@/lib/validation";
 
@@ -68,26 +68,36 @@ export async function POST(
     forceParentOverride: true,
   });
 
-  const { assistantMessage, result } = await generateAssistantReply({
-    runtime,
-    messages: [...previousMessages, rewrittenUserMessage],
-    snapshot: latestTurn.parent_turn_id
-      ? await getSnapshot(context.supabase, context.user.id, latestTurn.parent_turn_id)
-      : null,
-  });
+  try {
+    const { assistantMessage, result } = await generateAssistantReply({
+      runtime,
+      messages: [...previousMessages, rewrittenUserMessage],
+      snapshot: latestTurn.parent_turn_id
+        ? await getSnapshot(context.supabase, context.user.id, latestTurn.parent_turn_id)
+        : null,
+    });
 
-  await commitTurn(context.supabase, {
-    branchId: parsedBody.data.branchId,
-    turnId: reservedTurn.id,
-    assistantText: getTextFromMessage(assistantMessage),
-    provider: runtime.connection.provider,
-    model: runtime.threadView.thread.model_id,
-    connectionLabel: runtime.connection.label,
-    finishReason: assistantMessage.metadata?.finishReason ?? null,
-    totalTokens: result.usage.totalTokens ?? null,
-    promptTokens: result.usage.inputTokens ?? null,
-    completionTokens: result.usage.outputTokens ?? null,
-  });
+    await commitTurn(context.supabase, {
+      branchId: parsedBody.data.branchId,
+      turnId: reservedTurn.id,
+      assistantText: getTextFromMessage(assistantMessage),
+      provider: runtime.connection.provider,
+      model: runtime.threadView.thread.model_id,
+      connectionLabel: runtime.connection.label,
+      finishReason: assistantMessage.metadata?.finishReason ?? null,
+      totalTokens: result.usage.totalTokens ?? null,
+      promptTokens: result.usage.inputTokens ?? null,
+      completionTokens: result.usage.outputTokens ?? null,
+    });
+  } catch (error) {
+    await failTurn(context.supabase, {
+      branchId: parsedBody.data.branchId,
+      turnId: reservedTurn.id,
+      failureCode: "GENERATION_FAILED",
+      failureMessage: error instanceof Error ? error.message : "An unknown error occurred during editing.",
+    });
+    return toThreadGenerationErrorResponse(error);
+  }
 
   return Response.json({ ok: true, turnId: reservedTurn.id });
 }

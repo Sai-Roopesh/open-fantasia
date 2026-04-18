@@ -114,7 +114,13 @@ export async function saveCharacterAction(formData: FormData) {
   } catch (error: unknown) {
     // Re-throw Next.js internal errors (redirect, notFound, etc.)
     if (error && typeof error === "object" && "digest" in error) throw error;
-    const message = error instanceof Error ? error.message : "Unknown error";
+    // Handle PostgrestError or other objects with a message property
+    const message =
+      error instanceof Error
+        ? error.message
+        : (error && typeof error === "object" && "message" in error)
+          ? String(error.message)
+          : "Unknown error";
     console.error("[saveCharacterAction] post-validation error:", message, error);
     redirect(`/app/characters?reason=${encodeURIComponent(message)}`);
   }
