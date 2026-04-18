@@ -75,35 +75,49 @@ export async function saveCharacterAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    redirect("/app/characters?reason=name");
+    const fields = parsed.error.issues.map((i) => `${i.path.join(".")}:${i.message}`).join("; ");
+    console.error("[saveCharacterAction] validation failed:", fields);
+    const reason = parsed.error.issues.some((i) => i.path[0] === "name")
+      ? "name"
+      : encodeURIComponent(fields);
+    redirect(`/app/characters?reason=${reason}`);
   }
 
-  const existing = parsed.data.id
-    ? await getCharacterBundle(supabase, user.id, parsed.data.id)
-    : null;
-  const portraitPlan = planCharacterPortraitState({
-    existing: existing?.character ?? null,
-    input: {
-      name: parsed.data.name,
-      appearance: parsed.data.appearance,
-      core_persona: parsed.data.core_persona,
-    },
-  });
+  let character;
+  try {
+    const existing = parsed.data.id
+      ? await getCharacterBundle(supabase, user.id, parsed.data.id)
+      : null;
+    const portraitPlan = planCharacterPortraitState({
+      existing: existing?.character ?? null,
+      input: {
+        name: parsed.data.name,
+        appearance: parsed.data.appearance,
+        core_persona: parsed.data.core_persona,
+      },
+    });
 
-  const character = await upsertCharacterBundle(supabase, user.id, {
-    ...parsed.data,
-    ...portraitPlan.nextPortrait,
-  });
+    character = await upsertCharacterBundle(supabase, user.id, {
+      ...parsed.data,
+      ...portraitPlan.nextPortrait,
+    });
 
-  await enqueuePortraitJobIfNeeded({
-    shouldEnqueue: portraitPlan.shouldEnqueue,
-    userId: user.id,
-    characterId: character.character.id,
-    prompt: portraitPlan.prompt,
-    seed: portraitPlan.seed,
-    sourceHash: portraitPlan.sourceHash,
-    supabase,
-  });
+    await enqueuePortraitJobIfNeeded({
+      shouldEnqueue: portraitPlan.shouldEnqueue,
+      userId: user.id,
+      characterId: character.character.id,
+      prompt: portraitPlan.prompt,
+      seed: portraitPlan.seed,
+      sourceHash: portraitPlan.sourceHash,
+      supabase,
+    });
+  } catch (error: unknown) {
+    // Re-throw Next.js internal errors (redirect, notFound, etc.)
+    if (error && typeof error === "object" && "digest" in error) throw error;
+    const message = error instanceof Error ? error.message : "Unknown error";
+    console.error("[saveCharacterAction] post-validation error:", message, error);
+    redirect(`/app/characters?reason=${encodeURIComponent(message)}`);
+  }
 
   revalidatePath("/app/characters");
   redirect(`/app/characters?edit=${character.character.id}&saved=1`);

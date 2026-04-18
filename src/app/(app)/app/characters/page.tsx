@@ -170,9 +170,11 @@ export default async function CharactersPage({
           ) : null}
         </div>
 
-        {reason === "name" ? (
+        {reason ? (
           <div className="mt-5 rounded-2xl bg-amber-950/40 px-4 py-3 text-sm text-amber-400">
-            Every character sheet needs a name before it can be saved or reused inside threads.
+            {reason === "name"
+              ? "Every character sheet needs a name before it can be saved or reused inside threads."
+              : reason}
           </div>
         ) : null}
         {params.saved === "1" ? (
