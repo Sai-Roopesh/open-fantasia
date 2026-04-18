@@ -13,6 +13,7 @@ import {
 } from "@/lib/data/characters";
 import { getConnection, listConnections } from "@/lib/data/connections";
 import { enqueueGenerateCharacterPortraitTask } from "@/lib/data/jobs";
+import { scheduleTaskDrain } from "@/lib/jobs/schedule-task-drain";
 import { getDefaultPersona, getPersona } from "@/lib/data/personas";
 import { createThread } from "@/lib/data/threads";
 import {
@@ -43,6 +44,7 @@ async function enqueuePortraitJobIfNeeded(args: {
       sourceHash: args.sourceHash,
     },
   });
+  scheduleTaskDrain("character-portrait-enqueue", 2);
 }
 
 export async function saveCharacterAction(formData: FormData) {

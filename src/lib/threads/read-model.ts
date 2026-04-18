@@ -60,11 +60,6 @@ const pinRecordSchema = z.object({
   updated_at: z.string(),
 });
 
-const reconcileTaskStatusSchema = z.object({
-  status: z.enum(["pending", "running", "succeeded", "failed"]),
-  last_error: z.string().nullable(),
-});
-
 const threadSelect = [
   "id",
   "user_id",
@@ -250,55 +245,25 @@ async function listPins(
   ) as ChatPinRecord[] | undefined;
 }
 
-async function getLatestReconcileStatus(
-  supabase: DatabaseClient,
-  turnId: string | null,
-) {
-  if (!turnId) {
-    return null;
-  }
-
-  const { data, error } = await supabase
-    .from("turn_reconcile_tasks")
-    .select("status, last_error")
-    .eq("turn_id", turnId)
-    .maybeSingle();
-
-  if (error) {
-    throw error;
-  }
-
-  return data ? parseRow(data, reconcileTaskStatusSchema, "Reconcile task") : null;
-}
-
 function resolveSnapshotState(
+  reachableTurns: ChatTurnRecord[],
   latestTurn: ChatTurnRecord | null,
   snapshotsByTurnId: Map<string, ThreadStateSnapshot>,
-  latestReconcileStatus:
-    | {
-        status: "pending" | "running" | "succeeded" | "failed";
-        last_error: string | null;
-      }
-    | null,
 ) {
+  const latestAvailableSnapshot =
+    [...reachableTurns]
+      .reverse()
+      .map((turn) => snapshotsByTurnId.get(turn.id) ?? null)
+      .find((snapshot) => snapshot !== null) ?? null;
   const headSnapshot = latestTurn
-    ? snapshotsByTurnId.get(latestTurn.id) ?? null
-    : null;
-  const taskFailed = latestReconcileStatus?.status === "failed";
+    ? snapshotsByTurnId.get(latestTurn.id) ?? latestAvailableSnapshot
+    : latestAvailableSnapshot;
 
   return {
     headSnapshot,
-    headSnapshotPending: Boolean(
-      latestTurn &&
-        latestTurn.generation_status === "committed" &&
-        !headSnapshot &&
-        !taskFailed,
-    ),
-    headSnapshotFailed: Boolean(latestTurn && !headSnapshot && taskFailed),
-    headSnapshotFailureMessage: taskFailed
-      ? latestReconcileStatus?.last_error ??
-        "Continuity reconciliation failed for the branch head."
-      : null,
+    headSnapshotPending: false,
+    headSnapshotFailed: false,
+    headSnapshotFailureMessage: null,
   };
 }
 
@@ -363,11 +328,10 @@ export async function getThreadGraphView(
   const reachableTurns = buildTurnPath(turns, activeBranch.head_turn_id);
   const reachableTurnIds = new Set(reachableTurns.map((turn) => turn.id));
 
-  const [snapshots, timelineRows, pinRows, latestReconcileStatus] = await Promise.all([
+  const [snapshots, timelineRows, pinRows] = await Promise.all([
     listSnapshots(supabase, userId, thread.id),
     listTimeline(supabase, thread.id, activeBranch.id),
     listPins(supabase, thread.id, activeBranch.id),
-    getLatestReconcileStatus(supabase, activeBranch.head_turn_id),
   ]);
 
   const filteredTimeline = (timelineRows ?? []).filter(
@@ -385,7 +349,7 @@ export async function getThreadGraphView(
     headSnapshotPending,
     headSnapshotFailed,
     headSnapshotFailureMessage,
-  } = resolveSnapshotState(latestTurn, snapshotsByTurnId, latestReconcileStatus);
+  } = resolveSnapshotState(reachableTurns, latestTurn, snapshotsByTurnId);
 
   const canonicalMessages = reachableTurns.flatMap((turn) => toTranscriptMessages(turn));
   const modelContextMessages = reachableTurns.flatMap((turn) =>
