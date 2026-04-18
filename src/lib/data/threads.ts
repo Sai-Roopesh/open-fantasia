@@ -47,10 +47,6 @@ function normalizeThread(value: unknown, label = "Thread") {
   return parseRow(value, threadRecordSchema, label) as ThreadRecord;
 }
 
-function normalizeThreads(value: unknown, label = "Threads") {
-  return parseRows(value, threadRecordSchema, label) as ThreadRecord[];
-}
-
 async function loadActiveBranchMap(
   supabase: DatabaseClient,
   threadIds: string[],

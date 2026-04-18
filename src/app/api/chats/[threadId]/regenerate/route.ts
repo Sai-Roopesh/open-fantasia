@@ -62,20 +62,22 @@ export async function POST(
     },
   });
 
-  const reservedTurn = await beginTurn(context.supabase, {
-    branchId: parsedBody.data.branchId,
-    expectedHeadTurnId: parsedBody.data.expectedHeadTurnId,
-    text: latestTurn.user_input_text,
-    parentTurnIdOverride: latestTurn.parent_turn_id,
-    forceParentOverride: true,
-    hiddenFromTranscript: latestTurn.user_input_hidden,
-    starterSeed: latestTurn.starter_seed,
-  });
-  const previousSnapshot = latestTurn.parent_turn_id
-    ? await getSnapshot(context.supabase, context.user.id, latestTurn.parent_turn_id)
-    : null;
-
+  let reservedTurn: Awaited<ReturnType<typeof beginTurn>> | undefined;
   try {
+    reservedTurn = await beginTurn(context.supabase, {
+      branchId: parsedBody.data.branchId,
+      expectedHeadTurnId: parsedBody.data.expectedHeadTurnId,
+      text: latestTurn.user_input_text,
+      parentTurnIdOverride: latestTurn.parent_turn_id,
+      forceParentOverride: true,
+      hiddenFromTranscript: latestTurn.user_input_hidden,
+      starterSeed: latestTurn.starter_seed,
+    });
+
+    const previousSnapshot = latestTurn.parent_turn_id
+      ? await getSnapshot(context.supabase, context.user.id, latestTurn.parent_turn_id)
+      : null;
+
     const { assistantMessage, result } = await generateAssistantReply({
       runtime,
       messages: [...previousMessages, regeneratedUserMessage],
@@ -94,15 +96,18 @@ export async function POST(
       promptTokens: result.usage.inputTokens ?? null,
       completionTokens: result.usage.outputTokens ?? null,
     });
+
+    return Response.json({ ok: true, turnId: reservedTurn.id });
   } catch (error) {
-    await failTurn(context.supabase, {
-      branchId: parsedBody.data.branchId,
-      turnId: reservedTurn.id,
-      failureCode: "GENERATION_FAILED",
-      failureMessage: error instanceof Error ? error.message : "An unknown error occurred during regeneration.",
-    });
+    if (reservedTurn) {
+      await failTurn(context.supabase, {
+        branchId: parsedBody.data.branchId,
+        turnId: reservedTurn.id,
+        failureCode: "GENERATION_FAILED",
+        failureMessage:
+          error instanceof Error ? error.message : "An unknown error occurred during regeneration.",
+      });
+    }
     return toThreadGenerationErrorResponse(error);
   }
-
-  return Response.json({ ok: true, turnId: reservedTurn.id });
 }
