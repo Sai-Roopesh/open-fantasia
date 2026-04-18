@@ -3,6 +3,7 @@ import type { CharacterBundle } from "@/lib/data/characters";
 import { getConnection } from "@/lib/data/connections";
 import { getPersona } from "@/lib/data/personas";
 import type { DatabaseClient } from "@/lib/data/shared";
+import { materializeSnapshotForTurn } from "@/lib/ai/continuity";
 import { createLanguageModel } from "@/lib/ai/provider-factory";
 import { buildRoleplaySystemPrompt } from "@/lib/ai/roleplay-prompt";
 import { resolveThreadGenerationSettings } from "@/lib/ai/generation-settings";
@@ -70,6 +71,22 @@ export async function loadThreadGenerationRuntime(args: {
     throw new ThreadGenerationServiceError(400, "Missing thread context.");
   }
 
+  const latestTurn = threadView.latestTurn;
+  if (latestTurn && latestTurn.generation_status === "committed" && !threadView.headSnapshot) {
+    threadView.headSnapshot = await materializeSnapshotForTurn({
+      supabase: args.supabase,
+      userId: args.userId,
+      threadId: args.threadId,
+      turnId: latestTurn.id,
+      connection,
+      modelId: threadView.thread.model_id,
+      character: threadView.characterBundle,
+    });
+    threadView.headSnapshotPending = false;
+    threadView.headSnapshotFailed = false;
+    threadView.headSnapshotFailureMessage = null;
+  }
+
   return {
     supabase: args.supabase,
     userId: args.userId,
@@ -84,10 +101,6 @@ export async function loadThreadGenerationRuntime(args: {
   } satisfies ThreadGenerationRuntime;
 }
 
-function buildPendingContinuityMessage() {
-  return "The latest continuity snapshot is still being written. Wait for reconciliation to finish before sending the next turn.";
-}
-
 export function assertThreadReadyForNewTurn(threadView: ThreadGraphView) {
   if (threadView.activeBranch.generation_locked) {
     throw new ThreadGenerationServiceError(
@@ -96,17 +109,7 @@ export function assertThreadReadyForNewTurn(threadView: ThreadGraphView) {
     );
   }
 
-  if (!threadView.latestTurn || threadView.headSnapshot) {
-    return;
-  }
-
-  throw new ThreadGenerationServiceError(
-    409,
-    threadView.headSnapshotFailed
-      ? threadView.headSnapshotFailureMessage ??
-          "The latest continuity reconciliation failed. Repair the latest turn before continuing."
-      : buildPendingContinuityMessage(),
-  );
+  return;
 }
 
 export function assertThreadReadyForLatestRewrite(threadView: ThreadGraphView) {
@@ -117,14 +120,7 @@ export function assertThreadReadyForLatestRewrite(threadView: ThreadGraphView) {
     );
   }
 
-  if (!threadView.headSnapshotPending) {
-    return;
-  }
-
-  throw new ThreadGenerationServiceError(
-    409,
-    buildPendingContinuityMessage(),
-  );
+  return;
 }
 
 export function toThreadGenerationErrorResponse(error: unknown) {

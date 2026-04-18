@@ -15,7 +15,7 @@ import {
   failTurn,
   markTurnStreaming,
 } from "@/lib/data/turns";
-import { scheduleTaskDrain } from "@/lib/jobs/schedule-task-drain";
+import { materializeSnapshotForTurn } from "@/lib/ai/continuity";
 import { createTextMessage } from "@/lib/threads/read-model";
 import { chatTurnRequestSchema } from "@/lib/validation";
 
@@ -153,6 +153,15 @@ export async function POST(request: Request) {
           promptTokens: event.totalUsage.inputTokens ?? null,
           completionTokens: event.totalUsage.outputTokens ?? null,
         });
+        await materializeSnapshotForTurn({
+          supabase: context.supabase,
+          userId: context.user.id,
+          threadId,
+          turnId: reservedTurn.id,
+          connection: runtime.connection,
+          modelId: runtime.threadView.thread.model_id,
+          character: runtime.character,
+        });
       } catch (error) {
         await failTurn(context.supabase, {
           branchId,
@@ -165,8 +174,6 @@ export async function POST(request: Request) {
       }
     },
   });
-
-  scheduleTaskDrain("chat-turn-commit");
 
   return result.toUIMessageStreamResponse({
     generateMessageId: () => `${reservedTurn.id}:assistant`,

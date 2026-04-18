@@ -5,9 +5,9 @@ import {
   loadThreadGenerationRuntime,
   toThreadGenerationErrorResponse,
 } from "@/lib/ai/thread-generation-service";
+import { materializeSnapshotForTurn } from "@/lib/ai/continuity";
 import { beginTurn, commitTurn, failTurn } from "@/lib/data/turns";
 import { insertTimelineEvent } from "@/lib/data/timeline";
-import { scheduleTaskDrain } from "@/lib/jobs/schedule-task-drain";
 import { createTextMessage } from "@/lib/threads/read-model";
 import { starterSeedRequestSchema } from "@/lib/validation";
 
@@ -104,8 +104,15 @@ export async function POST(
       detail: "Opened the scene from a seeded first-turn prompt.",
       importance: 2,
     });
-
-    scheduleTaskDrain("starter-turn-commit");
+    await materializeSnapshotForTurn({
+      supabase: context.supabase,
+      userId: context.user.id,
+      threadId,
+      turnId: reservedTurn.id,
+      connection: runtime.connection,
+      modelId: runtime.threadView.thread.model_id,
+      character: runtime.character,
+    });
 
     return Response.json({ ok: true, turnId: reservedTurn.id });
   } catch (error) {
