@@ -43,7 +43,7 @@ export function useChatActions(args: {
     pendingAction,
     surfaceError,
     setSurfaceError,
-    regenerate: (turnId: string) =>
+    regenerate: () =>
       runAction("regenerate", () => {
         if (!args.headTurnId) {
           throw new Error("There is no committed turn to regenerate.");
