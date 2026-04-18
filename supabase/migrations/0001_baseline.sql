@@ -477,12 +477,21 @@ declare
   target_thread public.chat_threads;
   reserved_turn public.chat_turns;
 begin
-  select branches.*, threads.*
-  into target_branch, target_thread
-  from public.chat_branches branches
-  join public.chat_threads threads on threads.id = branches.thread_id
-  where branches.id = p_branch_id
-    and threads.user_id = auth.uid();
+  select *
+  into target_branch
+  from public.chat_branches
+  where id = p_branch_id;
+
+  if not found then
+    raise exception 'Branch not found or not owned by current user.'
+      using errcode = 'P0001';
+  end if;
+
+  select *
+  into target_thread
+  from public.chat_threads
+  where id = target_branch.thread_id
+    and user_id = auth.uid();
 
   if not found then
     raise exception 'Branch not found or not owned by current user.'
@@ -560,12 +569,21 @@ declare
   committed_turn public.chat_turns;
   target_thread public.chat_threads;
 begin
-  select branches.*, threads.*
-  into target_branch, target_thread
-  from public.chat_branches branches
-  join public.chat_threads threads on threads.id = branches.thread_id
-  where branches.id = p_branch_id
-    and threads.user_id = auth.uid();
+  select *
+  into target_branch
+  from public.chat_branches
+  where id = p_branch_id;
+
+  if not found then
+    raise exception 'Branch not found or not owned by current user.'
+      using errcode = 'P0001';
+  end if;
+
+  select *
+  into target_thread
+  from public.chat_threads
+  where id = target_branch.thread_id
+    and user_id = auth.uid();
 
   if not found then
     raise exception 'Branch not found or not owned by current user.'
