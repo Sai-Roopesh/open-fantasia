@@ -132,7 +132,16 @@ export function toThreadGenerationErrorResponse(error: unknown) {
     return Response.json({ error: error.message }, { status: error.status });
   }
 
-  throw error;
+  console.error("[toThreadGenerationErrorResponse] Unhandled error:", error);
+
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "object" && error && "message" in error
+        ? String((error as any).message)
+        : "An unexpected error occurred.";
+
+  return Response.json({ error: message }, { status: 500 });
 }
 
 export async function generateAssistantReply(args: {

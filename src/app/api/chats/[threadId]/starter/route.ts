@@ -54,26 +54,27 @@ export async function POST(
     );
   }
 
-  const starterText = buildStarterSeedPrompt(parsedBody.data.starter);
-  const reservedTurn = await beginTurn(context.supabase, {
-    branchId: runtime.threadView.activeBranch.id,
-    expectedHeadTurnId: runtime.threadView.activeBranch.head_turn_id,
-    text: starterText,
-    hiddenFromTranscript: true,
-    starterSeed: true,
-  });
-  const starterMessage = createTextMessage({
-    role: "user",
-    text: starterText,
-    metadata: {
+  let reservedTurn: Awaited<ReturnType<typeof beginTurn>> | undefined;
+  try {
+    reservedTurn = await beginTurn(context.supabase, {
+      branchId: runtime.threadView.activeBranch.id,
+      expectedHeadTurnId: runtime.threadView.activeBranch.head_turn_id,
+      text: starterText,
       hiddenFromTranscript: true,
       starterSeed: true,
-      turnId: reservedTurn.id,
-      branchId: runtime.threadView.activeBranch.id,
-    },
-  });
+    });
 
-  try {
+    const starterMessage = createTextMessage({
+      role: "user",
+      text: starterText,
+      metadata: {
+        hiddenFromTranscript: true,
+        starterSeed: true,
+        turnId: reservedTurn.id,
+        branchId: runtime.threadView.activeBranch.id,
+      },
+    });
+
     const { assistantMessage, result } = await generateAssistantReply({
       runtime,
       messages: [...runtime.threadView.modelContextMessages, starterMessage],
@@ -101,15 +102,18 @@ export async function POST(
       detail: "Opened the scene from a seeded first-turn prompt.",
       importance: 2,
     });
+
+    return Response.json({ ok: true, turnId: reservedTurn.id });
   } catch (error) {
-    await failTurn(context.supabase, {
-      branchId: runtime.threadView.activeBranch.id,
-      turnId: reservedTurn.id,
-      failureCode: "GENERATION_FAILED",
-      failureMessage: error instanceof Error ? error.message : "An unknown error occurred during generation.",
-    });
+    if (reservedTurn) {
+      await failTurn(context.supabase, {
+        branchId: runtime.threadView.activeBranch.id,
+        turnId: reservedTurn.id,
+        failureCode: "GENERATION_FAILED",
+        failureMessage:
+          error instanceof Error ? error.message : "An unknown error occurred during generation.",
+      });
+    }
     return toThreadGenerationErrorResponse(error);
   }
-
-  return Response.json({ ok: true, turnId: reservedTurn.id });
 }

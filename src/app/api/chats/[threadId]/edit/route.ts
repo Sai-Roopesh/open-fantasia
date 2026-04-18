@@ -60,15 +60,16 @@ export async function POST(
     },
   });
 
-  const reservedTurn = await beginTurn(context.supabase, {
-    branchId: parsedBody.data.branchId,
-    expectedHeadTurnId: parsedBody.data.expectedHeadTurnId,
-    text: parsedBody.data.text,
-    parentTurnIdOverride: latestTurn.parent_turn_id,
-    forceParentOverride: true,
-  });
-
+  let reservedTurn: Awaited<ReturnType<typeof beginTurn>> | undefined;
   try {
+    reservedTurn = await beginTurn(context.supabase, {
+      branchId: parsedBody.data.branchId,
+      expectedHeadTurnId: parsedBody.data.expectedHeadTurnId,
+      text: parsedBody.data.text,
+      parentTurnIdOverride: latestTurn.parent_turn_id,
+      forceParentOverride: true,
+    });
+
     const { assistantMessage, result } = await generateAssistantReply({
       runtime,
       messages: [...previousMessages, rewrittenUserMessage],
@@ -89,15 +90,18 @@ export async function POST(
       promptTokens: result.usage.inputTokens ?? null,
       completionTokens: result.usage.outputTokens ?? null,
     });
+
+    return Response.json({ ok: true, turnId: reservedTurn.id });
   } catch (error) {
-    await failTurn(context.supabase, {
-      branchId: parsedBody.data.branchId,
-      turnId: reservedTurn.id,
-      failureCode: "GENERATION_FAILED",
-      failureMessage: error instanceof Error ? error.message : "An unknown error occurred during editing.",
-    });
+    if (reservedTurn) {
+      await failTurn(context.supabase, {
+        branchId: parsedBody.data.branchId,
+        turnId: reservedTurn.id,
+        failureCode: "GENERATION_FAILED",
+        failureMessage:
+          error instanceof Error ? error.message : "An unknown error occurred during editing.",
+      });
+    }
     return toThreadGenerationErrorResponse(error);
   }
-
-  return Response.json({ ok: true, turnId: reservedTurn.id });
 }
