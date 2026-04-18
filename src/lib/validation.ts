@@ -7,8 +7,8 @@ const MAX_NAME = 120;
 const MAX_SHORT_TEXT = 500;
 const MAX_MEDIUM_TEXT = 2_000;
 const MAX_LONG_TEXT = 6_000;
-const MAX_STARTERS = 8;
-const MAX_EXAMPLES = 8;
+const MAX_STARTERS = 20;
+const MAX_EXAMPLES = 20;
 
 export const chatTurnRequestSchema = z.object({
   branchId: z.string().uuid(),
@@ -67,31 +67,31 @@ export const loginRequestSchema = z.object({
 export const savePersonaCommandSchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().trim().min(1).max(MAX_NAME),
-  identity: z.string().max(MAX_MEDIUM_TEXT).default(""),
-  backstory: z.string().max(MAX_LONG_TEXT).default(""),
-  voice_style: z.string().max(MAX_MEDIUM_TEXT).default(""),
-  goals: z.string().max(MAX_MEDIUM_TEXT).default(""),
-  boundaries: z.string().max(MAX_MEDIUM_TEXT).default(""),
-  private_notes: z.string().max(MAX_LONG_TEXT).default(""),
+  identity: z.string().default(""),
+  backstory: z.string().default(""),
+  voice_style: z.string().default(""),
+  goals: z.string().default(""),
+  boundaries: z.string().default(""),
+  private_notes: z.string().default(""),
   is_default: z.boolean().default(false),
 });
 
-const starterSchema = z.string().trim().min(1).max(MAX_SHORT_TEXT);
+const starterSchema = z.string().trim().min(1);
 const exampleSchema = z.object({
-  user_line: z.string().max(MAX_MEDIUM_TEXT).default(""),
-  character_line: z.string().max(MAX_MEDIUM_TEXT).default(""),
+  user_line: z.string().default(""),
+  character_line: z.string().default(""),
 });
 
 export const saveCharacterCommandSchema = z.object({
   id: z.string().uuid().optional(),
   name: z.string().trim().min(1).max(MAX_NAME),
-  story: z.string().max(MAX_LONG_TEXT).default(""),
-  core_persona: z.string().max(MAX_LONG_TEXT).default(""),
-  greeting: z.string().max(MAX_MEDIUM_TEXT).default(""),
-  appearance: z.string().max(MAX_MEDIUM_TEXT).default(""),
-  style_rules: z.string().max(MAX_LONG_TEXT).default(""),
-  definition: z.string().max(MAX_LONG_TEXT).default(""),
-  negative_guidance: z.string().max(MAX_LONG_TEXT).default(""),
+  story: z.string().default(""),
+  core_persona: z.string().default(""),
+  greeting: z.string().default(""),
+  appearance: z.string().default(""),
+  style_rules: z.string().default(""),
+  definition: z.string().default(""),
+  negative_guidance: z.string().default(""),
   temperature: z.coerce.number().min(0).max(2).default(0.92),
   top_p: z.coerce.number().gt(0).lte(1).default(0.94),
   max_output_tokens: z.coerce.number().int().positive().max(4_096).default(750),
