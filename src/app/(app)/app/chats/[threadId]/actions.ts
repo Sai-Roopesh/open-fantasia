@@ -13,6 +13,7 @@ import {
   updateThreadPersona,
 } from "@/lib/data/threads";
 import { insertTimelineEvent } from "@/lib/data/timeline";
+import { getThreadGraphView } from "@/lib/threads/read-model";
 import {
   switchThreadBranchSchema,
   switchThreadModelSchema,
@@ -27,8 +28,8 @@ export async function switchThreadModelAction(input: {
 }) {
   const parsed = switchThreadModelSchema.parse(input);
   const { supabase, user } = await requireAllowedUser();
-  const thread = await getThread(supabase, user.id, parsed.threadId);
-  if (!thread) {
+  const view = await getThreadGraphView(supabase, user.id, parsed.threadId);
+  if (!view) {
     throw new Error("Thread not found.");
   }
 
@@ -47,9 +48,8 @@ export async function switchThreadModelAction(input: {
   await updateThreadModel(supabase, user.id, parsed);
   await insertTimelineEvent(supabase, {
     thread_id: parsed.threadId,
-    branch_id: thread.active_branch_id,
-    checkpoint_id: null,
-    source_message_id: null,
+    branch_id: view.activeBranch.id,
+    turn_id: view.activeBranch.head_turn_id ?? "",
     title: "Model switched",
     detail: `Switched to ${connection.label} using ${parsed.modelId}.`,
     importance: 2,
@@ -65,8 +65,8 @@ export async function switchThreadPersonaAction(input: {
 }) {
   const parsed = switchThreadPersonaSchema.parse(input);
   const { supabase, user } = await requireAllowedUser();
-  const thread = await getThread(supabase, user.id, parsed.threadId);
-  if (!thread) {
+  const view = await getThreadGraphView(supabase, user.id, parsed.threadId);
+  if (!view) {
     throw new Error("Thread not found.");
   }
 
@@ -78,9 +78,8 @@ export async function switchThreadPersonaAction(input: {
   await updateThreadPersona(supabase, user.id, parsed);
   await insertTimelineEvent(supabase, {
     thread_id: parsed.threadId,
-    branch_id: thread.active_branch_id,
-    checkpoint_id: null,
-    source_message_id: null,
+    branch_id: view.activeBranch.id,
+    turn_id: view.activeBranch.head_turn_id ?? "",
     title: "Persona switched",
     detail: `Switched the active persona to ${persona.name}.`,
     importance: 2,
@@ -101,15 +100,6 @@ export async function switchThreadBranchAction(input: {
   }
 
   await switchActiveBranch(supabase, user.id, parsed);
-  await insertTimelineEvent(supabase, {
-    thread_id: parsed.threadId,
-    branch_id: parsed.branchId,
-    checkpoint_id: null,
-    source_message_id: null,
-    title: "Branch switched",
-    detail: "Moved the active thread view to a different branch.",
-    importance: 2,
-  });
 
   revalidatePath(`/app/chats/${parsed.threadId}`);
 }

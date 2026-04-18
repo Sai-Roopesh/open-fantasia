@@ -11,11 +11,10 @@ import {
   updateCharacterPortrait,
   upsertCharacterBundle,
 } from "@/lib/data/characters";
-import { listConnections } from "@/lib/data/connections";
-import { enqueueGenerateCharacterPortraitJob } from "@/lib/data/jobs";
+import { getConnection, listConnections } from "@/lib/data/connections";
+import { enqueueGenerateCharacterPortraitTask } from "@/lib/data/jobs";
 import { getDefaultPersona, getPersona } from "@/lib/data/personas";
 import { createThread } from "@/lib/data/threads";
-import { scheduleBackgroundWorker } from "@/lib/jobs/kick-worker";
 import {
   characterDeleteCommandSchema,
   saveCharacterCommandSchema,
@@ -35,9 +34,8 @@ async function enqueuePortraitJobIfNeeded(args: {
     return;
   }
 
-  await enqueueGenerateCharacterPortraitJob(args.supabase, {
+  await enqueueGenerateCharacterPortraitTask(args.supabase, {
     userId: args.userId,
-    characterId: args.characterId,
     details: {
       characterId: args.characterId,
       prompt: args.prompt,
@@ -45,8 +43,6 @@ async function enqueuePortraitJobIfNeeded(args: {
       sourceHash: args.sourceHash,
     },
   });
-
-  scheduleBackgroundWorker(1);
 }
 
 export async function saveCharacterAction(formData: FormData) {
@@ -165,16 +161,25 @@ export async function startThreadAction(formData: FormData) {
     redirect("/app/characters?reason=character");
   }
 
-  const connections = await listConnections(supabase, user.id);
   const [persona, character] = await Promise.all([
     parsed.data.personaId
       ? getPersona(supabase, user.id, parsed.data.personaId)
       : getDefaultPersona(supabase, user.id),
     getCharacter(supabase, user.id, parsed.data.characterId),
   ]);
-  const usableConnection = connections.find(
-    (connection) => connection.enabled && connection.model_cache.length > 0,
-  );
+  const connections = await listConnections(supabase, user.id);
+  const requestedConnection = parsed.data.connectionId
+    ? await getConnection(supabase, user.id, parsed.data.connectionId)
+    : null;
+  const usableConnection =
+    requestedConnection ??
+    connections.find(
+      (connection) =>
+        connection.enabled &&
+        Boolean(connection.default_model_id) &&
+        connection.model_cache.some((model) => model.id === connection.default_model_id),
+    ) ??
+    null;
 
   if (!character) {
     redirect("/app/characters?reason=character");
@@ -188,10 +193,20 @@ export async function startThreadAction(formData: FormData) {
     redirect("/app/settings/providers?reason=connection");
   }
 
+  const modelId =
+    parsed.data.modelId ??
+    usableConnection.default_model_id;
+  if (
+    !modelId ||
+    !usableConnection.model_cache.some((model) => model.id === modelId)
+  ) {
+    redirect("/app/settings/providers?reason=model");
+  }
+
   const thread = await createThread(supabase, user.id, {
     characterId: parsed.data.characterId,
     connection: usableConnection,
-    modelId: usableConnection.model_cache[0].id,
+    modelId,
     personaId: persona.id,
     title: `Scene with ${character.name}`,
   });

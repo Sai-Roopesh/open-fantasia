@@ -23,11 +23,10 @@ export async function POST(
     return Response.json({ error: "Thread not found." }, { status: 404 });
   }
 
-  // Validate sourceMessageId is reachable on the active branch path
-  const sourceMessageId = parsedBody.data.sourceMessageId ?? null;
-  if (sourceMessageId && !threadView.controlsByMessageId[sourceMessageId]) {
+  const sourceTurn = threadView.turns.find((turn) => turn.id === parsedBody.data.turnId);
+  if (!sourceTurn) {
     return Response.json(
-      { error: "Source message is not reachable on the active branch." },
+      { error: "Pins can only be created from a visible turn on the active path." },
       { status: 400 },
     );
   }
@@ -35,7 +34,7 @@ export async function POST(
   const pin = await createPin(context.supabase, context.user.id, {
     thread_id: threadId,
     branch_id: threadView.activeBranch.id,
-    source_message_id: sourceMessageId,
+    turn_id: sourceTurn.id,
     body: parsedBody.data.body,
     status: "active",
   });

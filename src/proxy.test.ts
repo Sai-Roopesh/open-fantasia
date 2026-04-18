@@ -3,12 +3,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const { createServerClientMock, getUserMock } = vi.hoisted(() => {
   const getUser = vi.fn();
+  const profileRow = { id: "uid", email: "allowed@example.com", is_allowed: true };
+  const profileQueryChain = {
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    maybeSingle: vi.fn().mockResolvedValue({ data: profileRow, error: null }),
+    insert: vi.fn().mockReturnThis(),
+    update: vi.fn().mockReturnThis(),
+    single: vi.fn().mockResolvedValue({ data: profileRow, error: null }),
+  };
   return {
     getUserMock: getUser,
     createServerClientMock: vi.fn(() => ({
       auth: {
         getUser,
       },
+      from: vi.fn(() => profileQueryChain),
     })),
   };
 });
@@ -58,6 +68,7 @@ describe("proxy", () => {
     getUserMock.mockResolvedValue({
       data: {
         user: {
+          id: "uid",
           email: "allowed@example.com",
         },
       },

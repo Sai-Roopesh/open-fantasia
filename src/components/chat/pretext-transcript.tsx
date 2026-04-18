@@ -101,12 +101,12 @@ export function PretextTranscript({
   pendingAction: string | null;
   focusMode?: boolean;
   rewriteBlocked?: boolean;
-  onRegenerate: (checkpointId: string) => Promise<void>;
+  onRegenerate: (turnId: string) => Promise<void>;
   onOpenEditMessage: (messageId: string, currentText: string) => void;
-  onOpenBranchFromCheckpoint: (checkpointId: string) => void;
-  onRewindCheckpoint: (checkpointId: string) => Promise<void>;
+  onOpenBranchFromCheckpoint: (turnId: string) => void;
+  onRewindCheckpoint: (turnId: string) => Promise<void>;
   onOpenPinMessage: (messageId: string, currentText: string) => void;
-  onRateCheckpoint: (checkpointId: string, rating: number) => Promise<void>;
+  onRateCheckpoint: (turnId: string, rating: number) => Promise<void>;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [followOutput, setFollowOutput] = useState(true);
@@ -222,7 +222,7 @@ export function PretextTranscript({
                       {controls.canRewind ? (
                         <ActionButton
                           disabled={pendingAction !== null}
-                          onClick={() => void onRewindCheckpoint(controls.checkpointId)}
+                          onClick={() => void onRewindCheckpoint(controls.turnId)}
                           icon={RotateCcw}
                         >
                           Rewind here
@@ -231,7 +231,7 @@ export function PretextTranscript({
                       {controls.canRegenerate ? (
                         <ActionButton
                           disabled={pendingAction !== null || rewriteBlocked}
-                          onClick={() => onRegenerate(controls.checkpointId)}
+                          onClick={() => onRegenerate(controls.turnId)}
                           icon={RefreshCcw}
                         >
                           Regenerate
@@ -240,7 +240,7 @@ export function PretextTranscript({
                       {controls.canBranch ? (
                         <ActionButton
                           disabled={pendingAction !== null}
-                          onClick={() => onOpenBranchFromCheckpoint(controls.checkpointId)}
+                          onClick={() => onOpenBranchFromCheckpoint(controls.turnId)}
                           icon={GitBranchPlus}
                         >
                           Branch from here
@@ -267,10 +267,10 @@ export function PretextTranscript({
                         <span className="uppercase tracking-[0.18em]">Rate this turn</span>
                         {[1, 2, 3, 4].map((rating) => (
                           <button
-                            key={`${controls.checkpointId}-rating-${rating}`}
+                            key={`${controls.turnId}-rating-${rating}`}
                             type="button"
                             disabled={pendingAction !== null}
-                            onClick={() => onRateCheckpoint(controls.checkpointId, rating)}
+                            onClick={() => onRateCheckpoint(controls.turnId, rating)}
                             className={cn(
                               "rounded-full border border-border bg-white/8 px-3 py-1.5 font-semibold text-foreground transition disabled:opacity-60",
                               controls.feedbackRating === rating

@@ -52,34 +52,36 @@ describe("chat-actions", () => {
     });
   });
 
-  describe("regenerateCheckpoint", () => {
+  describe("regenerateTurn", () => {
     it("calls correctly and throws on fail", async () => {
       mockFetchResponse(false, { error: "Regenerate failed." });
-      await expect(actions.regenerateCheckpoint("t1", "c1")).rejects.toThrow(
-        "Regenerate failed.",
-      );
+      await expect(
+        actions.regenerateTurn("t1", "b1", "head1"),
+      ).rejects.toThrow("Regenerate failed.");
       expect(global.fetch).toHaveBeenCalledWith("/api/chats/t1/regenerate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ checkpointId: "c1" }),
+        body: JSON.stringify({ branchId: "b1", expectedHeadTurnId: "head1" }),
       });
     });
 
     it("resolves on success", async () => {
       mockFetchResponse(true);
-      await expect(actions.regenerateCheckpoint("t1", "c1")).resolves.toBeUndefined();
+      await expect(
+        actions.regenerateTurn("t1", "b1", "head1"),
+      ).resolves.toBeUndefined();
     });
   });
 
   describe("createBranch", () => {
     it("calls correctly with defaulting makeActive", async () => {
       mockFetchResponse(true);
-      await actions.createBranch("t1", { checkpointId: "c1", name: "bname" });
+      await actions.createBranch("t1", { sourceTurnId: "turn1", name: "bname" });
       expect(global.fetch).toHaveBeenCalledWith("/api/chats/t1/branches", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          checkpointId: "c1",
+          sourceTurnId: "turn1",
           name: "bname",
           makeActive: true,
         }),

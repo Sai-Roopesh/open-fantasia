@@ -1,42 +1,80 @@
+import { parseRow, parseRows, type DatabaseClient } from "@/lib/data/shared";
 import type { ChatBranchRecord } from "@/lib/types";
-import { castRow, type DatabaseClient } from "@/lib/data/shared";
+import { branchRecordSchema } from "@/lib/validation";
 
 const branchSelect = [
   "id",
   "thread_id",
   "name",
   "parent_branch_id",
-  "fork_checkpoint_id",
-  "head_checkpoint_id",
+  "fork_turn_id",
+  "head_turn_id",
+  "is_active",
+  "generation_locked",
+  "locked_by_turn_id",
+  "locked_at",
   "created_by",
   "created_at",
   "updated_at",
 ].join(", ");
 
-export async function createBranch(
+export async function listBranches(
   supabase: DatabaseClient,
-  args: {
-    threadId: string;
-    name: string;
-    createdBy: string;
-    parentBranchId: string | null;
-    forkCheckpointId: string | null;
-    headCheckpointId: string | null;
-  },
+  threadId: string,
 ) {
   const { data, error } = await supabase
     .from("chat_branches")
-    .insert({
-      thread_id: args.threadId,
-      name: args.name,
-      created_by: args.createdBy,
-      parent_branch_id: args.parentBranchId,
-      fork_checkpoint_id: args.forkCheckpointId,
-      head_checkpoint_id: args.headCheckpointId,
-    })
     .select(branchSelect)
-    .single();
+    .eq("thread_id", threadId)
+    .order("created_at", { ascending: true });
 
-  if (error) throw error;
-  return castRow<ChatBranchRecord>(data);
+  if (error) {
+    throw error;
+  }
+
+  return parseRows(data ?? [], branchRecordSchema, "Branches") as ChatBranchRecord[];
+}
+
+export async function createBranchFromTurn(
+  supabase: DatabaseClient,
+  args: {
+    sourceBranchId: string;
+    sourceTurnId: string;
+    name: string;
+    makeActive?: boolean;
+  },
+) {
+  const { data, error } = await supabase.rpc("create_branch_from_turn", {
+    p_source_branch_id: args.sourceBranchId,
+    p_source_turn_id: args.sourceTurnId,
+    p_name: args.name,
+    p_make_active: args.makeActive ?? true,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return parseRow(data, branchRecordSchema, "Created branch") as ChatBranchRecord;
+}
+
+export async function rewindBranchToTurn(
+  supabase: DatabaseClient,
+  args: {
+    branchId: string;
+    targetTurnId: string;
+    expectedHeadTurnId?: string | null;
+  },
+) {
+  const { data, error } = await supabase.rpc("rewind_branch_to_turn", {
+    p_branch_id: args.branchId,
+    p_target_turn_id: args.targetTurnId,
+    p_expected_head_turn_id: args.expectedHeadTurnId ?? null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return parseRow(data, branchRecordSchema, "Rewound branch") as ChatBranchRecord;
 }

@@ -1,157 +1,198 @@
+import { parseRow, parseRows, type DatabaseClient } from "@/lib/data/shared";
 import type {
-  BackgroundJobRecord,
-  GenerateCharacterPortraitJobPayload,
-  ReconcileCheckpointJobPayload,
+  CharacterPortraitPayload,
+  CharacterPortraitTaskRecord,
+  TurnReconcileTaskRecord,
 } from "@/lib/types";
-import type { Json } from "@/lib/supabase/database.types";
 import {
-  castRecord,
-  castRows,
-  type DatabaseClient,
-} from "@/lib/data/shared";
-import { backgroundJobRecordSchema } from "@/lib/validation";
+  portraitTaskRecordSchema,
+  reconcileTaskRecordSchema,
+} from "@/lib/validation";
 
-const jobSelect = [
-  "id",
-  "type",
-  "status",
-  "user_id",
-  "thread_id",
-  "branch_id",
-  "checkpoint_id",
-  "payload",
-  "attempts",
-  "max_attempts",
-  "available_at",
-  "locked_at",
-  "last_error",
-  "created_at",
-  "updated_at",
-].join(", ");
-
-export function normalizeJob(row: Record<string, unknown>) {
-  return backgroundJobRecordSchema.parse(row) as BackgroundJobRecord;
+function withExponentialBackoff(attempts: number) {
+  const exponent = Math.max(0, Math.min(attempts, 6) - 1);
+  const baseDelayMs = 30_000 * 2 ** exponent;
+  const jitterMs = Math.floor(baseDelayMs * Math.random() * 0.25);
+  return new Date(Date.now() + baseDelayMs + jitterMs).toISOString();
 }
 
-export async function enqueueReconcileCheckpointJob(
+export function normalizeReconcileTask(value: unknown, label = "Reconcile task") {
+  return parseRow(
+    value,
+    reconcileTaskRecordSchema,
+    label,
+  ) as TurnReconcileTaskRecord;
+}
+
+export function normalizePortraitTask(value: unknown, label = "Portrait task") {
+  return parseRow(
+    value,
+    portraitTaskRecordSchema,
+    label,
+  ) as CharacterPortraitTaskRecord;
+}
+
+export async function enqueueGenerateCharacterPortraitTask(
   supabase: DatabaseClient,
-  payload: {
+  args: {
     userId: string;
-    threadId: string;
-    branchId: string;
-    checkpointId: string;
-    details: ReconcileCheckpointJobPayload;
+    details: CharacterPortraitPayload;
   },
 ) {
   const { data, error } = await supabase
-    .from("background_jobs")
+    .from("character_portrait_tasks")
     .insert({
-      type: "reconcile_checkpoint",
-      user_id: payload.userId,
-      thread_id: payload.threadId,
-      branch_id: payload.branchId,
-      checkpoint_id: payload.checkpointId,
-      payload: payload.details as Json,
+      character_id: args.details.characterId,
+      user_id: args.userId,
+      prompt: args.details.prompt,
+      seed: args.details.seed,
+      source_hash: args.details.sourceHash,
+      status: "pending",
+      attempts: 0,
+      max_attempts: 8,
+      available_at: new Date().toISOString(),
     })
-    .select(jobSelect)
+    .select("*")
     .single();
 
-  if (error) throw error;
-  return normalizeJob(castRecord(data, "Background job"));
+  if (error) {
+    throw error;
+  }
+
+  return normalizePortraitTask(data, "Queued portrait task");
 }
 
-export async function enqueueGenerateCharacterPortraitJob(
-  supabase: DatabaseClient,
-  payload: {
-    userId: string;
-    characterId: string;
-    details: GenerateCharacterPortraitJobPayload;
-  },
-) {
-  const { data, error } = await supabase
-    .from("background_jobs")
-    .insert({
-      type: "generate_character_portrait",
-      user_id: payload.userId,
-      payload: payload.details as Json,
-    })
-    .select(jobSelect)
-    .single();
-
-  if (error) throw error;
-  return normalizeJob(castRecord(data, "Background job"));
-}
-
-export async function claimPendingJobs(
+export async function claimTurnReconcileTasks(
   supabase: DatabaseClient,
   limit = 5,
 ) {
-  const { data, error } = await supabase.rpc("claim_background_jobs", {
+  const { data, error } = await supabase.rpc("claim_turn_reconcile_tasks", {
     limit_count: limit,
   });
 
-  if (error) throw error;
-  return castRows<unknown>(data, "Background jobs").map((row) =>
-    normalizeJob(castRecord(row, "Background job")),
-  );
+  if (error) {
+    throw error;
+  }
+
+  return parseRows(
+    data ?? [],
+    reconcileTaskRecordSchema,
+    "Claimed reconcile tasks",
+  ) as TurnReconcileTaskRecord[];
 }
 
-export async function getLatestReconcileJobForCheckpoint(
+export async function claimCharacterPortraitTasks(
   supabase: DatabaseClient,
-  checkpointId: string,
+  limit = 2,
 ) {
-  const { data, error } = await supabase
-    .from("background_jobs")
-    .select(jobSelect)
-    .eq("type", "reconcile_checkpoint")
-    .eq("checkpoint_id", checkpointId)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const { data, error } = await supabase.rpc("claim_character_portrait_tasks", {
+    limit_count: limit,
+  });
 
-  if (error) throw error;
-  return data ? normalizeJob(castRecord(data, "Background job")) : null;
+  if (error) {
+    throw error;
+  }
+
+  return parseRows(
+    data ?? [],
+    portraitTaskRecordSchema,
+    "Claimed portrait tasks",
+  ) as CharacterPortraitTaskRecord[];
 }
 
-export async function completeJob(
+export async function completeTurnReconcileTask(
   supabase: DatabaseClient,
-  jobId: string,
+  id: string,
 ) {
   const { error } = await supabase
-    .from("background_jobs")
+    .from("turn_reconcile_tasks")
     .update({
       status: "succeeded",
       locked_at: null,
       last_error: null,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", jobId);
+    .eq("id", id);
 
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
 }
 
-export async function failJob(
+export async function failTurnReconcileTask(
   supabase: DatabaseClient,
-  job: BackgroundJobRecord,
-  errorMessage: string,
+  task: TurnReconcileTaskRecord,
+  message: string,
 ) {
-  const nextStatus =
-    job.attempts >= job.max_attempts ? "failed" : "pending";
-  const availableAt =
-    nextStatus === "pending"
-      ? new Date(Date.now() + Math.min(job.attempts, 5) * 30_000).toISOString()
-      : job.available_at;
-
+  const terminal = task.attempts >= task.max_attempts;
   const { error } = await supabase
-    .from("background_jobs")
+    .from("turn_reconcile_tasks")
     .update({
-      status: nextStatus,
-      available_at: availableAt,
+      status: terminal ? "failed" : "pending",
+      available_at: terminal ? task.available_at : withExponentialBackoff(task.attempts),
       locked_at: null,
-      last_error: errorMessage,
+      last_error: message,
       updated_at: new Date().toISOString(),
     })
-    .eq("id", job.id);
+    .eq("id", task.id);
 
-  if (error) throw error;
+  if (error) {
+    throw error;
+  }
+}
+
+export async function completeCharacterPortraitTask(
+  supabase: DatabaseClient,
+  id: string,
+) {
+  const { error } = await supabase
+    .from("character_portrait_tasks")
+    .update({
+      status: "succeeded",
+      locked_at: null,
+      last_error: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", id);
+
+  if (error) {
+    throw error;
+  }
+}
+
+export async function failCharacterPortraitTask(
+  supabase: DatabaseClient,
+  task: CharacterPortraitTaskRecord,
+  message: string,
+) {
+  const terminal = task.attempts >= task.max_attempts;
+  const { error } = await supabase
+    .from("character_portrait_tasks")
+    .update({
+      status: terminal ? "failed" : "pending",
+      available_at: terminal ? task.available_at : withExponentialBackoff(task.attempts),
+      locked_at: null,
+      last_error: message,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", task.id);
+
+  if (error) {
+    throw error;
+  }
+}
+
+export async function cleanupStaleGenerationLocks(
+  supabase: DatabaseClient,
+  staleBefore = "5 minutes",
+) {
+  const { data, error } = await supabase.rpc("cleanup_stale_generation_locks", {
+    stale_before: staleBefore,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return Number(data ?? 0);
 }

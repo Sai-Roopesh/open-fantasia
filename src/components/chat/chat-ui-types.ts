@@ -8,7 +8,7 @@ export type ActionSheetState =
     }
   | {
       kind: "branch";
-      checkpointId: string;
+      turnId: string;
       value: string;
     }
   | {

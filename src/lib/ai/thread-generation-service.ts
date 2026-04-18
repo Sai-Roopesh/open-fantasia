@@ -89,7 +89,14 @@ function buildPendingContinuityMessage() {
 }
 
 export function assertThreadReadyForNewTurn(threadView: ThreadGraphView) {
-  if (!threadView.latestCheckpoint || threadView.headSnapshot) {
+  if (threadView.activeBranch.generation_locked) {
+    throw new ThreadGenerationServiceError(
+      409,
+      "This branch already has an in-flight generation. Wait for it to finish before sending another turn.",
+    );
+  }
+
+  if (!threadView.latestTurn || threadView.headSnapshot) {
     return;
   }
 
@@ -103,6 +110,13 @@ export function assertThreadReadyForNewTurn(threadView: ThreadGraphView) {
 }
 
 export function assertThreadReadyForLatestRewrite(threadView: ThreadGraphView) {
+  if (threadView.activeBranch.generation_locked) {
+    throw new ThreadGenerationServiceError(
+      409,
+      "This branch already has an in-flight generation. Wait for it to finish before rewriting the latest turn.",
+    );
+  }
+
   if (!threadView.headSnapshotPending) {
     return;
   }
