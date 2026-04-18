@@ -187,7 +187,7 @@ export async function cleanupStaleGenerationLocks(
   staleBefore = "5 minutes",
 ) {
   const { data, error } = await supabase.rpc("cleanup_stale_generation_locks", {
-    stale_before: staleBefore,
+    p_stale_before: staleBefore,
   });
 
   if (error) {

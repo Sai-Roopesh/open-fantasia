@@ -8,6 +8,7 @@ import {
 } from "@/lib/ai/thread-generation-service";
 import { getSnapshot } from "@/lib/data/snapshots";
 import { beginTurn, commitTurn, failTurn } from "@/lib/data/turns";
+import { scheduleTaskDrain } from "@/lib/jobs/schedule-task-drain";
 import { createTextMessage } from "@/lib/threads/read-model";
 import { regenerateTurnRequestSchema } from "@/lib/validation";
 
@@ -96,6 +97,8 @@ export async function POST(
       promptTokens: result.usage.inputTokens ?? null,
       completionTokens: result.usage.outputTokens ?? null,
     });
+
+    scheduleTaskDrain("regenerate-turn-commit");
 
     return Response.json({ ok: true, turnId: reservedTurn.id });
   } catch (error) {
