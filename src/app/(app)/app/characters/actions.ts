@@ -61,13 +61,17 @@ export async function saveCharacterAction(formData: FormData) {
     temperature: String(formData.get("temperature") ?? "0.92"),
     top_p: String(formData.get("top_p") ?? "0.94"),
     max_output_tokens: String(formData.get("max_output_tokens") ?? "750"),
-    starters: formData.getAll("starter_text").map((value) => String(value)),
+    starters: formData
+      .getAll("starter_text")
+      .map((value) => String(value).trim())
+      .filter((value) => value.length > 0),
     exampleConversations: formData
       .getAll("example_user_line")
       .map((value, index) => ({
-        user_line: String(value),
-        character_line: String(formData.getAll("example_character_line")[index] ?? ""),
-      })),
+        user_line: String(value).trim(),
+        character_line: String(formData.getAll("example_character_line")[index] ?? "").trim(),
+      }))
+      .filter((entry) => entry.user_line.length > 0 || entry.character_line.length > 0),
   });
 
   if (!parsed.success) {
