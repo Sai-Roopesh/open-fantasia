@@ -15,6 +15,7 @@ import {
   failTurn,
   markTurnStreaming,
 } from "@/lib/data/turns";
+import { scheduleTaskDrain } from "@/lib/jobs/schedule-task-drain";
 import { createTextMessage } from "@/lib/threads/read-model";
 import { chatTurnRequestSchema } from "@/lib/validation";
 
@@ -164,6 +165,8 @@ export async function POST(request: Request) {
       }
     },
   });
+
+  scheduleTaskDrain("chat-turn-commit");
 
   return result.toUIMessageStreamResponse({
     generateMessageId: () => `${reservedTurn.id}:assistant`,

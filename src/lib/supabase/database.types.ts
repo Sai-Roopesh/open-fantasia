@@ -455,7 +455,7 @@ export type Database = {
           id: string;
           thread_id: string;
           branch_id: string;
-          turn_id: string;
+          turn_id: string | null;
           title: string;
           detail: string;
           importance: number;
@@ -465,7 +465,7 @@ export type Database = {
           id?: string;
           thread_id: string;
           branch_id: string;
-          turn_id: string;
+          turn_id?: string | null;
           title: string;
           detail: string;
           importance?: number;
@@ -475,7 +475,7 @@ export type Database = {
           id?: string;
           thread_id?: string;
           branch_id?: string;
-          turn_id?: string;
+          turn_id?: string | null;
           title?: string;
           detail?: string;
           importance?: number;
@@ -488,7 +488,7 @@ export type Database = {
           id: string;
           thread_id: string;
           branch_id: string;
-          turn_id: string;
+          turn_id: string | null;
           body: string;
           status: string;
           created_at: string;
@@ -498,7 +498,7 @@ export type Database = {
           id?: string;
           thread_id: string;
           branch_id: string;
-          turn_id: string;
+          turn_id?: string | null;
           body: string;
           status?: string;
           created_at?: string;
@@ -508,7 +508,7 @@ export type Database = {
           id?: string;
           thread_id?: string;
           branch_id?: string;
-          turn_id?: string;
+          turn_id?: string | null;
           body?: string;
           status?: string;
           created_at?: string;
@@ -712,7 +712,7 @@ export type Database = {
       };
       cleanup_stale_generation_locks: {
         Args: {
-          stale_before: string;
+          p_stale_before?: string;
         };
         Returns: number;
       };

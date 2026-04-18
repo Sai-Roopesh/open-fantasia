@@ -7,6 +7,7 @@ import {
 } from "@/lib/ai/thread-generation-service";
 import { beginTurn, commitTurn, failTurn } from "@/lib/data/turns";
 import { insertTimelineEvent } from "@/lib/data/timeline";
+import { scheduleTaskDrain } from "@/lib/jobs/schedule-task-drain";
 import { createTextMessage } from "@/lib/threads/read-model";
 import { starterSeedRequestSchema } from "@/lib/validation";
 
@@ -103,6 +104,8 @@ export async function POST(
       detail: "Opened the scene from a seeded first-turn prompt.",
       importance: 2,
     });
+
+    scheduleTaskDrain("starter-turn-commit");
 
     return Response.json({ ok: true, turnId: reservedTurn.id });
   } catch (error) {

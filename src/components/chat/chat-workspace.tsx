@@ -216,6 +216,22 @@ export function ChatWorkspace({
     switchPending ||
     composerContinuityBlocked;
 
+  useEffect(() => {
+    if (continuityStatus?.tone !== "pending") {
+      return;
+    }
+
+    if (status === "streaming" || status === "submitted" || pendingAction || switchPending) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      refreshWithTransition();
+    }, 4000);
+
+    return () => window.clearTimeout(timer);
+  }, [continuityStatus?.tone, pendingAction, refreshWithTransition, status, switchPending]);
+
   async function submitCurrentDraft(value: string) {
     const nextValue = value.trim();
     if (!nextValue) return;
