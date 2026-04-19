@@ -1,7 +1,8 @@
 import { z } from "zod";
+import { buildChatTurnLimitMessage, MAX_CHAT_TURN_TEXT } from "@/lib/chat-limits";
 import { connectionHealthStatuses, providerIds, taskStatuses, turnGenerationStatuses } from "@/lib/types";
 
-const MAX_USER_TEXT = 4_000;
+const MAX_USER_TEXT = MAX_CHAT_TURN_TEXT;
 const MAX_LABEL = 80;
 const MAX_NAME = 120;
 const MAX_SHORT_TEXT = 500;
@@ -12,7 +13,11 @@ const MAX_EXAMPLES = 20;
 export const chatTurnRequestSchema = z.object({
   branchId: z.string().uuid(),
   expectedHeadTurnId: z.string().uuid().nullable().optional(),
-  text: z.string().trim().min(1).max(MAX_USER_TEXT),
+  text: z
+    .string()
+    .trim()
+    .min(1, "Write a message before sending.")
+    .max(MAX_USER_TEXT, buildChatTurnLimitMessage()),
 });
 
 export const regenerateTurnRequestSchema = z.object({
@@ -23,7 +28,11 @@ export const regenerateTurnRequestSchema = z.object({
 export const editTurnRequestSchema = z.object({
   branchId: z.string().uuid(),
   expectedHeadTurnId: z.string().uuid(),
-  text: z.string().trim().min(1).max(MAX_USER_TEXT),
+  text: z
+    .string()
+    .trim()
+    .min(1, "Write a rewritten turn before saving.")
+    .max(MAX_USER_TEXT, buildChatTurnLimitMessage()),
 });
 
 export const createBranchRequestSchema = z.object({
@@ -246,6 +255,10 @@ export const portraitTaskRecordSchema = z.object({
   created_at: z.string(),
   updated_at: z.string(),
 });
+
+export function getValidationErrorMessage(error: z.ZodError, fallback: string) {
+  return error.issues[0]?.message ?? fallback;
+}
 
 export const connectionRecordSchema = z.object({
   id: z.string().uuid(),

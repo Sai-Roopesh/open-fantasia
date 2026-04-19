@@ -10,7 +10,7 @@ import { materializeSnapshotForTurn } from "@/lib/ai/continuity";
 import { getSnapshot } from "@/lib/data/snapshots";
 import { beginTurn, commitTurn, failTurn } from "@/lib/data/turns";
 import { createTextMessage } from "@/lib/threads/read-model";
-import { editTurnRequestSchema } from "@/lib/validation";
+import { editTurnRequestSchema, getValidationErrorMessage } from "@/lib/validation";
 
 export async function POST(
   request: Request,
@@ -24,7 +24,10 @@ export async function POST(
   const { threadId } = await params;
   const parsedBody = editTurnRequestSchema.safeParse(await request.json());
   if (!parsedBody.success) {
-    return Response.json({ error: "A rewritten turn is required." }, { status: 400 });
+    return Response.json(
+      { error: getValidationErrorMessage(parsedBody.error, "A rewritten turn is required.") },
+      { status: 400 },
+    );
   }
 
   let runtime: Awaited<ReturnType<typeof loadThreadGenerationRuntime>>;
