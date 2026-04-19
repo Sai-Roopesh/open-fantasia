@@ -7,6 +7,7 @@ import {
   WandSparkles,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { MAX_CHAT_TURN_TEXT } from "@/lib/chat-limits";
 import type { ModelChoiceGroup } from "@/components/chat/chat-ui-types";
 
 const starterScaffolds = [
@@ -283,6 +284,10 @@ export function ChatComposer({
   onSubmit: () => Promise<void>;
   focusMode?: boolean;
 }) {
+  const characterCount = draft.length;
+  const nearLimit = characterCount >= MAX_CHAT_TURN_TEXT * 0.85;
+  const overLimit = characterCount > MAX_CHAT_TURN_TEXT;
+
   return (
     <form
       className={cn(
@@ -307,11 +312,25 @@ export function ChatComposer({
           ref={composerRef}
           rows={focusMode ? 2 : 3}
           value={draft}
+          maxLength={MAX_CHAT_TURN_TEXT}
+          aria-invalid={overLimit}
           onChange={(event) => onDraftChange(event.target.value)}
           placeholder="Enter the next beat, confession, interruption, or scene turn..."
           data-testid="chat-composer-input"
           className="w-full rounded-[1.75rem] border border-border bg-white/5 px-5 py-4 text-sm leading-7 outline-none transition focus:border-brand"
         />
+        <div
+          className={cn(
+            "mt-2 flex items-center justify-between px-1 text-[11px] uppercase tracking-[0.14em] text-ink-soft",
+            (nearLimit || overLimit) && "text-brand",
+            overLimit && "text-red-300",
+          )}
+        >
+          <span>{MAX_CHAT_TURN_TEXT.toLocaleString()} character limit</span>
+          <span>
+            {characterCount.toLocaleString()}/{MAX_CHAT_TURN_TEXT.toLocaleString()}
+          </span>
+        </div>
       </label>
       <button
         type="submit"

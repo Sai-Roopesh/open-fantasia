@@ -5,6 +5,7 @@ import { useChat } from "@ai-sdk/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavTransition } from "@/components/transition-provider";
 import { getTextFromMessage } from "@/lib/ai/message-text";
+import { MAX_CHAT_TURN_TEXT, buildChatTurnTrimMessage } from "@/lib/chat-limits";
 import type {
   ChatBranchRecord,
   ContinuityInspectorView,
@@ -235,6 +236,11 @@ export function ChatWorkspace({
   async function submitCurrentDraft(value: string) {
     const nextValue = value.trim();
     if (!nextValue) return;
+    if (nextValue.length > MAX_CHAT_TURN_TEXT) {
+      setSurfaceError(buildChatTurnTrimMessage(nextValue.length));
+      requestAnimationFrame(() => composerRef.current?.focus());
+      return;
+    }
 
     setSurfaceError(null);
     setFailedDraft(null);

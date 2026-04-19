@@ -17,7 +17,7 @@ import {
 } from "@/lib/data/turns";
 import { materializeSnapshotForTurn } from "@/lib/ai/continuity";
 import { createTextMessage } from "@/lib/threads/read-model";
-import { chatTurnRequestSchema } from "@/lib/validation";
+import { chatTurnRequestSchema, getValidationErrorMessage } from "@/lib/validation";
 
 const chatRouteRequestSchema = z.object({
   threadId: z.string().uuid(),
@@ -46,7 +46,10 @@ export async function POST(request: Request) {
 
   const parsedBody = chatRouteRequestSchema.safeParse(await request.json());
   if (!parsedBody.success) {
-    return Response.json({ error: "Invalid chat payload." }, { status: 400 });
+    return Response.json(
+      { error: getValidationErrorMessage(parsedBody.error, "Invalid chat payload.") },
+      { status: 400 },
+    );
   }
 
   const { branchId, expectedHeadTurnId, text, threadId } = parsedBody.data;
