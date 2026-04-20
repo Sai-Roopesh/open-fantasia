@@ -293,7 +293,7 @@ export function ChatWorkspace({
       if (
         typeof window !== "undefined" &&
         !window.confirm(
-          "Rewind to this turn? This moves the branch head back without deleting any historical turns.",
+          "Rewind to this turn? This permanently deletes the current-path descendants from here, including branches forked from them.",
         )
       ) {
         return;

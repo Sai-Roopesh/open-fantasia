@@ -188,25 +188,25 @@ alter table public.chat_turns
   add constraint chat_turns_parent_turn_fkey
   foreign key (parent_turn_id, thread_id)
   references public.chat_turns(id, thread_id)
-  on delete restrict;
+  on delete cascade;
 
 alter table public.chat_branches
   add constraint chat_branches_fork_turn_fkey
   foreign key (fork_turn_id, thread_id)
   references public.chat_turns(id, thread_id)
-  on delete restrict;
+  on delete set null;
 
 alter table public.chat_branches
   add constraint chat_branches_head_turn_fkey
   foreign key (head_turn_id, thread_id)
   references public.chat_turns(id, thread_id)
-  on delete restrict;
+  on delete set null;
 
 alter table public.chat_branches
   add constraint chat_branches_locked_turn_fkey
   foreign key (locked_by_turn_id, thread_id)
   references public.chat_turns(id, thread_id)
-  on delete restrict;
+  on delete set null;
 
 create table public.chat_turn_snapshots (
   turn_id uuid primary key references public.chat_turns(id) on delete cascade,
@@ -229,7 +229,7 @@ create table public.chat_timeline_events (
   id uuid primary key default gen_random_uuid(),
   thread_id uuid not null references public.chat_threads(id) on delete cascade,
   branch_id uuid not null references public.chat_branches(id) on delete cascade,
-  turn_id uuid references public.chat_turns(id) on delete set null,
+  turn_id uuid references public.chat_turns(id) on delete cascade,
   title text not null,
   detail text not null,
   importance integer not null default 3 check (importance between 1 and 5),
@@ -240,7 +240,7 @@ create table public.chat_pins (
   id uuid primary key default gen_random_uuid(),
   thread_id uuid not null references public.chat_threads(id) on delete cascade,
   branch_id uuid not null references public.chat_branches(id) on delete cascade,
-  turn_id uuid references public.chat_turns(id) on delete set null,
+  turn_id uuid references public.chat_turns(id) on delete cascade,
   body text not null,
   status text not null default 'active' check (status in ('active', 'resolved')),
   created_at timestamptz not null default now(),
@@ -813,6 +813,8 @@ declare
   target_branch public.chat_branches;
   resolved_branch public.chat_branches;
   target_is_reachable boolean;
+  prune_root_turn_id uuid;
+  doomed_branch_ids uuid[];
 begin
   select branches.*
   into target_branch
@@ -861,6 +863,54 @@ begin
       using errcode = 'P0001';
   end if;
 
+  with recursive active_path as (
+    select id, parent_turn_id, 0 as depth_from_head
+    from public.chat_turns
+    where id = target_branch.head_turn_id
+      and thread_id = target_branch.thread_id
+    union all
+    select parent.id, parent.parent_turn_id, active_path.depth_from_head + 1
+    from public.chat_turns parent
+    join active_path on active_path.parent_turn_id = parent.id
+    where parent.thread_id = target_branch.thread_id
+      and active_path.depth_from_head < 5000
+  ),
+  path_with_children as (
+    select
+      id,
+      lead(id) over (order by depth_from_head desc) as child_on_active_path
+    from active_path
+  )
+  select child_on_active_path
+  into prune_root_turn_id
+  from path_with_children
+  where id = p_target_turn_id;
+
+  if prune_root_turn_id is not null then
+    with recursive doomed_turns as (
+      select id
+      from public.chat_turns
+      where id = prune_root_turn_id
+        and thread_id = target_branch.thread_id
+      union all
+      select child.id
+      from public.chat_turns child
+      join doomed_turns on child.parent_turn_id = doomed_turns.id
+      where child.thread_id = target_branch.thread_id
+    )
+    select coalesce(array_agg(branches.id), '{}'::uuid[])
+    into doomed_branch_ids
+    from public.chat_branches branches
+    where branches.thread_id = target_branch.thread_id
+      and branches.id <> p_branch_id
+      and (
+        branches.head_turn_id in (select id from doomed_turns)
+        or branches.fork_turn_id in (select id from doomed_turns)
+      );
+  else
+    doomed_branch_ids := '{}'::uuid[];
+  end if;
+
   update public.chat_branches
   set head_turn_id = p_target_turn_id,
       updated_at = now()
@@ -868,9 +918,26 @@ begin
   returning *
   into resolved_branch;
 
+  if prune_root_turn_id is not null then
+    delete from public.chat_turns
+    where id = prune_root_turn_id
+      and thread_id = target_branch.thread_id;
+
+    if coalesce(array_length(doomed_branch_ids, 1), 0) > 0 then
+      delete from public.chat_branches
+      where thread_id = target_branch.thread_id
+        and id = any(doomed_branch_ids);
+    end if;
+  end if;
+
   update public.chat_threads
   set updated_at = now()
   where id = target_branch.thread_id;
+
+  select *
+  into resolved_branch
+  from public.chat_branches
+  where id = p_branch_id;
 
   return resolved_branch;
 end;

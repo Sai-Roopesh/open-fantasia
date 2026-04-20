@@ -53,7 +53,7 @@ export function useChatActions(args: {
     rewind: (turnId: string, onSuccess?: () => void) =>
       runAction(
         "rewind",
-        () => actions.rewindTurn(args.threadId, turnId, args.branchId),
+        () => actions.rewindTurn(args.threadId, turnId),
         onSuccess,
       ),
     rate: (turnId: string, rating: number) =>

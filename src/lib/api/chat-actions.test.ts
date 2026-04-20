@@ -89,6 +89,16 @@ describe("chat-actions", () => {
     });
   });
 
+  describe("rewindTurn", () => {
+    it("posts to the rewind route without an unused request body", async () => {
+      mockFetchResponse(true);
+      await expect(actions.rewindTurn("t1", "turn1")).resolves.toBeUndefined();
+      expect(global.fetch).toHaveBeenCalledWith("/api/chats/t1/turns/turn1/rewind", {
+        method: "POST",
+      });
+    });
+  });
+
   describe("triggerStarter", () => {
     it("calls correctly", async () => {
       mockFetchResponse(true);
