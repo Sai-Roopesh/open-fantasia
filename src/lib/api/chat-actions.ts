@@ -24,11 +24,9 @@ export async function regenerateTurn(
   await throwIfFailed(response);
 }
 
-export async function rewindTurn(threadId: string, turnId: string, branchId: string) {
+export async function rewindTurn(threadId: string, turnId: string) {
   const response = await fetch(`/api/chats/${threadId}/turns/${turnId}/rewind`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ branchId }),
   });
   await throwIfFailed(response);
 }

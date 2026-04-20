@@ -80,7 +80,7 @@ export default async function ChatThreadPage({
         title: "Continuity reconciliation failed",
         detail:
           view.headSnapshotFailureMessage ??
-          "The active branch could not reconcile its latest turn. New turns stay blocked until you rewrite, regenerate, or rewind the branch head.",
+          "The active branch could not reconcile its latest turn. New turns stay blocked until you rewrite, regenerate, or rewind to a surviving turn.",
       }
     : view.headSnapshotPending
       ? {
