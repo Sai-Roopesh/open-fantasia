@@ -1,83 +1,132 @@
 # Open-Fantasia
 
-Open-Fantasia is a private, single-user roleplay workspace built with Next.js App Router, Supabase, AI SDK v6, shadcn/ui primitives, inline continuity materialization, and a Pretext-powered transcript renderer.
+Open-Fantasia is a private roleplay workspace for long-form AI conversations. It combines a guarded Supabase-backed app shell, user-managed provider connections, explicit personas and character sheets, threaded branching chat, inline continuity materialization, and asynchronous portrait generation.
 
-## What is included
+## Documentation Map
 
-- Landing page and private magic-link login flow
-- Allowlisted access guard via Supabase auth and `proxy.ts`
-- Persona library, character studio, and thread launcher
-- BYOK provider settings for Google AI Studio, Groq, Mistral, OpenRouter, and Ollama Cloud or remote Ollama-compatible URLs
-- Manual model switching per thread
-- Streaming chat route with AI SDK v6
-- Inline continuity snapshot materialization for committed turns
-- Best-effort background portrait generation after character saves
-- Pretext transcript layout for line breaking, shrinkwrap bubble widths, and virtualization
-- A single baseline Supabase SQL migration for the full workspace schema
-- Vitest unit coverage and Playwright E2E scaffolding
+- `AGENTS.md`: authoritative repo guide for future agents
+- `docs/architecture.md`: runtime architecture, module boundaries, and request flow
+- `docs/data-model.md`: schema, table relationships, RPCs, and migration notes
+- `docs/workflows.md`: end-to-end user and developer workflows
 
-## Environment
+## Core Capabilities
 
-Copy `.env.example` to `.env.local` and set:
+- Magic-link sign-in with allowlisted access
+- Persona library with a single default persona per user
+- Character studio with starters, examples, generation settings, and portrait generation
+- BYOK provider lanes for Google AI Studio, Groq, Mistral, OpenRouter, and Ollama-compatible endpoints
+- Per-thread model and persona switching
+- Streaming chat with branch creation, rewrites, regeneration, rewind, pins, ratings, and a continuity inspector
+- Inline continuity snapshots plus timeline events for committed turns
+- Protected internal job route for draining portrait work
+
+## Stack
+
+| Layer | Current choice |
+| --- | --- |
+| App framework | Next.js 16 App Router |
+| UI | React 19, Tailwind CSS 4, Base UI, custom primitives |
+| AI | Vercel AI SDK v6 |
+| Auth + data | Supabase |
+| Storage | Supabase Storage (`character-portraits`) |
+| Transcript rendering | `@chenglou/pretext` plus custom markdown-lite parsing |
+| Testing | Vitest, Playwright |
+| Deploy | Vercel |
+
+## Local Development
+
+1. Install dependencies:
+
+   ```bash
+   pnpm install
+   ```
+
+2. Copy the example env file:
+
+   ```bash
+   cp .env.example .env.local
+   ```
+
+3. Fill in the required environment variables.
+
+4. Start the app:
+
+   ```bash
+   pnpm dev
+   ```
+
+5. Open `http://localhost:3000`.
+
+## Required Environment Variables
+
+| Variable | Required | Notes |
+| --- | --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Yes | Public Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Yes | Public anon/publishable key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes for portraits/jobs | Required by the admin client and the internal job drain |
+| `ALLOWED_EMAILS` | Yes | Comma-separated bootstrapping allowlist |
+| `APP_ENCRYPTION_KEY` | Yes | Must be a 64-character hex string |
+| `NEXT_PUBLIC_SITE_URL` | Yes outside local dev | Used in magic-link redirects; Vercel env fallbacks also exist |
+| `CRON_SECRET` | Optional unless calling the internal job route | Protects `/api/internal/jobs/run` |
+
+Generate a valid encryption key with:
 
 ```bash
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
-ALLOWED_EMAILS=you@example.com
-APP_ENCRYPTION_KEY=any-long-random-secret
-SUPABASE_SERVICE_ROLE_KEY=
-ENABLE_LOCAL_DEV_AUTH_BYPASS=false
-NEXT_PUBLIC_SITE_URL=http://localhost:3000
-CRON_SECRET=
+openssl rand -hex 32
 ```
 
-## Local development
+Note: `.env.example` still contains `ENABLE_LOCAL_DEV_AUTH_BYPASS`, but the current codebase does not read it.
+
+## Database Setup
+
+Apply the SQL migrations in `supabase/migrations/` in order. The schema lives in four tracked migrations:
+
+1. `0001_baseline.sql`
+2. `0002_task_rls_hardening.sql`
+3. `0003_remove_reconcile_task_enqueue.sql`
+4. `0004_rewind_prunes_descendants.sql`
+
+The generated TypeScript bindings are checked in at `src/lib/supabase/database.types.ts`.
+
+## Common Commands
 
 ```bash
-pnpm install
 pnpm dev
-```
-
-Open [http://localhost:3000](http://localhost:3000).
-
-## Database setup
-
-Run the SQL in [supabase/migrations/0001_baseline.sql](/Users/sairoopesh/Documents/projects/Open-Fantasia/supabase/migrations/0001_baseline.sql) against your Supabase project before using the app. This file is the full current schema baseline.
-
-## Background jobs
-
-Continuity snapshots are materialized on the request path as soon as a turn is committed, so new turns do not depend on a cron worker or queue drain finishing later.
-
-Portrait generation remains asynchronous and is kicked off with `after()` after character saves and regenerations. The manual worker route is still available at `/api/internal/jobs/run` if you need to drain portrait work explicitly.
-
-- `CRON_SECRET` is only needed if you want to call the internal worker route directly
-- Vercel Cron is not required for normal operation
-
-## Testing
-
-Unit tests:
-
-```bash
-pnpm test:unit
-```
-
-Playwright suite listing:
-
-```bash
-pnpm test:e2e:list
-```
-
-Full Playwright run:
-
-```bash
-pnpm test:e2e
-```
-
-## Validation
-
-```bash
 pnpm lint
 pnpm typecheck
 pnpm build
 pnpm test:unit
+pnpm test:e2e
+pnpm test:e2e:list
 ```
+
+## Architecture Snapshot
+
+- Public routes live under `src/app/` and protected routes live under `src/app/(app)/app/`.
+- Route protection is handled by `src/proxy.ts` plus `requireAllowedUser()` checks.
+- Most user mutations are implemented as server actions in route-local `actions.ts` files.
+- The main streaming turn path is `src/app/api/chat/route.ts`.
+- Thread read models are assembled in `src/lib/threads/read-model.ts`.
+- Continuity snapshots are materialized inline through `src/lib/ai/continuity.ts`.
+- Portrait jobs are queued in `character_portrait_tasks` and drained by `src/lib/jobs/reconcile-worker.ts`.
+
+## Background Work
+
+- Continuity is synchronous with turn commit in current runtime behavior.
+- Portrait generation remains asynchronous and is scheduled with `after()` in `src/lib/jobs/schedule-task-drain.ts`.
+- The manual internal worker route remains available at `/api/internal/jobs/run`.
+
+## Testing and CI
+
+- Unit coverage lives next to the source in `src/**/*.test.ts`.
+- Playwright coverage lives under `tests/e2e/`.
+- CI runs lint, typecheck, and unit tests on pushes and pull requests to `main`.
+- Production deploys are handled by the GitHub Actions workflow in `.github/workflows/ci.yml`.
+
+## Where To Start When Debugging
+
+- Auth/access issues: `src/proxy.ts`, `src/lib/auth.ts`, `src/lib/env.ts`
+- Provider/model issues: `src/lib/ai/catalog.ts`, `src/lib/ai/provider-factory.ts`, `src/lib/data/connections.ts`
+- Chat generation issues: `src/app/api/chat/route.ts`, `src/lib/ai/thread-generation-service.ts`, `src/lib/ai/continuity.ts`
+- Branching/rewind issues: `src/lib/data/branches.ts`, chat API routes under `src/app/api/chats/[threadId]/`
+- Persistence/schema issues: `docs/data-model.md` and `supabase/migrations/`
