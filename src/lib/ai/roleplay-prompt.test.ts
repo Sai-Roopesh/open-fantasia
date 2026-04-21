@@ -66,6 +66,8 @@ describe("buildRoleplaySystemPrompt", () => {
     expect(prompt).toContain("── CHARACTER ──");
     expect(prompt).toContain("── NARRATIVE STATE ──");
     expect(prompt).toContain("── DIRECTIVES ──");
+    expect(prompt).not.toContain("Opening line:");
+    expect(prompt).not.toContain("Hey there.");
     expect(prompt).toContain("- None active."); // open loops
   });
 

@@ -31,7 +31,6 @@ export function buildRoleplaySystemPrompt(args: {
 
   const characterLines = compactLabeledLines([
     ["Personality", character.character.core_persona],
-    ["Opening line", character.character.greeting],
     ["Writing style", character.character.style_rules],
     ["Behavior rules", character.character.definition],
     ["Boundaries", character.character.negative_guidance],
