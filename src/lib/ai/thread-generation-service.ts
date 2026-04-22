@@ -123,6 +123,29 @@ export function assertThreadReadyForLatestRewrite(threadView: ThreadGraphView) {
   return;
 }
 
+export function assertLatestTurnRewriteTarget(args: {
+  threadView: ThreadGraphView;
+  branchId: string;
+  expectedHeadTurnId: string;
+}) {
+  if (args.threadView.activeBranch.id !== args.branchId) {
+    throw new ThreadGenerationServiceError(
+      409,
+      "The active branch changed before Fantasia could rewrite the latest turn.",
+    );
+  }
+
+  const latestTurn = args.threadView.latestTurn;
+  if (!latestTurn || latestTurn.id !== args.expectedHeadTurnId) {
+    throw new ThreadGenerationServiceError(
+      409,
+      "The branch head changed before Fantasia could rewrite the latest turn.",
+    );
+  }
+
+  return latestTurn;
+}
+
 export function toThreadGenerationErrorResponse(error: unknown) {
   if (error instanceof ThreadGenerationServiceError) {
     return Response.json({ error: error.message }, { status: error.status });

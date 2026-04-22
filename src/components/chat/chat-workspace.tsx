@@ -9,6 +9,7 @@ import { MAX_CHAT_TURN_TEXT, buildChatTurnTrimMessage } from "@/lib/chat-limits"
 import type {
   ChatBranchRecord,
   ContinuityInspectorView,
+  EditableTurnTarget,
   FantasiaUIMessage,
   TranscriptControl,
   UserPersonaRecord,
@@ -286,8 +287,12 @@ export function ChatWorkspace({
     pendingAction,
     rewriteBlocked,
     onRegenerate: regenerate,
-    onOpenEditMessage: (messageId: string, currentText: string) =>
-      setSheet({ kind: "edit", messageId, value: currentText }),
+    onOpenEditMessage: (
+      messageId: string,
+      currentText: string,
+      target: EditableTurnTarget,
+    ) =>
+      setSheet({ kind: "edit", target, messageId, value: currentText }),
     onOpenBranchFromCheckpoint: openBranchSheet,
     onRewindCheckpoint: async (turnId: string) => {
       if (
@@ -403,7 +408,7 @@ export function ChatWorkspace({
           onClose={() => setSheet(null)}
           onSubmit={async (value) => {
             if (sheet.kind === "edit") {
-              await editMessage(sheet.messageId, value);
+              await editMessage(sheet.target, value);
             } else if (sheet.kind === "branch") {
               await createBranch({ sourceTurnId: sheet.turnId, name: value });
             } else {

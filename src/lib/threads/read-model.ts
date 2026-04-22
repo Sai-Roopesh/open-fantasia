@@ -267,7 +267,7 @@ function resolveSnapshotState(
   };
 }
 
-function buildControlsByMessageId(turns: ChatTurnRecord[]) {
+export function buildControlsByMessageId(turns: ChatTurnRecord[]) {
   const latestTurnId = turns.at(-1)?.id ?? null;
   const controlsByMessageId: Record<string, TranscriptControl> = {};
 
@@ -291,7 +291,7 @@ function buildControlsByMessageId(turns: ChatTurnRecord[]) {
     controlsByMessageId[`${turn.id}:assistant`] = {
       turnId: turn.id,
       branchId: turn.branch_origin_id,
-      canEdit: false,
+      canEdit: latestTurnId === turn.id,
       canRegenerate: latestTurnId === turn.id,
       canBranch: false,
       canRewind: false,

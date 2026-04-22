@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  assertLatestTurnRewriteTarget,
   assertThreadReadyForLatestRewrite,
   assertThreadReadyForNewTurn,
   ThreadGenerationServiceError,
@@ -91,6 +92,26 @@ describe("thread generation guards", () => {
 
   it("allows regenerate/edit even if the head snapshot is missing", () => {
     expect(() => assertThreadReadyForLatestRewrite(makeThreadView())).not.toThrow();
+  });
+
+  it("requires rewriting against the active branch head", () => {
+    const latestTurn = assertLatestTurnRewriteTarget({
+      threadView: makeThreadView(),
+      branchId: "branch-1",
+      expectedHeadTurnId: "turn-1",
+    });
+
+    expect(latestTurn.id).toBe("turn-1");
+  });
+
+  it("blocks rewrite requests when the active branch changed", () => {
+    expect(() =>
+      assertLatestTurnRewriteTarget({
+        threadView: makeThreadView(),
+        branchId: "branch-2",
+        expectedHeadTurnId: "turn-1",
+      }),
+    ).toThrow(ThreadGenerationServiceError);
   });
 
   it("still blocks when the branch is generation-locked", () => {

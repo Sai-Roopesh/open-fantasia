@@ -52,24 +52,80 @@ describe("chat-actions", () => {
     });
   });
 
-  describe("regenerateTurn", () => {
+  describe("rewriteLatestTurn", () => {
     it("calls correctly and throws on fail", async () => {
       mockFetchResponse(false, { error: "Regenerate failed." });
       await expect(
-        actions.regenerateTurn("t1", "b1", "head1"),
+        actions.rewriteLatestTurn("t1", {
+          branchId: "b1",
+          expectedHeadTurnId: "head1",
+          mode: "regenerate",
+        }),
       ).rejects.toThrow("Regenerate failed.");
-      expect(global.fetch).toHaveBeenCalledWith("/api/chats/t1/regenerate", {
+      expect(global.fetch).toHaveBeenCalledWith("/api/chats/t1/rewrite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ branchId: "b1", expectedHeadTurnId: "head1" }),
+        body: JSON.stringify({
+          branchId: "b1",
+          expectedHeadTurnId: "head1",
+          mode: "regenerate",
+        }),
       });
     });
 
     it("resolves on success", async () => {
       mockFetchResponse(true);
       await expect(
-        actions.regenerateTurn("t1", "b1", "head1"),
+        actions.rewriteLatestTurn("t1", {
+          branchId: "b1",
+          expectedHeadTurnId: "head1",
+          mode: "regenerate",
+        }),
       ).resolves.toBeUndefined();
+    });
+
+    it("rewrites the latest user turn", async () => {
+      mockFetchResponse(true);
+      await expect(
+        actions.rewriteLatestTurn("t1", {
+          branchId: "b1",
+          expectedHeadTurnId: "head1",
+          mode: "user",
+          text: "Rewrite this.",
+        }),
+      ).resolves.toBeUndefined();
+      expect(global.fetch).toHaveBeenCalledWith("/api/chats/t1/rewrite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          branchId: "b1",
+          expectedHeadTurnId: "head1",
+          mode: "user",
+          text: "Rewrite this.",
+        }),
+      });
+    });
+
+    it("rewrites the latest assistant turn", async () => {
+      mockFetchResponse(true);
+      await expect(
+        actions.rewriteLatestTurn("t1", {
+          branchId: "b1",
+          expectedHeadTurnId: "head1",
+          mode: "assistant",
+          text: "Keep only context a.",
+        }),
+      ).resolves.toBeUndefined();
+      expect(global.fetch).toHaveBeenCalledWith("/api/chats/t1/rewrite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          branchId: "b1",
+          expectedHeadTurnId: "head1",
+          mode: "assistant",
+          text: "Keep only context a.",
+        }),
+      });
     });
   });
 

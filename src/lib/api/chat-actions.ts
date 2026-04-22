@@ -1,3 +1,5 @@
+import type { EditableTurnTarget } from "@/lib/types";
+
 export async function throwIfFailed(response: Response) {
   if (response.ok) {
     return;
@@ -9,19 +11,6 @@ export async function throwIfFailed(response: Response) {
   }
 
   throw new Error("Action response was malformed.");
-}
-
-export async function regenerateTurn(
-  threadId: string,
-  branchId: string,
-  expectedHeadTurnId: string,
-) {
-  const response = await fetch(`/api/chats/${threadId}/regenerate`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ branchId, expectedHeadTurnId }),
-  });
-  await throwIfFailed(response);
 }
 
 export async function rewindTurn(threadId: string, turnId: string) {
@@ -40,16 +29,25 @@ export async function rateTurn(threadId: string, turnId: string, rating: number)
   await throwIfFailed(response);
 }
 
-export async function editLatestTurn(
+export async function rewriteLatestTurn(
   threadId: string,
-  branchId: string,
-  expectedHeadTurnId: string,
-  content: string,
+  payload:
+    | {
+        branchId: string;
+        expectedHeadTurnId: string;
+        mode: "regenerate";
+      }
+    | {
+        branchId: string;
+        expectedHeadTurnId: string;
+        mode: EditableTurnTarget;
+        text: string;
+      },
 ) {
-  const response = await fetch(`/api/chats/${threadId}/edit`, {
+  const response = await fetch(`/api/chats/${threadId}/rewrite`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ branchId, expectedHeadTurnId, text: content }),
+    body: JSON.stringify(payload),
   });
   await throwIfFailed(response);
 }

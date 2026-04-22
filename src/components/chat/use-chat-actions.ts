@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import * as actions from "@/lib/api/chat-actions";
 import { humanizeChatError } from "@/components/chat/chat-workspace-helpers";
 import { useNavTransition } from "@/components/transition-provider";
+import type { EditableTurnTarget } from "@/lib/types";
 
 export function useChatActions(args: {
   threadId: string;
@@ -48,7 +49,11 @@ export function useChatActions(args: {
         if (!args.headTurnId) {
           throw new Error("There is no committed turn to regenerate.");
         }
-        return actions.regenerateTurn(args.threadId, args.branchId, args.headTurnId);
+        return actions.rewriteLatestTurn(args.threadId, {
+          branchId: args.branchId,
+          expectedHeadTurnId: args.headTurnId,
+          mode: "regenerate",
+        });
       }),
     rewind: (turnId: string, onSuccess?: () => void) =>
       runAction(
@@ -58,17 +63,17 @@ export function useChatActions(args: {
       ),
     rate: (turnId: string, rating: number) =>
       runAction("rate", () => actions.rateTurn(args.threadId, turnId, rating)),
-    editMessage: (_messageId: string, content: string) =>
+    editMessage: (target: EditableTurnTarget, content: string) =>
       runAction("edit", () => {
         if (!args.headTurnId) {
           throw new Error("There is no committed turn to edit.");
         }
-        return actions.editLatestTurn(
-          args.threadId,
-          args.branchId,
-          args.headTurnId,
-          content,
-        );
+        return actions.rewriteLatestTurn(args.threadId, {
+          branchId: args.branchId,
+          expectedHeadTurnId: args.headTurnId,
+          mode: target,
+          text: content,
+        });
       }),
     createBranch: (opts: { sourceTurnId: string; name: string }) =>
       runAction("branch", () => actions.createBranch(args.threadId, opts)),

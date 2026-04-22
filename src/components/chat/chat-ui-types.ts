@@ -1,8 +1,9 @@
-import type { ModelCatalogEntry } from "@/lib/types";
+import type { EditableTurnTarget, ModelCatalogEntry } from "@/lib/types";
 
 export type ActionSheetState =
   | {
       kind: "edit";
+      target: EditableTurnTarget;
       messageId: string;
       value: string;
     }

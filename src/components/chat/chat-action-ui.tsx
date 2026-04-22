@@ -36,21 +36,27 @@ export function ActionSheet({
         >
           <p className="text-xs uppercase tracking-[0.22em] text-ink-soft">
             {sheet.kind === "edit"
-              ? "Edit last user turn"
+              ? sheet.target === "assistant"
+                ? "Edit latest reply"
+                : "Edit last user turn"
               : sheet.kind === "branch"
                 ? "Branch from turn"
                 : "Pin fact"}
           </p>
           <h3 className="mt-3 font-serif text-3xl text-foreground">
             {sheet.kind === "edit"
-              ? "Rewrite the latest turn"
+              ? sheet.target === "assistant"
+                ? "Rewrite the latest reply"
+                : "Rewrite the latest turn"
               : sheet.kind === "branch"
                 ? "Name the new branch"
                 : "Save a branch-local memory"}
           </h3>
           <p className="mt-3 text-sm leading-7 text-ink-soft">
             {sheet.kind === "edit"
-              ? "Saving this rewrites the latest visible user turn and regenerates the assistant reply on the current branch."
+              ? sheet.target === "assistant"
+                ? "Saving this keeps the same user turn, replaces the latest assistant reply on the current branch, and re-runs continuity reconciliation from that edited text."
+                : "Saving this rewrites the latest visible user turn and regenerates the assistant reply on the current branch."
               : sheet.kind === "branch"
                 ? "This forks a new branch from the selected turn and switches you onto that path."
                 : "Pinned facts stay local to the active branch and influence future replies on this path only."}
@@ -88,7 +94,9 @@ export function ActionSheet({
               {pendingAction !== null
                 ? "Working..."
                 : sheet.kind === "edit"
-                  ? "Rewrite turn"
+                  ? sheet.target === "assistant"
+                    ? "Rewrite reply"
+                    : "Rewrite turn"
                   : sheet.kind === "branch"
                     ? "Create branch"
                     : "Save pin"}

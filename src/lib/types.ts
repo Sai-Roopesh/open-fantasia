@@ -34,6 +34,10 @@ export const turnGenerationStatuses = [
 
 export type TurnGenerationStatus = (typeof turnGenerationStatuses)[number];
 
+export const editableTurnTargets = ["user", "assistant"] as const;
+
+export type EditableTurnTarget = (typeof editableTurnTargets)[number];
+
 export const taskStatuses = [
   "pending",
   "running",
