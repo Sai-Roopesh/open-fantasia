@@ -59,7 +59,7 @@ If those docs conflict with the code, trust the code and update the docs as part
 ### API routes
 
 - `src/app/api/chat/route.ts`: streaming main chat route
-- `src/app/api/chats/[threadId]/*`: branch, edit, regenerate, starter, rewind, pins, rating
+- `src/app/api/chats/[threadId]/*`: branch, rewrite, starter, rewind, pins, rating
 - `src/app/api/providers/*`: test connection and refresh model cache
 - `src/app/api/internal/jobs/run/route.ts`: protected task drain endpoint
 
@@ -103,11 +103,10 @@ Read:
 Read:
 
 1. `src/app/api/chats/[threadId]/branches/route.ts`
-2. `src/app/api/chats/[threadId]/edit/route.ts`
-3. `src/app/api/chats/[threadId]/regenerate/route.ts`
-4. `src/app/api/chats/[threadId]/turns/[turnId]/rewind/route.ts`
-5. `src/lib/data/branches.ts`
-6. `docs/workflows.md`
+2. `src/app/api/chats/[threadId]/rewrite/route.ts`
+3. `src/app/api/chats/[threadId]/turns/[turnId]/rewind/route.ts`
+4. `src/lib/data/branches.ts`
+5. `docs/workflows.md`
 
 ### If you are changing providers or model discovery
 

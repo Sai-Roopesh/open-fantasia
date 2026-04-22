@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDown,
+  Check,
+  Copy,
   GitBranchPlus,
   PencilLine,
   Pin,
@@ -11,7 +13,7 @@ import {
   Star,
 } from "lucide-react";
 import { getTextFromMessage } from "@/lib/ai/message-text";
-import type { FantasiaUIMessage, TranscriptControl } from "@/lib/types";
+import type { EditableTurnTarget, FantasiaUIMessage, TranscriptControl } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import {
   parseMarkdownLite,
@@ -102,14 +104,23 @@ export function PretextTranscript({
   focusMode?: boolean;
   rewriteBlocked?: boolean;
   onRegenerate: (turnId: string) => Promise<void>;
-  onOpenEditMessage: (messageId: string, currentText: string) => void;
+  onOpenEditMessage: (
+    messageId: string,
+    currentText: string,
+    target: EditableTurnTarget,
+  ) => void;
   onOpenBranchFromCheckpoint: (turnId: string) => void;
   onRewindCheckpoint: (turnId: string) => Promise<void>;
   onOpenPinMessage: (messageId: string, currentText: string) => void;
   onRateCheckpoint: (turnId: string, rating: number) => Promise<void>;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const copyResetTimerRef = useRef<number | null>(null);
   const [followOutput, setFollowOutput] = useState(true);
+  const [copyFeedback, setCopyFeedback] = useState<{
+    messageId: string;
+    status: "success" | "error";
+  } | null>(null);
 
   useEffect(() => {
     if (!scrollRef.current) return;
@@ -134,6 +145,38 @@ export function PretextTranscript({
       element.scrollTop = element.scrollHeight;
     });
   }, [followOutput, messages.length]);
+
+  useEffect(() => {
+    return () => {
+      if (copyResetTimerRef.current !== null) {
+        window.clearTimeout(copyResetTimerRef.current);
+      }
+    };
+  }, []);
+
+  function setCopyFeedbackWithReset(
+    messageId: string,
+    status: "success" | "error",
+  ) {
+    setCopyFeedback({ messageId, status });
+    if (copyResetTimerRef.current !== null) {
+      window.clearTimeout(copyResetTimerRef.current);
+    }
+    copyResetTimerRef.current = window.setTimeout(() => {
+      setCopyFeedback((current) =>
+        current?.messageId === messageId ? null : current,
+      );
+    }, 1800);
+  }
+
+  async function copyMessage(messageId: string, value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopyFeedbackWithReset(messageId, "success");
+    } catch {
+      setCopyFeedbackWithReset(messageId, "error");
+    }
+  }
 
   const showJumpToLatest = messages.length > 0 && !followOutput;
 
@@ -173,6 +216,9 @@ export function PretextTranscript({
                   ? "You"
                   : "System";
             const blocks = parseMarkdownLite(messageText);
+            const hasActionBar = Boolean(controls) || messageText.trim().length > 0;
+            const isCopySuccess = copyFeedback?.messageId === message.id && copyFeedback.status === "success";
+            const isCopyError = copyFeedback?.messageId === message.id && copyFeedback.status === "error";
 
             return (
               <div key={message.id} className={cn("flex flex-col gap-3", isUser && "items-end")}>
@@ -202,7 +248,7 @@ export function PretextTranscript({
                   </div>
                 </article>
 
-                {controls ? (
+                {hasActionBar ? (
                   <div
                     className={cn(
                       "flex max-w-[min(72ch,100%)] flex-col gap-3 px-1 text-left",
@@ -210,16 +256,22 @@ export function PretextTranscript({
                     )}
                   >
                     <div className={cn("flex flex-wrap gap-2", isUser && "justify-end")}>
-                      {controls.canEdit ? (
+                      {controls?.canEdit ? (
                         <ActionButton
                           disabled={pendingAction !== null || rewriteBlocked}
-                          onClick={() => onOpenEditMessage(message.id, messageText)}
+                          onClick={() =>
+                            onOpenEditMessage(
+                              message.id,
+                              messageText,
+                              isUser ? "user" : "assistant",
+                            )
+                          }
                           icon={PencilLine}
                         >
-                          Edit last user
+                          {isUser ? "Edit last user" : "Edit last reply"}
                         </ActionButton>
                       ) : null}
-                      {controls.canRewind ? (
+                      {controls?.canRewind ? (
                         <ActionButton
                           disabled={pendingAction !== null}
                           onClick={() => void onRewindCheckpoint(controls.turnId)}
@@ -228,7 +280,7 @@ export function PretextTranscript({
                           Rewind here
                         </ActionButton>
                       ) : null}
-                      {controls.canRegenerate ? (
+                      {controls?.canRegenerate ? (
                         <ActionButton
                           disabled={pendingAction !== null || rewriteBlocked}
                           onClick={() => onRegenerate(controls.turnId)}
@@ -237,7 +289,7 @@ export function PretextTranscript({
                           Regenerate
                         </ActionButton>
                       ) : null}
-                      {controls.canBranch ? (
+                      {controls?.canBranch ? (
                         <ActionButton
                           disabled={pendingAction !== null}
                           onClick={() => onOpenBranchFromCheckpoint(controls.turnId)}
@@ -246,7 +298,19 @@ export function PretextTranscript({
                           Branch from here
                         </ActionButton>
                       ) : null}
-                      {controls.canPin ? (
+                      {messageText.trim().length > 0 ? (
+                        <ActionButton
+                          onClick={() => void copyMessage(message.id, messageText)}
+                          icon={isCopySuccess ? Check : Copy}
+                        >
+                          {isCopySuccess
+                            ? "Copied"
+                            : isCopyError
+                              ? "Copy failed"
+                              : "Copy"}
+                        </ActionButton>
+                      ) : null}
+                      {controls?.canPin ? (
                         <ActionButton
                           disabled={pendingAction !== null}
                           onClick={() => onOpenPinMessage(message.id, messageText)}
@@ -257,7 +321,7 @@ export function PretextTranscript({
                       ) : null}
                     </div>
 
-                    {controls.canRate ? (
+                    {controls?.canRate ? (
                       <div
                         className={cn(
                           "flex flex-wrap items-center gap-2 text-xs text-foreground/70",

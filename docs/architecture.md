@@ -40,8 +40,7 @@ All protected routes live under `src/app/(app)/app/` and are wrapped by the prot
 - `/api/providers/test`: connection health check
 - `/api/providers/discover`: model cache refresh
 - `/api/chats/[threadId]/starter`: hidden starter-seed opening
-- `/api/chats/[threadId]/edit`: rewrite latest user turn and regenerate assistant reply
-- `/api/chats/[threadId]/regenerate`: regenerate latest assistant reply from the prior snapshot
+- `/api/chats/[threadId]/rewrite`: replace the latest branch head by rewriting the latest user turn, rewriting the latest assistant reply, or regenerating the latest assistant reply
 - `/api/chats/[threadId]/branches`: create a new branch from a visible turn
 - `/api/chats/[threadId]/pins`: create a pin from a visible turn
 - `/api/chats/[threadId]/pins/[pinId]`: resolve an active pin
@@ -162,16 +161,16 @@ The main flow lives in `src/app/api/chat/route.ts`.
 10. Immediately materialize the new continuity snapshot.
 11. On failure, persist failure state with `fail_turn`.
 
-### Rewrites and regenerations
+### Latest-turn rewrites
 
-The edit and regenerate routes do not stream responses to the browser. They:
+The rewrite route does not stream responses to the browser. It:
 
-- load the same generation runtime
-- assert the branch is in a rewrite-safe state
-- reserve a replacement turn
-- regenerate the assistant reply with `generateAssistantReply(...)`
-- commit the replacement turn
-- materialize a fresh snapshot inline
+- loads the same generation runtime
+- asserts the branch is in a rewrite-safe state
+- reserves a replacement turn
+- replaces the current head in one of three modes: regenerate the latest assistant reply, rewrite the latest user turn and regenerate, or rewrite the latest assistant reply directly
+- commits the replacement turn
+- materializes a fresh snapshot inline
 
 ### Starter generation
 

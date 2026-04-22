@@ -168,36 +168,23 @@ Before the first visible turn, the user can seed the opening scene with hidden g
 - `src/lib/ai/thread-generation-service.ts`
 - `src/lib/ai/continuity.ts`
 
-## 9. Editing and Regenerating the Latest Turn
+## 9. Rewriting the Latest Turn
 
-### Edit latest turn
+Use when the user wants to replace the current branch head without branching.
 
-Use when the user wants to replace the latest visible user message and regenerate the assistant response from the previous snapshot.
+Supported modes:
 
-Behavior:
-
-- reserves a replacement turn whose parent is the latest turn's parent
-- generates a new assistant reply
-- commits the new turn and snapshot
-
-### Regenerate latest turn
-
-Use when the user wants a new assistant answer for the same latest user input.
-
-Behavior:
-
-- preserves the latest user text
-- uses the previous snapshot as prompt context
-- commits a fresh replacement turn and snapshot
+- regenerate the latest turn: keeps the latest user input, generates a fresh assistant reply from the parent snapshot, and commits a replacement head turn
+- rewrite latest user turn: replaces the latest visible user message, generates a fresh assistant reply from the parent snapshot, and commits a replacement head turn
+- rewrite latest assistant turn: keeps the same latest user input, commits edited assistant text directly, and materializes a fresh snapshot so continuity reflects the rewritten reply
 
 ### Important safety rule
 
-Both flows only operate when the current head still matches the expected head supplied by the client.
+The rewrite flow only operates when the active branch and current head still match the values supplied by the client.
 
 ### Key files
 
-- `src/app/api/chats/[threadId]/edit/route.ts`
-- `src/app/api/chats/[threadId]/regenerate/route.ts`
+- `src/app/api/chats/[threadId]/rewrite/route.ts`
 
 ## 10. Branching
 

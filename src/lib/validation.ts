@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { buildChatTurnLimitMessage, MAX_CHAT_TURN_TEXT } from "@/lib/chat-limits";
-import { connectionHealthStatuses, providerIds, taskStatuses, turnGenerationStatuses } from "@/lib/types";
+import {
+  connectionHealthStatuses,
+  providerIds,
+  taskStatuses,
+  turnGenerationStatuses,
+} from "@/lib/types";
 
 const MAX_USER_TEXT = MAX_CHAT_TURN_TEXT;
 const MAX_LABEL = 80;
@@ -20,20 +25,33 @@ export const chatTurnRequestSchema = z.object({
     .max(MAX_USER_TEXT, buildChatTurnLimitMessage()),
 });
 
-export const regenerateTurnRequestSchema = z.object({
+const rewriteLatestTurnBaseSchema = {
   branchId: z.string().uuid(),
   expectedHeadTurnId: z.string().uuid(),
-});
+} as const;
 
-export const editTurnRequestSchema = z.object({
-  branchId: z.string().uuid(),
-  expectedHeadTurnId: z.string().uuid(),
-  text: z
-    .string()
-    .trim()
-    .min(1, "Write a rewritten turn before saving.")
-    .max(MAX_USER_TEXT, buildChatTurnLimitMessage()),
-});
+const rewriteLatestTurnTextSchema = z
+  .string()
+  .trim()
+  .min(1, "Write replacement text before saving.")
+  .max(MAX_USER_TEXT, buildChatTurnLimitMessage());
+
+export const rewriteLatestTurnRequestSchema = z.discriminatedUnion("mode", [
+  z.object({
+    ...rewriteLatestTurnBaseSchema,
+    mode: z.literal("user"),
+    text: rewriteLatestTurnTextSchema,
+  }),
+  z.object({
+    ...rewriteLatestTurnBaseSchema,
+    mode: z.literal("assistant"),
+    text: rewriteLatestTurnTextSchema,
+  }),
+  z.object({
+    ...rewriteLatestTurnBaseSchema,
+    mode: z.literal("regenerate"),
+  }),
+]);
 
 export const createBranchRequestSchema = z.object({
   sourceTurnId: z.string().uuid(),
