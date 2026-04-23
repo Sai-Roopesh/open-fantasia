@@ -112,9 +112,11 @@ export type ThreadGraphView = {
   timeline: TimelineEventRecord[];
   pins: ChatPinRecord[];
   canonicalMessages: FantasiaUIMessage[];
-  modelContextMessages: FantasiaUIMessage[];
+  recentSceneMessages: FantasiaUIMessage[];
   controlsByMessageId: Record<string, TranscriptControl>;
 };
+
+export const RECENT_SCENE_TURN_WINDOW = 4;
 
 export function createTextMessage(args: {
   id?: string;
@@ -181,6 +183,16 @@ export function buildTurnPath(
   }
 
   return path.reverse();
+}
+
+export function buildRecentSceneMessages(
+  turns: ChatTurnRecord[],
+  turnWindow = RECENT_SCENE_TURN_WINDOW,
+) {
+  return turns
+    .filter((turn) => turn.generation_status === "committed")
+    .slice(-turnWindow)
+    .flatMap((turn) => toModelContextMessages(turn));
 }
 
 async function getThread(
@@ -352,9 +364,7 @@ export async function getThreadGraphView(
   } = resolveSnapshotState(reachableTurns, latestTurn, snapshotsByTurnId);
 
   const canonicalMessages = reachableTurns.flatMap((turn) => toTranscriptMessages(turn));
-  const modelContextMessages = reachableTurns.flatMap((turn) =>
-    toModelContextMessages(turn),
-  );
+  const recentSceneMessages = buildRecentSceneMessages(reachableTurns);
 
   return {
     thread,
@@ -370,7 +380,7 @@ export async function getThreadGraphView(
     timeline: filteredTimeline,
     pins: filteredPins,
     canonicalMessages,
-    modelContextMessages,
+    recentSceneMessages,
     controlsByMessageId: buildControlsByMessageId(reachableTurns),
   };
 }

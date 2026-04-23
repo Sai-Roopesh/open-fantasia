@@ -41,13 +41,14 @@ describe("buildFallbackSnapshot", () => {
         thread_id: "thread-1",
         branch_id: "branch-1",
         based_on_turn_id: null,
-        scenario_state: "They were circling around an unspoken tension.",
+        story_summary: "They met in the hotel bar before the room began to distort around them.",
+        scene_summary: "They were circling around an unspoken tension.",
+        last_turn_beat: "The lights flickered and neither of them admitted why.",
         relationship_state: "Guarded but curious.",
-        rolling_summary: "They met in the hotel bar.",
         user_facts: ["The user has just arrived."],
-        open_loops: ["Why the room shifted"],
-        resolved_loops: [],
-        narrative_hooks: ["A confession is coming."],
+        active_threads: ["Why the room shifted"],
+        resolved_threads: [],
+        next_turn_pressure: ["Decide whether to trust the confession"],
         scene_goals: ["Get the truth out."],
         version: 1,
         updated_at: "2026-04-18T11:59:00.000Z",
@@ -64,8 +65,10 @@ describe("buildFallbackSnapshot", () => {
     expect(snapshot.turn_id).toBe(baseTurn.id);
     expect(snapshot.version).toBe(2);
     expect(snapshot.relationship_state).toBe("Guarded but curious.");
-    expect(snapshot.rolling_summary).toContain("USER:");
-    expect(snapshot.scenario_state).toContain("I step closer");
-    expect(snapshot.open_loops).toContain("Why the room shifted");
+    expect(snapshot.story_summary).toContain("They met in the hotel bar");
+    expect(snapshot.scene_summary).toContain("USER:");
+    expect(snapshot.last_turn_beat).toContain("I step closer");
+    expect(snapshot.active_threads).toContain("Why the room shifted");
+    expect(snapshot.next_turn_pressure).toContain("Decide whether to trust the confession");
   });
 });

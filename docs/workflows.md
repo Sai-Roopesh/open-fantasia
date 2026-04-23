@@ -109,7 +109,7 @@ Only one persona can be the default per user. That rule is enforced both in data
 - `src/lib/characters/portraits.ts`
 - `src/lib/data/characters.ts`
 - `src/lib/data/jobs.ts`
-- `src/lib/jobs/reconcile-worker.ts`
+- `src/lib/jobs/task-drain.ts`
 
 ## 6. Starting a Thread
 
@@ -156,9 +156,9 @@ Before the first visible turn, the user can seed the opening scene with hidden g
 1. Client `useChat(...)` sends the latest user message to `/api/chat`.
 2. Server loads the thread runtime and asserts branch readiness.
 3. Server reserves a turn and locks the active branch.
-4. AI SDK streams the assistant reply.
+4. AI SDK streams the assistant reply from the hybrid prompt context: durable branch memory, current-scene memory, filtered pins/timeline, and the last 4 committed turns of exact transcript context plus the new user message.
 5. On finish, the turn is committed.
-6. Continuity is materialized inline.
+6. Continuity is materialized inline from the parent snapshot plus the last 10 committed turns on the active path.
 7. The client refreshes the page state.
 
 ### Files to inspect
@@ -241,12 +241,13 @@ This is intentionally destructive behavior and should not be softened accidental
 
 The chat page surfaces:
 
-- scenario state
+- story summary
+- current scene
+- last beat
 - relationship state
-- rolling summary
-- open loops
-- resolved loops
-- narrative hooks
+- active threads
+- resolved threads
+- next pressure
 - scene goals
 - durable user facts
 - branch metadata
@@ -299,7 +300,7 @@ Portrait generation is the active reason to drain jobs.
 
 ### Important note
 
-The worker still contains logic for `turn_reconcile_tasks`, but committed turns no longer enqueue that work in the normal runtime path.
+The task drain is portrait-only. Continuity snapshots are no longer queued in the background.
 
 ## 15. Troubleshooting Guide
 
@@ -335,7 +336,7 @@ Inspect:
 Inspect:
 
 - `character_portrait_tasks`
-- `src/lib/jobs/reconcile-worker.ts`
+- `src/lib/jobs/task-drain.ts`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `CRON_SECRET` if using the internal worker route
 

@@ -1,6 +1,7 @@
 import { getTextFromMessage } from "@/lib/ai/message-text";
 import { getCurrentUser } from "@/lib/auth";
 import {
+  buildGenerationMessages,
   generateAssistantReply,
   loadThreadGenerationRuntime,
   toThreadGenerationErrorResponse,
@@ -79,7 +80,10 @@ export async function POST(
 
     const { assistantMessage, result } = await generateAssistantReply({
       runtime,
-      messages: [...runtime.threadView.modelContextMessages, starterMessage],
+      messages: buildGenerationMessages({
+        recentSceneMessages: runtime.threadView.recentSceneMessages,
+        pendingMessages: [starterMessage],
+      }),
       snapshot: runtime.threadView.headSnapshot,
     });
 
