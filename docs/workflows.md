@@ -223,7 +223,7 @@ This is intentionally destructive behavior and should not be softened accidental
 
 - `src/app/api/chats/[threadId]/turns/[turnId]/rewind/route.ts`
 - `src/lib/data/branches.ts`
-- `supabase/migrations/0004_rewind_prunes_descendants.sql`
+- `supabase/migrations/0001_baseline.sql`
 
 ## 12. Pins, Ratings, and Continuity Inspector
 
@@ -345,6 +345,6 @@ Inspect:
 Inspect:
 
 - `docs/data-model.md`
-- migration `0004_rewind_prunes_descendants.sql`
+- `supabase/migrations/0001_baseline.sql`
 
 The current destructive pruning is intentional.

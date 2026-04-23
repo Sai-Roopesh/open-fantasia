@@ -4,7 +4,9 @@ This document explains the current persisted model for Open-Fantasia, including 
 
 ## Schema Overview
 
-The primary schema lives in `supabase/migrations/0001_baseline.sql`, with follow-up migrations refining task access, continuity behavior, and rewind semantics.
+The primary schema lives in `supabase/migrations/0001_baseline.sql`.
+
+The repo intentionally keeps that file as a squashed, live-derived baseline of the linked Supabase project's `public` schema plus required storage bucket configuration. Older intermediate migrations are folded into that baseline instead of being preserved in the repo.
 
 The application uses:
 
@@ -164,53 +166,28 @@ Broadly:
 
 Future schema changes should preserve the same ownership boundaries unless a multi-user feature is being intentionally introduced.
 
-## Migration History
+## Baseline Source of Truth
 
 ### `0001_baseline.sql`
 
-Introduced:
+The baseline now contains the current live schema, including:
 
 - all tables
 - storage bucket
 - indexes
 - triggers
-- all initial SQL RPCs
+- all current SQL RPCs
 - RLS policies
+- destructive rewind semantics
+- hybrid-memory continuity fields such as `story_summary`, `scene_summary`, and `last_turn_beat`
+- portrait task RLS hardening
+- removal of the old queued continuity pipeline (`turn_reconcile_tasks` and `claim_turn_reconcile_tasks(...)` are no longer present)
 
-### `0002_task_rls_hardening.sql`
+When the schema is deliberately re-baselined, the expected workflow is:
 
-Adjusted grants and insert/update policies for:
-
-- `character_portrait_tasks`
-
-### `0003_remove_reconcile_task_enqueue.sql`
-
-Changed the continuity model:
-
-- normal generation now materializes snapshots inline
-- reconcile task enqueueing was removed from the turn commit path
-- existing reconcile tasks were truncated
-
-### `0004_rewind_prunes_descendants.sql`
-
-Strengthened rewind semantics so rewinding a branch now prunes descendant turns and related branches rooted in the discarded subtree.
-
-### `0005_hybrid_memory_redesign.sql`
-
-Reworked continuity persistence around hybrid memory:
-
-- cleared existing `chat_turn_snapshots`
-- renamed the old summary/loop columns into the new durable-memory names
-- added `last_turn_beat`
-- shifted runtime semantics toward durable branch memory plus a short recent-scene window
-
-### `0006_remove_turn_reconcile_tasks.sql`
-
-Removed the old queued continuity pipeline entirely:
-
-- dropped `turn_reconcile_tasks`
-- dropped `claim_turn_reconcile_tasks(...)`
-- left portrait draining as the only background task path
+- fetch the live schema from Supabase
+- fold required non-schema config such as storage bucket rows back into `0001_baseline.sql`
+- repair remote migration history so the baseline remains the only applied repo migration
 
 ## Runtime Invariants That Matter During Changes
 

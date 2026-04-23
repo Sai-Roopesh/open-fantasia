@@ -36,7 +36,7 @@ If those docs conflict with the code, trust the code and update the docs as part
 - If the latest committed turn does not have a usable head snapshot, the chat UI blocks further progress until the branch is repaired.
 - Character portraits are asynchronous and run through `character_portrait_tasks`; continuity snapshots are no longer queued in normal operation.
 - Provider secrets are encrypted with AES-256-GCM via `APP_ENCRYPTION_KEY`, which must be a 64-character hex string.
-- Schema changes are append-only under `supabase/migrations/`.
+- The repo keeps a single live-derived baseline at `supabase/migrations/0001_baseline.sql`; if schema history is reset, regenerate that file from the linked Supabase project and repair remote migration history in the same pass.
 
 ## Where Things Live
 
@@ -75,10 +75,7 @@ If those docs conflict with the code, trust the code and update the docs as part
 
 ### Database
 
-- `supabase/migrations/0001_baseline.sql`: full baseline schema, RLS, RPCs
-- `supabase/migrations/0002_task_rls_hardening.sql`: task table RLS updates
-- `supabase/migrations/0003_remove_reconcile_task_enqueue.sql`: inline continuity shift
-- `supabase/migrations/0004_rewind_prunes_descendants.sql`: destructive rewind behavior
+- `supabase/migrations/0001_baseline.sql`: full live-derived baseline schema, RLS, storage bucket config, and RPCs
 
 ### Tests
 
@@ -142,7 +139,7 @@ Read:
 - The app runs on Next `16.2.2` and React `19.2.4`.
 - `next dev --webpack` and `next build --webpack` are used by the current scripts.
 - `.env.example` still includes `ENABLE_LOCAL_DEV_AUTH_BYPASS`, but the current application code does not read it.
-- Continuity snapshots are generated inline after commit. The `turn_reconcile_tasks` table and worker code still exist, but they are legacy infrastructure unless intentionally reactivated.
+- Continuity snapshots are generated inline after commit. `turn_reconcile_tasks` no longer exists in the baseline schema; portrait draining is the only background task queue.
 
 ## Documentation Upkeep
 
