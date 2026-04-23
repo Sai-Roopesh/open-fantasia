@@ -79,14 +79,9 @@ Note: `.env.example` still contains `ENABLE_LOCAL_DEV_AUTH_BYPASS`, but the curr
 
 ## Database Setup
 
-Apply the SQL migrations in `supabase/migrations/` in order. The schema lives in six tracked migrations:
+The repo intentionally keeps one checked-in migration: `supabase/migrations/0001_baseline.sql`.
 
-1. `0001_baseline.sql`
-2. `0002_task_rls_hardening.sql`
-3. `0003_remove_reconcile_task_enqueue.sql`
-4. `0004_rewind_prunes_descendants.sql`
-5. `0005_hybrid_memory_redesign.sql`
-6. `0006_remove_turn_reconcile_tasks.sql`
+That baseline is derived from the linked Supabase project's live `public` schema plus required storage bucket configuration. If schema history is intentionally reset again, regenerate the baseline from Supabase itself and repair the remote migration ledger in the same pass.
 
 The generated TypeScript bindings are checked in at `src/lib/supabase/database.types.ts`.
 

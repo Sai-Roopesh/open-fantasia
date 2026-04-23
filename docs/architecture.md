@@ -208,7 +208,7 @@ Key rules:
 
 ### Rewind
 
-Rewind is intentionally destructive after migration `0004_rewind_prunes_descendants.sql`.
+Rewind is intentionally destructive in the current baseline schema.
 
 Current behavior:
 
