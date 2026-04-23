@@ -2,9 +2,10 @@ import { convertToModelMessages, streamText } from "ai";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { createLanguageModel } from "@/lib/ai/provider-factory";
-import { buildRoleplaySystemPrompt } from "@/lib/ai/roleplay-prompt";
 import {
   assertThreadReadyForNewTurn,
+  buildGenerationMessages,
+  buildGenerationSystemPrompt,
   loadThreadGenerationRuntime,
   ThreadGenerationServiceError,
   toThreadGenerationErrorResponse,
@@ -99,17 +100,16 @@ export async function POST(request: Request) {
   let turnSettled = false;
   const result = streamText({
     model: createLanguageModel(runtime.connection, runtime.threadView.thread.model_id),
-    system: buildRoleplaySystemPrompt({
-      character: runtime.character,
-      persona: runtime.persona,
+    system: buildGenerationSystemPrompt({
+      runtime,
       snapshot: runtime.threadView.headSnapshot,
-      pins: runtime.threadView.pins,
-      timeline: [...runtime.threadView.timeline].reverse(),
     }),
-    messages: await convertToModelMessages([
-      ...runtime.threadView.modelContextMessages,
-      userMessage,
-    ]),
+    messages: await convertToModelMessages(
+      buildGenerationMessages({
+        recentSceneMessages: runtime.threadView.recentSceneMessages,
+        pendingMessages: [userMessage],
+      }),
+    ),
     temperature: runtime.generationSettings.temperature,
     topP: runtime.generationSettings.topP,
     maxOutputTokens: runtime.generationSettings.maxOutputTokens,

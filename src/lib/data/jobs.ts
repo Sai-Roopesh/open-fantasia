@@ -1,35 +1,15 @@
-import { parseRow, parseRows, type DatabaseClient } from "@/lib/data/shared";
+import { parseRows, type DatabaseClient } from "@/lib/data/shared";
 import type {
   CharacterPortraitPayload,
   CharacterPortraitTaskRecord,
-  TurnReconcileTaskRecord,
 } from "@/lib/types";
-import {
-  portraitTaskRecordSchema,
-  reconcileTaskRecordSchema,
-} from "@/lib/validation";
+import { portraitTaskRecordSchema } from "@/lib/validation";
 
 function withExponentialBackoff(attempts: number) {
   const exponent = Math.max(0, Math.min(attempts, 6) - 1);
   const baseDelayMs = 30_000 * 2 ** exponent;
   const jitterMs = Math.floor(baseDelayMs * Math.random() * 0.25);
   return new Date(Date.now() + baseDelayMs + jitterMs).toISOString();
-}
-
-export function normalizeReconcileTask(value: unknown, label = "Reconcile task") {
-  return parseRow(
-    value,
-    reconcileTaskRecordSchema,
-    label,
-  ) as TurnReconcileTaskRecord;
-}
-
-export function normalizePortraitTask(value: unknown, label = "Portrait task") {
-  return parseRow(
-    value,
-    portraitTaskRecordSchema,
-    label,
-  ) as CharacterPortraitTaskRecord;
 }
 
 export async function enqueueGenerateCharacterPortraitTask(
@@ -59,26 +39,7 @@ export async function enqueueGenerateCharacterPortraitTask(
     throw error;
   }
 
-  return normalizePortraitTask(data, "Queued portrait task");
-}
-
-export async function claimTurnReconcileTasks(
-  supabase: DatabaseClient,
-  limit = 5,
-) {
-  const { data, error } = await supabase.rpc("claim_turn_reconcile_tasks", {
-    limit_count: limit,
-  });
-
-  if (error) {
-    throw error;
-  }
-
-  return parseRows(
-    data ?? [],
-    reconcileTaskRecordSchema,
-    "Claimed reconcile tasks",
-  ) as TurnReconcileTaskRecord[];
+  return parseRows([data], portraitTaskRecordSchema, "Queued portrait task")[0] as CharacterPortraitTaskRecord;
 }
 
 export async function claimCharacterPortraitTasks(
@@ -98,47 +59,6 @@ export async function claimCharacterPortraitTasks(
     portraitTaskRecordSchema,
     "Claimed portrait tasks",
   ) as CharacterPortraitTaskRecord[];
-}
-
-export async function completeTurnReconcileTask(
-  supabase: DatabaseClient,
-  id: string,
-) {
-  const { error } = await supabase
-    .from("turn_reconcile_tasks")
-    .update({
-      status: "succeeded",
-      locked_at: null,
-      last_error: null,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", id);
-
-  if (error) {
-    throw error;
-  }
-}
-
-export async function failTurnReconcileTask(
-  supabase: DatabaseClient,
-  task: TurnReconcileTaskRecord,
-  message: string,
-) {
-  const terminal = task.attempts >= task.max_attempts;
-  const { error } = await supabase
-    .from("turn_reconcile_tasks")
-    .update({
-      status: terminal ? "failed" : "pending",
-      available_at: terminal ? task.available_at : withExponentialBackoff(task.attempts),
-      locked_at: null,
-      last_error: message,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", task.id);
-
-  if (error) {
-    throw error;
-  }
 }
 
 export async function completeCharacterPortraitTask(

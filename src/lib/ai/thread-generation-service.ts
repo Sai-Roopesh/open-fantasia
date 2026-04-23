@@ -41,8 +41,39 @@ export type ThreadGenerationRuntime = {
   generationSettings: ThreadGenerationSettings;
 };
 
+const MIN_PROMPT_TIMELINE_IMPORTANCE = 3;
+const MAX_PROMPT_TIMELINE_EVENTS = 5;
+
 function toPromptTimeline(timeline: TimelineEventRecord[]) {
-  return [...timeline].reverse();
+  return timeline
+    .filter((event) => event.importance >= MIN_PROMPT_TIMELINE_IMPORTANCE)
+    .slice(0, MAX_PROMPT_TIMELINE_EVENTS)
+    .reverse();
+}
+
+export function buildGenerationMessages(args: {
+  recentSceneMessages: FantasiaUIMessage[];
+  pendingMessages?: FantasiaUIMessage[];
+}) {
+  return [
+    ...args.recentSceneMessages,
+    ...(args.pendingMessages ?? []),
+  ];
+}
+
+export function buildGenerationSystemPrompt(args: {
+  runtime: ThreadGenerationRuntime;
+  snapshot: ThreadStateSnapshot | null;
+  pins?: ThreadGraphView["pins"];
+  timeline?: TimelineEventRecord[];
+}) {
+  return buildRoleplaySystemPrompt({
+    character: args.runtime.character,
+    persona: args.runtime.persona,
+    snapshot: args.snapshot,
+    pins: args.pins ?? args.runtime.threadView.pins,
+    timeline: toPromptTimeline(args.timeline ?? args.runtime.threadView.timeline),
+  });
 }
 
 export async function loadThreadGenerationRuntime(args: {
@@ -173,12 +204,11 @@ export async function generateAssistantReply(args: {
 }) {
   const result = await generateText({
     model: createLanguageModel(args.runtime.connection, args.runtime.threadView.thread.model_id),
-    system: buildRoleplaySystemPrompt({
-      character: args.runtime.character,
-      persona: args.runtime.persona,
+    system: buildGenerationSystemPrompt({
+      runtime: args.runtime,
       snapshot: args.snapshot,
-      pins: args.pins ?? args.runtime.threadView.pins,
-      timeline: toPromptTimeline(args.timeline ?? args.runtime.threadView.timeline),
+      pins: args.pins,
+      timeline: args.timeline,
     }),
     messages: await convertToModelMessages(args.messages),
     temperature: args.runtime.generationSettings.temperature,

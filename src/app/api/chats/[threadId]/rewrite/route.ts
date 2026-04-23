@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/auth";
 import {
   assertLatestTurnRewriteTarget,
   assertThreadReadyForLatestRewrite,
+  buildGenerationMessages,
   generateAssistantReply,
   loadThreadGenerationRuntime,
   toThreadGenerationErrorResponse,
@@ -10,7 +11,7 @@ import {
 import { materializeSnapshotForTurn } from "@/lib/ai/continuity";
 import { getSnapshot } from "@/lib/data/snapshots";
 import { beginTurn, commitTurn, failTurn } from "@/lib/data/turns";
-import { createTextMessage } from "@/lib/threads/read-model";
+import { buildRecentSceneMessages, createTextMessage } from "@/lib/threads/read-model";
 import { getValidationErrorMessage, rewriteLatestTurnRequestSchema } from "@/lib/validation";
 
 function getLatestTurnRewriteFailureMessage(mode: "user" | "assistant" | "regenerate") {
@@ -104,13 +105,7 @@ export async function POST(
         completionTokens: null,
       });
     } else {
-      const previousMessages = runtime.threadView.turns
-        .slice(0, -1)
-        .flatMap((turn) =>
-          runtime.threadView.modelContextMessages.filter(
-            (message) => message.metadata?.turnId === turn.id,
-          ),
-        );
+      const contextTurns = runtime.threadView.turns.slice(0, -1);
       const rewrittenUserMessage = createTextMessage({
         role: "user",
         text: userText,
@@ -127,7 +122,10 @@ export async function POST(
 
       const { assistantMessage, result } = await generateAssistantReply({
         runtime,
-        messages: [...previousMessages, rewrittenUserMessage],
+        messages: buildGenerationMessages({
+          recentSceneMessages: buildRecentSceneMessages(contextTurns),
+          pendingMessages: [rewrittenUserMessage],
+        }),
         snapshot: previousSnapshot,
       });
 

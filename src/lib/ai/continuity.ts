@@ -17,6 +17,8 @@ import type {
 } from "@/lib/types";
 import { dedupeStrings } from "@/lib/utils";
 
+const RECENT_RECONCILIATION_TURN_WINDOW = 10;
+
 function clipText(value: string, limit: number) {
   const compact = value.replace(/\s+/g, " ").trim();
   if (compact.length <= limit) {
@@ -43,31 +45,39 @@ export function buildFallbackSnapshot(args: {
 }) {
   const assistantText = args.turn.assistant_output_text ?? "";
   const userText = args.turn.user_input_hidden ? "" : args.turn.user_input_text;
-  const rollingSummary =
+  const recentSummary =
     summarizeRecentMessages(args.recentMessages) ||
     clipText([userText, assistantText].filter(Boolean).join(" "), 900) ||
-    args.previousSnapshot?.rolling_summary ||
+    args.previousSnapshot?.scene_summary ||
     "The scene advanced through the latest exchange.";
-  const scenarioState =
+  const storySummary =
+    clipText(
+      [args.previousSnapshot?.story_summary, recentSummary].filter(Boolean).join(" "),
+      1_200,
+    ) ||
+    args.previousSnapshot?.story_summary ||
+    "The scene advanced through the latest exchange.";
+  const lastTurnBeat =
     clipText([userText, assistantText].filter(Boolean).join(" "), 280) ||
-    args.previousSnapshot?.scenario_state ||
-    "The scene is in motion after the latest turn.";
+    args.previousSnapshot?.last_turn_beat ||
+    "The latest exchange shifted the scene.";
 
   return {
     turn_id: args.turn.id,
     thread_id: args.turn.thread_id,
     branch_id: args.turn.branch_origin_id,
     based_on_turn_id: args.previousSnapshot?.turn_id ?? null,
-    scenario_state: scenarioState,
+    story_summary: storySummary,
+    scene_summary: recentSummary,
+    last_turn_beat: lastTurnBeat,
     relationship_state:
       args.previousSnapshot?.relationship_state ||
       "The relationship is evolving through the latest exchange.",
-    rolling_summary: rollingSummary,
-    user_facts: dedupeStrings(args.previousSnapshot?.user_facts ?? []),
-    open_loops: dedupeStrings(args.previousSnapshot?.open_loops ?? []),
-    resolved_loops: dedupeStrings(args.previousSnapshot?.resolved_loops ?? []),
-    narrative_hooks: dedupeStrings(args.previousSnapshot?.narrative_hooks ?? []),
-    scene_goals: dedupeStrings(args.previousSnapshot?.scene_goals ?? []),
+    user_facts: dedupeStrings(args.previousSnapshot?.user_facts ?? []).slice(0, 8),
+    active_threads: dedupeStrings(args.previousSnapshot?.active_threads ?? []).slice(0, 5),
+    resolved_threads: dedupeStrings(args.previousSnapshot?.resolved_threads ?? []).slice(0, 5),
+    next_turn_pressure: dedupeStrings(args.previousSnapshot?.next_turn_pressure ?? []).slice(0, 3),
+    scene_goals: dedupeStrings(args.previousSnapshot?.scene_goals ?? []).slice(0, 5),
     version: (args.previousSnapshot?.version ?? 0) + 1,
     updated_at: new Date().toISOString(),
   } satisfies ThreadStateSnapshot;
@@ -122,7 +132,10 @@ async function materializeSnapshotFromTurns(args: {
   }
 
   const turnPath = buildTurnPath(args.turns, args.turn.id);
-  const recentMessages = turnPath.slice(-6).flatMap((turn) => toTranscriptMessages(turn));
+  const recentMessages = turnPath
+    .filter((turn) => turn.generation_status === "committed")
+    .slice(-RECENT_RECONCILIATION_TURN_WINDOW)
+    .flatMap((turn) => toTranscriptMessages(turn));
 
   try {
     const reconciliation = await reconcileTurnState({

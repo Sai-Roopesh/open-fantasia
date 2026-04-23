@@ -110,21 +110,18 @@ export type ChatTurnRecord = DbRow<"chat_turns"> & {
 };
 export type TimelineEventRecord = DbRow<"chat_timeline_events">;
 export type ChatPinRecord = DbRow<"chat_pins">;
-export type TurnReconcileTaskRecord = DbRow<"turn_reconcile_tasks"> & {
-  status: TaskStatus;
-};
 export type CharacterPortraitTaskRecord = DbRow<"character_portrait_tasks"> & {
   status: TaskStatus;
 };
 
 export type TurnSnapshotRecord = Omit<
   DbRow<"chat_turn_snapshots">,
-  "user_facts" | "open_loops" | "resolved_loops" | "narrative_hooks" | "scene_goals"
+  "user_facts" | "active_threads" | "resolved_threads" | "next_turn_pressure" | "scene_goals"
 > & {
   user_facts: string[];
-  open_loops: string[];
-  resolved_loops: string[];
-  narrative_hooks: string[];
+  active_threads: string[];
+  resolved_threads: string[];
+  next_turn_pressure: string[];
   scene_goals: string[];
 };
 export type ThreadStateSnapshot = TurnSnapshotRecord;
@@ -161,13 +158,14 @@ export type TranscriptControl = {
 };
 
 export const reconciliationSchema = z.object({
-  scenarioState: z.string().default(""),
+  storySummary: z.string().default(""),
+  sceneSummary: z.string().default(""),
+  lastTurnBeat: z.string().default(""),
   relationshipState: z.string().default(""),
-  rollingSummary: z.string().default(""),
   userFacts: z.array(z.string()).default([]),
-  openLoops: z.array(z.string()).default([]),
-  resolvedLoops: z.array(z.string()).default([]),
-  narrativeHooks: z.array(z.string()).default([]),
+  activeThreads: z.array(z.string()).default([]),
+  resolvedThreads: z.array(z.string()).default([]),
+  nextTurnPressure: z.array(z.string()).default([]),
   sceneGoals: z.array(z.string()).default([]),
   timelineEvent: z
     .object({
@@ -260,17 +258,6 @@ export type ThreadGenerationSettings = {
   temperature: number;
   topP: number;
   maxOutputTokens: number;
-};
-
-export type ReconcileTurnTaskPayload = {
-  turnId: string;
-  threadId: string;
-  branchId: string;
-  previousTurnId: string | null;
-  connectionId: string;
-  modelId: string;
-  characterId: string;
-  personaId: string;
 };
 
 export type CharacterPortraitPayload = {

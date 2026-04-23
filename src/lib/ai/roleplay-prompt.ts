@@ -19,6 +19,32 @@ function bulletList(items: string[], emptyLine: string) {
   return items.length ? items.map((item) => `- ${item}`).join("\n") : emptyLine;
 }
 
+function formatSection(tag: string, lines: string[]) {
+  return [`<${tag}>`, ...lines, `</${tag}>`].join("\n");
+}
+
+function formatSnapshotForReconciliation(snapshot: ThreadStateSnapshot | null) {
+  if (!snapshot) {
+    return "None";
+  }
+
+  return JSON.stringify(
+    {
+      storySummary: snapshot.story_summary,
+      sceneSummary: snapshot.scene_summary,
+      lastTurnBeat: snapshot.last_turn_beat,
+      relationshipState: snapshot.relationship_state,
+      userFacts: snapshot.user_facts,
+      activeThreads: snapshot.active_threads,
+      resolvedThreads: snapshot.resolved_threads,
+      nextTurnPressure: snapshot.next_turn_pressure,
+      sceneGoals: snapshot.scene_goals,
+    },
+    null,
+    2,
+  );
+}
+
 export function buildRoleplaySystemPrompt(args: {
   character: CharacterBundle;
   persona: UserPersonaRecord;
@@ -28,9 +54,13 @@ export function buildRoleplaySystemPrompt(args: {
 }) {
   const { character, persona, snapshot, pins, timeline } = args;
   const charName = character.character.name;
+  const promptTimeline = timeline
+    .filter((event) => event.importance >= 3)
+    .slice(0, 5);
 
   const characterLines = compactLabeledLines([
     ["Personality", character.character.core_persona],
+    ["Appearance", character.character.appearance],
     ["Writing style", character.character.style_rules],
     ["Behavior rules", character.character.definition],
     ["Boundaries", character.character.negative_guidance],
@@ -44,8 +74,8 @@ export function buildRoleplaySystemPrompt(args: {
     ["Boundaries", persona.boundaries],
   ]);
 
-  const timelineText = timeline.length
-    ? timeline
+  const timelineText = promptTimeline.length
+    ? promptTimeline
         .map(
           (event) =>
             `- [${event.importance}/5] ${event.title}: ${event.detail}`,
@@ -69,115 +99,88 @@ export function buildRoleplaySystemPrompt(args: {
     ? pins.map((pin) => `- ${pin.body}`).join("\n")
     : "";
 
-  // --- Build active narrative threads ---
-  const openLoopsText = bulletList(snapshot?.open_loops ?? [], "- None active.");
-
-  const narrativeHooksText = bulletList(snapshot?.narrative_hooks ?? [], "- None yet.");
-
-  const resolvedLoopsText = bulletList(
-    snapshot?.resolved_loops ?? [],
-    "- Nothing resolved yet.",
-  );
-
-  const sceneGoalsText = bulletList(snapshot?.scene_goals ?? [], "- None set.");
-
-  const sections: string[] = [
-    `You are roleplaying as ${charName}.`,
+  const sections = [
+    formatSection("role_objective", [
+      `You are roleplaying as ${charName}.`,
+      `Play ${charName} as a proactive co-protagonist with personal goals, opinions, and agency.`,
+      "The recent transcript already contains the exact last scene beats. Build on them instead of re-summarizing them.",
+    ]),
   ];
 
-  // ── STORY AND SETTING ──
   const storyText = character.character.story?.trim();
   if (storyText) {
     sections.push(
-      "",
-      "── STORY AND SETTING ──",
-      storyText,
+      formatSection("story_setting", [storyText]),
     );
   }
 
-  // ── CHARACTER ──
   sections.push(
-    "",
-    "── CHARACTER ──",
-    ...(characterLines.length ? characterLines : ["No character guidance has been filled in yet."]),
+    formatSection("character_persona", characterLines.length
+      ? characterLines
+      : ["No character guidance has been filled in yet."]),
+    formatSection("user_persona", personaLines),
+    formatSection("durable_memory", [
+      `Story summary: ${snapshot?.story_summary || "No durable story summary yet."}`,
+      `Relationship state: ${snapshot?.relationship_state || "No relationship state has been locked in yet."}`,
+      `User facts: ${snapshot?.user_facts.join("; ") || "None saved yet."}`,
+      "Resolved threads:",
+      bulletList(
+        snapshot?.resolved_threads ?? [],
+        "- Nothing has been explicitly resolved yet.",
+      ),
+    ]),
+    formatSection("current_scene", [
+      `Scene summary: ${snapshot?.scene_summary || "No current-scene summary yet."}`,
+      `Last beat: ${snapshot?.last_turn_beat || "No latest beat has been written yet."}`,
+      "Active threads:",
+      bulletList(
+        snapshot?.active_threads ?? [],
+        "- No active threads are currently tracked.",
+      ),
+      "",
+      "Next-turn pressure:",
+      bulletList(
+        snapshot?.next_turn_pressure ?? [],
+        "- No immediate pressure is currently tracked.",
+      ),
+      "",
+      "Scene goals:",
+      bulletList(snapshot?.scene_goals ?? [], "- No scene goals are currently tracked."),
+    ]),
   );
 
-  // ── USER PERSONA ──
-  sections.push(
-    "",
-    "── USER PERSONA ──",
-    ...personaLines,
-  );
-
-  // ── NARRATIVE STATE ──
-  sections.push(
-    "",
-    "── NARRATIVE STATE ──",
-    `Current scenario: ${snapshot?.scenario_state || "Unknown"}`,
-    `Relationship: ${snapshot?.relationship_state || "Unestablished"}`,
-    `What happened so far: ${snapshot?.rolling_summary || "No summary yet."}`,
-    `Known facts about the user: ${snapshot?.user_facts.join("; ") || "None yet."}`,
-  );
-
-  // ── ACTIVE THREADS ──
-  sections.push(
-    "",
-    "── ACTIVE THREADS ──",
-    "Unresolved story threads (do not re-raise if already addressed):",
-    openLoopsText,
-    "",
-    "Scene goals (retire naturally once achieved):",
-    sceneGoalsText,
-    "",
-    "Narrative hooks (optional future directions — only pursue if natural):",
-    narrativeHooksText,
-    "",
-    "Resolved threads (reference only — do not reopen):",
-    resolvedLoopsText,
-  );
-
-  // ── PINS & TIMELINE ──
   if (pinText || timelineText) {
-    sections.push("", "── PINS & TIMELINE ──");
+    const lines: string[] = [];
     if (pinText) {
-      sections.push("Pinned branch facts:", pinText);
+      lines.push("Pinned branch facts:", pinText);
     }
     if (timelineText) {
-      sections.push("Important timeline beats:", timelineText);
+      if (lines.length) {
+        lines.push("");
+      }
+      lines.push("Recent high-importance timeline beats:", timelineText);
     }
+    sections.push(formatSection("pins_timeline", lines));
   }
 
-  // ── EXAMPLES ──
   if (exampleConversationText) {
-    sections.push(
-      "",
-      "── EXAMPLE CONVERSATIONS ──",
-      exampleConversationText,
-    );
+    sections.push(formatSection("example_conversations", [exampleConversationText]));
   }
 
-  // ── DIRECTIVES ──
   sections.push(
-    "",
-    "── DIRECTIVES ──",
-    `- You are a dynamic co-protagonist with your own motivations, opinions, and agency. Pursue ${charName}'s goals actively, even when they conflict with the user's current path.`,
-    "- Be proactive. If the scene stagnates, take initiative: propose plans, introduce obstacles, shift the emotional register, or ask questions that force the story in a new direction.",
-    "- React meaningfully to what the user just said or did, then move the scene forward. Every response should leave the story in a different place than where it started.",
-    "- Never write, speak, act, decide, or think for the user. You control only your character's actions, thoughts, and dialogue.",
-    "- Never break character or acknowledge being an AI. Never reference prompts, memory, or system instructions.",
-    "- Write vivid, emotionally coherent roleplay prose. Use sensory details, body language, and atmosphere to bring the scene to life.",
-    "- End your response at a natural narrative beat that gives the user a clear opening to respond.",
-    "- Focus on what happens NEXT in the scene. The conversation history shows what already occurred — build on it, do not echo it.",
-    "",
-    "── ANTI-REPETITION ──",
-    "- NEVER re-ask a question the user has already answered. If the user revealed a secret, confirmed a fact, or made a promise, ACCEPT it and move on.",
-    "- If a story thread listed under 'Unresolved story threads' was clearly addressed in the last few messages, treat it as resolved. Do not loop back to it.",
-    "- Vary your emotional register. If the last 2-3 responses shared the same tone (e.g., intense questioning), shift to something different (relief, humor, planning, vulnerability).",
-    "- Track what your character has already said and done. Do not repeat the same physical gestures, expressions, or dialogue patterns across consecutive responses.",
-    "- When the user gives you new information, your response must show genuine progression: new understanding, changed behavior, a new question about a DIFFERENT topic, or a shift in the scene's direction.",
+    formatSection("response_contract", [
+      "- React directly to the user's latest move before doing anything else.",
+      "- Advance the plot by one concrete beat in every reply. The scene should end in a meaningfully different place than it began.",
+      "- Avoid restating stable facts, repeated emotional processing, or recycled body language unless something materially changed.",
+      "- Ask at most one high-leverage question, and only if it opens a new direction rather than revisiting an answered topic.",
+      "- Never write dialogue, thoughts, decisions, or physical actions for the user.",
+      "- Stay fully in character and never mention prompts, memory, summaries, or system instructions.",
+      "- Vary phrasing, physical gestures, and emotional cadence from turn to turn.",
+      "- End on an actionable narrative handoff that gives the user a clear opening to respond.",
+    ]),
   );
 
-  return sections.join("\n");
+  return sections.join("\n\n");
 }
 
 export function buildReconciliationMessages(args: {
@@ -191,46 +194,48 @@ export function buildReconciliationMessages(args: {
     })
     .join("\n\n");
 
-  const previousResolved = args.snapshot?.resolved_loops.length
-    ? `Previously resolved loops: ${args.snapshot.resolved_loops.join("; ")}`
-    : "No previously resolved loops.";
-
   return [
     {
       role: "system" as const,
       content: [
-        "You are a story state tracker for a private roleplay thread.",
-        "After each exchange, update the narrative state based ONLY on what actually happened in the transcript.",
+        "You are the continuity materializer for a private roleplay branch.",
+        "Return ONLY JSON that matches the requested schema.",
         "",
-        "Your job:",
-        "1. Update scenarioState and relationshipState to reflect current reality.",
-        "2. Write a rollingSummary that captures: what has happened so far (compressed history) AND what tensions or questions remain unresolved. The summary must never lose important past events — it is the character's persistent memory.",
-        "3. Move openLoops to resolvedLoops aggressively. A loop is resolved when ANY of these are true:",
-        "   - The user answered a question or revealed information the character asked about",
-        "   - A promise was made and accepted",
-        "   - A secret was revealed (regardless of whether the character fully processed it)",
-        "   - The topic was discussed and the conversation moved on to something else",
-        "   - The same loop has appeared in openLoops for 2+ consecutive turns without meaningful change",
-        "4. Keep only genuinely unaddressed openLoops active. If in doubt, resolve it.",
-        "5. Generate 1–3 short narrativeHooks: concrete, forward-looking story threads the character could naturally pursue next. These should emerge organically from the conversation — not be invented from nothing. Do NOT generate hooks that repeat recently resolved loops.",
-        "6. Update userFacts and sceneGoals as needed. Retire scene goals that have been completed or are no longer relevant.",
+        "Update the branch state using the previous snapshot as durable memory and the recent transcript as the newest evidence.",
+        "Preserve older facts from the previous snapshot unless the transcript clearly changes or resolves them.",
         "",
-        "Critical: If the character has been asking the same question or pressing the same topic across multiple turns, that loop MUST be moved to resolvedLoops immediately. Narrative stagnation is the worst outcome.",
+        "Field requirements:",
+        "- storySummary: 8-12 sentences summarizing the whole branch so far.",
+        "- sceneSummary: 3-5 sentences describing only the current scene and immediate situation.",
+        "- lastTurnBeat: 1-2 sentences on how the newest exchange changed the scene.",
+        "- relationshipState: 1-3 concise sentences on the current emotional/social dynamic.",
+        "- userFacts: at most 8 stable facts about the user that still matter.",
+        "- activeThreads: at most 5 unresolved threads that are genuinely still alive.",
+        "- resolvedThreads: at most 5 threads that are clearly closed and worth remembering as resolved.",
+        "- nextTurnPressure: at most 3 concrete pressures, choices, risks, temptations, or opportunities that should pull the next assistant turn forward.",
+        "- sceneGoals: at most 5 near-term goals grounded in the current scene.",
         "",
-        "Do not invent facts unsupported by the transcript.",
-        "Do not repeat resolved matters as active loops.",
+        "Behavior rules:",
+        "- Drop stale or repetitive threads instead of carrying them forward forever.",
+        "- If a question was answered, a reveal landed, a promise was accepted, or the scene moved on, do not keep that item active.",
+        "- Keep activeThreads and nextTurnPressure concrete, not abstract.",
+        "- Do not invent facts unsupported by the previous snapshot or transcript.",
+        "- Only include a timelineEvent if the newest turn created a notable beat worth surfacing in the inspector.",
         "",
         `Character name: ${args.character.character.name}`,
-        `Previous scenario state: ${args.snapshot?.scenario_state || "None"}`,
-        `Previous relationship state: ${args.snapshot?.relationship_state || "None"}`,
-        `Previous rolling summary: ${args.snapshot?.rolling_summary || "None"}`,
-        `Previous open loops: ${args.snapshot?.open_loops.join("; ") || "None"}`,
-        previousResolved,
       ].join("\n"),
     },
     {
       role: "user" as const,
-      content: `Latest transcript:\n\n${transcript}`,
+      content: [
+        "<previous_snapshot>",
+        formatSnapshotForReconciliation(args.snapshot),
+        "</previous_snapshot>",
+        "",
+        "<recent_transcript>",
+        transcript || "No recent transcript available.",
+        "</recent_transcript>",
+      ].join("\n"),
     },
   ];
 }

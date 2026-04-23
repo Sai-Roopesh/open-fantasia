@@ -1,4 +1,3 @@
-import { buildSnapshotFromReconciliation, reconcileTurnState } from "@/lib/ai/thread-engine";
 import {
   buildCharacterPortraitObjectPath,
   CHARACTER_PORTRAITS_BUCKET,
@@ -6,94 +5,16 @@ import {
 } from "@/lib/characters/portraits";
 import {
   getCharacter,
-  getCharacterBundle,
   updateCharacterPortrait,
 } from "@/lib/data/characters";
-import { getConnection } from "@/lib/data/connections";
 import {
   claimCharacterPortraitTasks,
-  claimTurnReconcileTasks,
   cleanupStaleGenerationLocks,
   completeCharacterPortraitTask,
-  completeTurnReconcileTask,
   failCharacterPortraitTask,
-  failTurnReconcileTask,
 } from "@/lib/data/jobs";
-import { getPersona } from "@/lib/data/personas";
-import { getSnapshot, saveSnapshot } from "@/lib/data/snapshots";
-import { insertTimelineEvent } from "@/lib/data/timeline";
-import { listTurnsForThread, toTranscriptMessages } from "@/lib/data/turns";
 import type { DatabaseClient } from "@/lib/data/shared";
-import type {
-  CharacterPortraitTaskRecord,
-  TurnReconcileTaskRecord,
-} from "@/lib/types";
-import { buildTurnPath } from "@/lib/threads/read-model";
-
-async function reconcileTurnTask(
-  supabase: DatabaseClient,
-  task: TurnReconcileTaskRecord,
-) {
-  const turns = await listTurnsForThread(supabase, task.thread_id);
-  const turnPath = buildTurnPath(turns, task.turn_id);
-  const currentTurn = turnPath.at(-1);
-  if (!currentTurn || currentTurn.id !== task.turn_id) {
-    throw new Error("Reconciliation skipped: task turn is not reachable.");
-  }
-
-  const [connection, character, persona, previousSnapshot] = await Promise.all([
-    getConnection(supabase, task.user_id, task.connection_id),
-    getCharacterBundle(supabase, task.user_id, task.character_id),
-    getPersona(supabase, task.user_id, task.persona_id),
-    currentTurn.parent_turn_id
-      ? getSnapshot(supabase, task.user_id, currentTurn.parent_turn_id)
-      : Promise.resolve(null),
-  ]);
-
-  if (!connection) {
-    throw new Error("Reconciliation skipped: connection is missing.");
-  }
-  if (!character) {
-    throw new Error("Reconciliation skipped: character is missing.");
-  }
-  if (!persona) {
-    throw new Error("Reconciliation skipped: persona is missing.");
-  }
-
-  const recentMessages = turnPath
-    .slice(-6)
-    .flatMap((turn) => toTranscriptMessages(turn));
-
-  const reconciliation = await reconcileTurnState({
-    connection,
-    modelId: task.model_id,
-    character,
-    previousSnapshot,
-    recentMessages,
-  });
-
-  await saveSnapshot(
-    supabase,
-    buildSnapshotFromReconciliation({
-      turnId: task.turn_id,
-      threadId: task.thread_id,
-      branchId: task.branch_id,
-      previousSnapshot,
-      reconciliation,
-    }),
-  );
-
-  if (reconciliation.timelineEvent) {
-    await insertTimelineEvent(supabase, {
-      thread_id: task.thread_id,
-      branch_id: task.branch_id,
-      turn_id: task.turn_id,
-      title: reconciliation.timelineEvent.title,
-      detail: reconciliation.timelineEvent.detail,
-      importance: reconciliation.timelineEvent.importance,
-    });
-  }
-}
+import type { CharacterPortraitTaskRecord } from "@/lib/types";
 
 async function runCharacterPortraitTask(
   supabase: DatabaseClient,
@@ -201,7 +122,7 @@ async function syncPortraitFailureState(
 
 export async function drainPendingTasks(
   supabase: DatabaseClient,
-  limit = 10,
+  limit = 4,
 ) {
   await cleanupStaleGenerationLocks(supabase).catch((error) => {
     console.error("Failed to clean up stale generation locks.", {
@@ -209,43 +130,10 @@ export async function drainPendingTasks(
     });
   });
 
-  const reconcileLimit = Math.max(1, Math.ceil(limit * 0.7));
-  const portraitLimit = Math.max(1, limit - reconcileLimit);
-
-  const [reconcileTasks, portraitTasks] = await Promise.all([
-    claimTurnReconcileTasks(supabase, reconcileLimit),
-    claimCharacterPortraitTasks(supabase, portraitLimit),
-  ]);
-
-  for (const task of reconcileTasks) {
-    try {
-      await reconcileTurnTask(supabase, task);
-      await completeTurnReconcileTask(supabase, task.id);
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Turn reconciliation failed.";
-      console.error("Turn reconcile task failed.", {
-        taskId: task.id,
-        turnId: task.turn_id,
-        threadId: task.thread_id,
-        branchId: task.branch_id,
-        userId: task.user_id,
-        error: message,
-      });
-      try {
-        await failTurnReconcileTask(supabase, task, message);
-      } catch (persistError) {
-        console.error("Failed to persist reconcile task failure.", {
-          taskId: task.id,
-          turnId: task.turn_id,
-          error:
-            persistError instanceof Error
-              ? persistError.message
-              : String(persistError),
-        });
-      }
-    }
-  }
+  const portraitTasks = await claimCharacterPortraitTasks(
+    supabase,
+    Math.max(1, limit),
+  );
 
   for (const task of portraitTasks) {
     try {
@@ -277,8 +165,7 @@ export async function drainPendingTasks(
   }
 
   return {
-    reconcileProcessed: reconcileTasks.length,
     portraitProcessed: portraitTasks.length,
-    totalProcessed: reconcileTasks.length + portraitTasks.length,
+    totalProcessed: portraitTasks.length,
   };
 }

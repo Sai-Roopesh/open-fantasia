@@ -17,7 +17,7 @@ Open-Fantasia is a private roleplay workspace for long-form AI conversations. It
 - BYOK provider lanes for Google AI Studio, Groq, Mistral, OpenRouter, and Ollama-compatible endpoints
 - Per-thread model and persona switching
 - Streaming chat with branch creation, rewrites, regeneration, rewind, pins, ratings, and a continuity inspector
-- Inline continuity snapshots plus timeline events for committed turns
+- Hybrid continuity snapshots plus timeline events for committed turns
 - Protected internal job route for draining portrait work
 
 ## Stack
@@ -79,12 +79,14 @@ Note: `.env.example` still contains `ENABLE_LOCAL_DEV_AUTH_BYPASS`, but the curr
 
 ## Database Setup
 
-Apply the SQL migrations in `supabase/migrations/` in order. The schema lives in four tracked migrations:
+Apply the SQL migrations in `supabase/migrations/` in order. The schema lives in six tracked migrations:
 
 1. `0001_baseline.sql`
 2. `0002_task_rls_hardening.sql`
 3. `0003_remove_reconcile_task_enqueue.sql`
 4. `0004_rewind_prunes_descendants.sql`
+5. `0005_hybrid_memory_redesign.sql`
+6. `0006_remove_turn_reconcile_tasks.sql`
 
 The generated TypeScript bindings are checked in at `src/lib/supabase/database.types.ts`.
 
@@ -96,8 +98,18 @@ pnpm lint
 pnpm typecheck
 pnpm build
 pnpm test:unit
+pnpm eval:hybrid-memory
 pnpm test:e2e
 pnpm test:e2e:list
+```
+
+Optional hybrid-memory prompt eval:
+
+```bash
+OPEN_FANTASIA_EVAL_PROVIDER=mistral \
+OPEN_FANTASIA_EVAL_MODEL=mistral-medium-latest \
+OPEN_FANTASIA_EVAL_API_KEY=... \
+pnpm eval:hybrid-memory
 ```
 
 ## Architecture Snapshot
@@ -107,8 +119,8 @@ pnpm test:e2e:list
 - Most user mutations are implemented as server actions in route-local `actions.ts` files.
 - The main streaming turn path is `src/app/api/chat/route.ts`.
 - Thread read models are assembled in `src/lib/threads/read-model.ts`.
-- Continuity snapshots are materialized inline through `src/lib/ai/continuity.ts`.
-- Portrait jobs are queued in `character_portrait_tasks` and drained by `src/lib/jobs/reconcile-worker.ts`.
+- Continuity snapshots are materialized inline through `src/lib/ai/continuity.ts` using durable branch memory plus a short recent-scene window.
+- Portrait jobs are queued in `character_portrait_tasks` and drained by `src/lib/jobs/task-drain.ts`.
 
 ## Background Work
 

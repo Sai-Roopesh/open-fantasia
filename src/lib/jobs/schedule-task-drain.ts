@@ -1,6 +1,6 @@
 import { after } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { drainPendingTasks } from "@/lib/jobs/reconcile-worker";
+import { drainPendingTasks } from "@/lib/jobs/task-drain";
 
 export function scheduleTaskDrain(trigger: string, limit = 4) {
   after(async () => {

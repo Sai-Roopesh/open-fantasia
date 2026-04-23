@@ -133,7 +133,7 @@ It builds a `ThreadGraphView` containing:
 - timeline events
 - active pins
 - transcript-ready messages
-- model-context messages
+- recent-scene model-context messages
 - per-message control affordances
 
 This read model is the shared foundation for:
@@ -155,8 +155,8 @@ The main flow lives in `src/app/api/chat/route.ts`.
 4. Assert the active branch is not already locked.
 5. Reserve a turn with the `begin_turn` RPC wrapper.
 6. Mark the turn as `streaming`.
-7. Build the system prompt from character, persona, snapshot, pins, and timeline state.
-8. Stream the assistant reply with `streamText(...)`.
+7. Build the system prompt from character, persona, hybrid memory snapshot, pins, and filtered timeline state.
+8. Send only the recent-scene window plus the new user turn to `streamText(...)`.
 9. On success, persist with `commit_turn`.
 10. Immediately materialize the new continuity snapshot.
 11. On failure, persist failure state with `fail_turn`.
@@ -184,12 +184,12 @@ For a committed turn, the runtime tries to:
 
 1. load any existing snapshot
 2. recursively materialize the parent snapshot if needed
-3. build a recent message window from the reachable turn path
-4. ask the reconciliation engine for updated scenario state
+3. combine the previous snapshot with the last 10 committed turns on the reachable path
+4. ask the reconciliation engine for updated durable branch memory plus current-scene state
 5. persist the snapshot
 6. optionally persist a generated timeline event
 
-If reconciliation fails, the system falls back to a deterministic snapshot builder instead of leaving the branch without state.
+If reconciliation fails, the system falls back to a deterministic snapshot builder instead of leaving the branch without state. Normal generation still uses a short recent-scene transcript window instead of replaying the whole branch transcript every turn.
 
 The chat page still treats a missing or failed head snapshot as a first-class condition. When the head snapshot is pending or failed, the composer blocks new progress until the branch state is coherent again.
 
@@ -256,7 +256,7 @@ Portrait behavior is split in two parts.
 
 ### Execution
 
-Portrait tasks are queued from character server actions. Task draining happens in `src/lib/jobs/reconcile-worker.ts` and:
+Portrait tasks are queued from character server actions. Task draining happens in `src/lib/jobs/task-drain.ts` and:
 
 - claims runnable portrait tasks
 - fetches the image from Pollinations
@@ -265,16 +265,6 @@ Portrait tasks are queued from character server actions. Task draining happens i
 - retries with backoff on failure
 
 `src/lib/jobs/schedule-task-drain.ts` schedules opportunistic draining with `after()`, and `/api/internal/jobs/run` provides a manual drain path protected by `CRON_SECRET`.
-
-## Legacy Reconcile Task Infrastructure
-
-The repository still contains:
-
-- the `turn_reconcile_tasks` table
-- claim and failure helpers
-- worker code that can process those tasks
-
-However, migration `0003_remove_reconcile_task_enqueue.sql` changed normal behavior so committed turns materialize continuity inline instead of queueing reconcile tasks. Treat reconcile task infrastructure as legacy unless a future feature intentionally restores it.
 
 ## Testing and Deployment
 

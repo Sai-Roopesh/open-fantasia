@@ -95,12 +95,28 @@ export default async function ChatThreadPage({
     continuityStatus,
     continuity: [
       {
-        label: "Scenario state",
+        label: "Story summary",
         value:
-          continuitySnapshot?.scenario_state ||
-          "No scenario snapshot has been written for this branch yet.",
+          continuitySnapshot?.story_summary ||
+          "No durable story summary has been written for this branch yet.",
         helper:
-          "This is the current framing of the scene that the next assistant turn receives.",
+          "This is the whole-branch memory summary the next assistant turn receives as durable context.",
+      },
+      {
+        label: "Current scene",
+        value:
+          continuitySnapshot?.scene_summary ||
+          "No current-scene summary has been written for this branch yet.",
+        helper:
+          "This is the short scene-local memory that keeps the immediate situation sharp without replaying the whole chat.",
+      },
+      {
+        label: "Last beat",
+        value:
+          continuitySnapshot?.last_turn_beat ||
+          "No latest beat has been written for this branch yet.",
+        helper:
+          "This captures how the newest exchange changed the scene, so the next reply can build forward instead of repeating itself.",
       },
       {
         label: "Relationship state",
@@ -111,56 +127,45 @@ export default async function ChatThreadPage({
           "Use this to understand the emotional distance, trust, tension, or intimacy being carried forward.",
       },
       {
-        label: "Rolling summary",
+        label: "Active threads",
         value:
-          continuitySnapshot?.rolling_summary ||
-          "No rolling summary exists yet. Once the thread advances, the runtime will compress the recent scene here.",
+          continuitySnapshot?.active_threads?.length
+            ? continuitySnapshot.active_threads.map((item) => `• ${item}`).join("\n")
+            : "No active threads are currently tracked on this branch.",
         helper:
-          "This is the short-form continuity buffer that keeps long chats coherent without replaying every turn.",
+          "These are the unresolved threads that are still alive and should be available to pull the next beat forward.",
       },
       {
-        label: "Open loops",
-        value: continuitySnapshot?.open_loops?.length
-          ? continuitySnapshot.open_loops.map((item) => `• ${item}`).join("\n")
-          : "No unresolved loops are currently tracked on this branch.",
+        label: "Resolved threads",
+        value: continuitySnapshot?.resolved_threads?.length
+          ? continuitySnapshot.resolved_threads.map((item) => `• ${item}`).join("\n")
+          : "No resolved threads are currently tracked yet.",
         helper:
-          "Open loops are the unresolved promises, questions, or consequences the system believes still matter.",
+          "Resolved threads are closed beats the runtime remembers as settled, so the assistant does not keep reopening them.",
       },
       {
-        label: "Resolved loops",
-        value: continuitySnapshot?.resolved_loops?.length
-          ? continuitySnapshot.resolved_loops.map((item) => `• ${item}`).join("\n")
-          : "No loops have been resolved yet.",
+        label: "Next pressure",
+        value: continuitySnapshot?.next_turn_pressure?.length
+          ? continuitySnapshot.next_turn_pressure.map((item) => `• ${item}`).join("\n")
+          : "No immediate next-turn pressure is currently tracked.",
         helper:
-          "Resolved loops are narrative threads that have been settled. The character will not reopen them.",
+          "These are the concrete pressures, opportunities, or risks that should help the next assistant turn move the plot instead of recap it.",
       },
       {
-        label: "Narrative hooks",
-        value: continuitySnapshot?.narrative_hooks?.length
-          ? continuitySnapshot.narrative_hooks.map((hook) => `• ${hook}`).join("\n")
-          : "No forward-looking hooks have been generated yet.",
+        label: "Scene goals",
+        value: continuitySnapshot?.scene_goals?.length
+          ? continuitySnapshot.scene_goals.map((goal) => `• ${goal}`).join("\n")
+          : "No near-term scene goals are currently tracked.",
         helper:
-          "These are organic, forward-looking story threads the character could pursue next.",
+          "Scene goals are near-term objectives grounded in the current moment rather than the whole branch history.",
       },
       {
-        label: "Scene goals and user facts",
-        value: [
-          continuitySnapshot?.scene_goals?.length
-            ? `Scene goals:\n${continuitySnapshot.scene_goals
-                .map((goal) => `• ${goal}`)
-                .join("\n")}`
-            : null,
-          continuitySnapshot?.user_facts?.length
-            ? `User facts:\n${continuitySnapshot.user_facts
-                .map((fact) => `• ${fact}`)
-                .join("\n")}`
-            : null,
-        ]
-          .filter(Boolean)
-          .join("\n\n") ||
-          "No scene goals or durable user facts have been saved for this branch yet.",
+        label: "User facts",
+        value: continuitySnapshot?.user_facts?.length
+          ? continuitySnapshot.user_facts.map((fact) => `• ${fact}`).join("\n")
+          : "No durable user facts have been saved for this branch yet.",
         helper:
-          "These are the durable facts and near-term objectives the runtime believes should influence the next beat.",
+          "These are the durable user facts the runtime thinks still matter beyond the current scene.",
       },
     ],
     pins: view.pins.map((pin) => ({

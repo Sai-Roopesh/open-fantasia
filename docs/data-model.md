@@ -47,7 +47,7 @@ The application uses:
 
 | Table | Purpose | Key columns |
 | --- | --- | --- |
-| `chat_turn_snapshots` | branch continuity state keyed by turn | `scenario_state`, `relationship_state`, `rolling_summary`, `user_facts`, `open_loops`, `resolved_loops`, `narrative_hooks`, `scene_goals`, `based_on_turn_id` |
+| `chat_turn_snapshots` | branch continuity state keyed by turn | `story_summary`, `scene_summary`, `last_turn_beat`, `relationship_state`, `user_facts`, `active_threads`, `resolved_threads`, `next_turn_pressure`, `scene_goals`, `based_on_turn_id` |
 | `chat_timeline_events` | notable moments surfaced in the inspector | `title`, `detail`, `importance`, `turn_id` |
 | `chat_pins` | manually pinned facts or reminders | `body`, `status`, `turn_id` |
 
@@ -55,7 +55,6 @@ The application uses:
 
 | Table | Purpose | Key columns |
 | --- | --- | --- |
-| `turn_reconcile_tasks` | legacy queued continuity materialization | `turn_id`, `status`, `attempts`, `available_at`, `locked_at` |
 | `character_portrait_tasks` | portrait generation queue | `character_id`, `prompt`, `seed`, `source_hash`, `status`, `attempts`, `available_at`, `locked_at` |
 
 ## Relationship Summary
@@ -148,7 +147,6 @@ The schema deliberately pushes several multi-step operations into SQL functions.
 
 ### Background task helpers
 
-- `claim_turn_reconcile_tasks(limit_count)`
 - `claim_character_portrait_tasks(limit_count)`
 - `cleanup_stale_generation_locks(p_stale_before interval)`
 
@@ -183,7 +181,6 @@ Introduced:
 
 Adjusted grants and insert/update policies for:
 
-- `turn_reconcile_tasks`
 - `character_portrait_tasks`
 
 ### `0003_remove_reconcile_task_enqueue.sql`
@@ -194,11 +191,26 @@ Changed the continuity model:
 - reconcile task enqueueing was removed from the turn commit path
 - existing reconcile tasks were truncated
 
-Important implication: `turn_reconcile_tasks` still exists in schema and code, but it is no longer part of standard runtime flow.
-
 ### `0004_rewind_prunes_descendants.sql`
 
 Strengthened rewind semantics so rewinding a branch now prunes descendant turns and related branches rooted in the discarded subtree.
+
+### `0005_hybrid_memory_redesign.sql`
+
+Reworked continuity persistence around hybrid memory:
+
+- cleared existing `chat_turn_snapshots`
+- renamed the old summary/loop columns into the new durable-memory names
+- added `last_turn_beat`
+- shifted runtime semantics toward durable branch memory plus a short recent-scene window
+
+### `0006_remove_turn_reconcile_tasks.sql`
+
+Removed the old queued continuity pipeline entirely:
+
+- dropped `turn_reconcile_tasks`
+- dropped `claim_turn_reconcile_tasks(...)`
+- left portrait draining as the only background task path
 
 ## Runtime Invariants That Matter During Changes
 

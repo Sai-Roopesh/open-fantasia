@@ -11,6 +11,24 @@ import type {
 import { reconciliationSchema } from "@/lib/types";
 import { dedupeStrings } from "@/lib/utils";
 
+function limitSentenceCount(value: string, maxSentences: number) {
+  const compact = value.replace(/\s+/g, " ").trim();
+  if (!compact) {
+    return "";
+  }
+
+  const sentences = compact.split(/(?<=[.!?])\s+/).filter(Boolean);
+  if (sentences.length <= maxSentences) {
+    return compact;
+  }
+
+  return sentences.slice(0, maxSentences).join(" ").trim();
+}
+
+function dedupeAndLimitStrings(values: string[], maxItems: number) {
+  return dedupeStrings(values).slice(0, maxItems);
+}
+
 export async function reconcileTurnState(args: {
   connection: ConnectionRecord;
   modelId: string;
@@ -40,32 +58,20 @@ export function buildSnapshotFromReconciliation(args: {
   previousSnapshot: ThreadStateSnapshot | null;
   reconciliation: ReconciliationOutput;
 }) {
-  // Accumulate resolved loops from previous snapshot + newly resolved ones
-  const allResolved = dedupeStrings([
-    ...(args.previousSnapshot?.resolved_loops ?? []),
-    ...args.reconciliation.resolvedLoops,
-  ]);
-
-  // Filter open loops to exclude anything the reconciler just resolved
-  const resolvedSet = new Set(allResolved.map((s) => s.toLowerCase().trim()));
-  const activeLoops = dedupeStrings([
-    ...(args.previousSnapshot?.open_loops ?? []),
-    ...args.reconciliation.openLoops,
-  ]).filter((loop) => !resolvedSet.has(loop.toLowerCase().trim()));
-
   return {
     turn_id: args.turnId,
     thread_id: args.threadId,
     branch_id: args.branchId,
     based_on_turn_id: args.previousSnapshot?.turn_id ?? null,
-    scenario_state: args.reconciliation.scenarioState,
-    relationship_state: args.reconciliation.relationshipState,
-    rolling_summary: args.reconciliation.rollingSummary,
-    user_facts: dedupeStrings(args.reconciliation.userFacts),
-    open_loops: activeLoops,
-    resolved_loops: allResolved,
-    narrative_hooks: dedupeStrings(args.reconciliation.narrativeHooks),
-    scene_goals: dedupeStrings(args.reconciliation.sceneGoals),
+    story_summary: limitSentenceCount(args.reconciliation.storySummary, 12),
+    scene_summary: limitSentenceCount(args.reconciliation.sceneSummary, 5),
+    last_turn_beat: limitSentenceCount(args.reconciliation.lastTurnBeat, 2),
+    relationship_state: limitSentenceCount(args.reconciliation.relationshipState, 3),
+    user_facts: dedupeAndLimitStrings(args.reconciliation.userFacts, 8),
+    active_threads: dedupeAndLimitStrings(args.reconciliation.activeThreads, 5),
+    resolved_threads: dedupeAndLimitStrings(args.reconciliation.resolvedThreads, 5),
+    next_turn_pressure: dedupeAndLimitStrings(args.reconciliation.nextTurnPressure, 3),
+    scene_goals: dedupeAndLimitStrings(args.reconciliation.sceneGoals, 5),
     version: (args.previousSnapshot?.version ?? 0) + 1,
     updated_at: new Date().toISOString(),
   } satisfies ThreadStateSnapshot;

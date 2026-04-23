@@ -3,9 +3,11 @@ import {
   assertLatestTurnRewriteTarget,
   assertThreadReadyForLatestRewrite,
   assertThreadReadyForNewTurn,
+  buildGenerationMessages,
   ThreadGenerationServiceError,
 } from "@/lib/ai/thread-generation-service";
-import type { ThreadGraphView } from "@/lib/threads/read-model";
+import type { ChatTurnRecord } from "@/lib/types";
+import { buildRecentSceneMessages, type ThreadGraphView } from "@/lib/threads/read-model";
 
 function makeThreadView(
   overrides: Partial<ThreadGraphView> = {},
@@ -79,10 +81,41 @@ function makeThreadView(
     timeline: [],
     pins: [],
     canonicalMessages: [],
-    modelContextMessages: [],
+    recentSceneMessages: [],
     controlsByMessageId: {},
     ...overrides,
   } satisfies ThreadGraphView;
+}
+
+function makeTurn(id: string): ChatTurnRecord {
+  return {
+    id,
+    thread_id: "thread-1",
+    branch_origin_id: "branch-1",
+    parent_turn_id: null,
+    user_input_text: `user ${id}`,
+    user_input_payload: [],
+    user_input_hidden: false,
+    starter_seed: false,
+    assistant_output_text: `assistant ${id}`,
+    assistant_output_payload: [],
+    generation_status: "committed",
+    reserved_by_user_id: "user-1",
+    assistant_provider: null,
+    assistant_model: null,
+    assistant_connection_label: null,
+    finish_reason: null,
+    total_tokens: null,
+    prompt_tokens: null,
+    completion_tokens: null,
+    feedback_rating: null,
+    generation_started_at: "",
+    generation_finished_at: "",
+    failure_code: null,
+    failure_message: null,
+    created_at: "",
+    updated_at: "",
+  };
 }
 
 describe("thread generation guards", () => {
@@ -125,5 +158,21 @@ describe("thread generation guards", () => {
         }),
       ),
     ).toThrow(ThreadGenerationServiceError);
+  });
+
+  it("builds generation context from only the last four committed turns", () => {
+    const messages = buildGenerationMessages({
+      recentSceneMessages: buildRecentSceneMessages([
+        makeTurn("turn-1"),
+        makeTurn("turn-2"),
+        makeTurn("turn-3"),
+        makeTurn("turn-4"),
+        makeTurn("turn-5"),
+      ]),
+    });
+
+    expect(messages).toHaveLength(8);
+    expect(messages[0]?.id).toBe("turn-2:user");
+    expect(messages.at(-1)?.id).toBe("turn-5:assistant");
   });
 });
