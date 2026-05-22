@@ -10,6 +10,7 @@ import {
 } from "@/components/personas/persona-form-state";
 import { useLocalDraft } from "@/components/forms/use-local-draft";
 import { useUnsavedChangesGuard } from "@/components/forms/use-unsaved-changes-guard";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import {
   createPersonaDraft,
   personaDraftToPortableData,
@@ -77,7 +78,7 @@ export function PersonaStudioForm({
     initialValue: createPersonaDraft(editing, personaCount),
   });
 
-  useUnsavedChangesGuard(
+  const { confirmRequest, clearConfirm } = useUnsavedChangesGuard(
     isDirty,
     "You have unsaved persona changes. Leave this page and lose the current draft?",
   );
@@ -233,6 +234,7 @@ export function PersonaStudioForm({
           </SubmitButton>
         </div>
       </div>
+      <ConfirmationDialog request={confirmRequest} onClose={clearConfirm} />
     </form>
   );
 }

@@ -39,14 +39,17 @@ export function LoadingState({
 
 export function ErrorState({
   title = "This view hit a runtime snag",
-  description = "The page didn’t finish rendering cleanly. You can retry safely.",
+  description = "The page didn't finish rendering cleanly. You can retry safely.",
   onRetry,
   backHref = "/app",
+  debugDigest,
 }: {
   title?: string;
   description?: string;
   onRetry?: () => void;
   backHref?: string;
+  /** Optional error digest shown only in development for easier debugging. */
+  debugDigest?: string;
 }) {
   return (
     <Card className="rounded-[2rem] border-red-900/40 bg-red-950/40" data-testid="route-error-state">
@@ -56,6 +59,9 @@ export function ErrorState({
           <CardTitle>{title}</CardTitle>
         </div>
         <CardDescription className="text-red-400/80">{description}</CardDescription>
+        {debugDigest ? (
+          <p className="mt-2 font-mono text-xs text-red-400/50">Digest: {debugDigest}</p>
+        ) : null}
       </CardHeader>
       <CardContent className="flex flex-wrap gap-3">
         {onRetry ? (

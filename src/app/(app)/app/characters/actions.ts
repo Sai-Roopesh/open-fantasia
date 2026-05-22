@@ -77,7 +77,8 @@ export async function saveCharacterAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    const fields = parsed.error.issues.map((i) => `${i.path.join(".")}:${i.message}`).join("; ");
+    // Log only field paths — Zod messages may echo submitted values.
+    const fields = parsed.error.issues.map((i) => i.path.join(".")).join(", ");
     console.error("[saveCharacterAction] validation failed:", fields);
     const reason = parsed.error.issues.some((i) => i.path[0] === "name")
       ? "name"

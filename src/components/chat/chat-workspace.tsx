@@ -3,6 +3,7 @@
 import { DefaultChatTransport } from "ai";
 import { useChat } from "@ai-sdk/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useConfirmation } from "@/components/ui/confirmation-dialog";
 import { useNavTransition } from "@/components/transition-provider";
 import { getTextFromMessage } from "@/lib/ai/message-text";
 import { MAX_CHAT_TURN_TEXT, buildChatTurnTrimMessage } from "@/lib/chat-limits";
@@ -79,6 +80,7 @@ export function ChatWorkspace({
   const [activeInspectorTab, setActiveInspectorTab] = useState<InspectorTab>("continuity");
   const [sheet, setSheet] = useState<ActionSheetState | null>(null);
   const [focusMode, setFocusMode] = useState(false);
+  const { confirm: confirmRewind, confirmDialog: rewindConfirmDialog } = useConfirmation();
   const [portraitState, setPortraitState] = useState<"idle" | "ready" | "error">(
     characterBackgroundUrl ? "idle" : "error",
   );
@@ -295,16 +297,17 @@ export function ChatWorkspace({
       setSheet({ kind: "edit", target, messageId, value: currentText }),
     onOpenBranchFromCheckpoint: openBranchSheet,
     onRewindCheckpoint: async (turnId: string) => {
-      if (
-        typeof window !== "undefined" &&
-        !window.confirm(
-          "Rewind to this turn? This permanently deletes the current-path descendants from here, including branches forked from them.",
-        )
-      ) {
-        return;
-      }
-      rewind(turnId, () => {
-        requestAnimationFrame(() => composerRef.current?.focus());
+      confirmRewind({
+        title: "Rewind to this turn?",
+        description:
+          "This permanently deletes the current-path descendants from here, including branches forked from them.",
+        confirmLabel: "Rewind",
+        variant: "destructive",
+        onConfirm: () => {
+          rewind(turnId, () => {
+            requestAnimationFrame(() => composerRef.current?.focus());
+          });
+        },
       });
     },
     onOpenPinMessage: (messageId: string, currentText: string) =>
@@ -422,6 +425,7 @@ export function ChatWorkspace({
           }}
         />
       ) : null}
+      {rewindConfirmDialog}
     </>
   );
 }

@@ -15,6 +15,14 @@ export function encryptSecret(value: string) {
   return `${iv.toString("base64url")}.${tag.toString("base64url")}.${encrypted.toString("base64url")}`;
 }
 
+/**
+ * Decrypts an AES-256-GCM encrypted secret string.
+ *
+ * Returns `""` when `value` is `null` or empty. This is intentional: some
+ * providers (e.g. Ollama) operate without an API key, so an absent key is
+ * represented as `null` in the database and decrypted to an empty string.
+ * Callers that require a non-empty key should validate the result themselves.
+ */
 export function decryptSecret(value: string | null) {
   if (!value) return "";
   const [ivPart, tagPart, encryptedPart] = value.split(".");

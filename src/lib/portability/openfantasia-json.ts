@@ -316,6 +316,15 @@ export function templateFilename(
   return `openfantasia-${kind}-${variant}.v${version}.json`;
 }
 
+/**
+ * Strips optional Markdown code fences wrapping a JSON payload. This is
+ * useful when pasting LLM outputs that wrap JSON in ```json ... ```.
+ *
+ * NOTE: this stripping is one-directional — if a user pastes a raw JSON file
+ * whose top-level content legitimately starts and ends with triple backticks,
+ * those would be incorrectly stripped. This is an acceptable trade-off since
+ * the primary use case is LLM output cleanup.
+ */
 function stripMarkdownCodeFence(value: string) {
   const trimmed = value.trim();
   const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);

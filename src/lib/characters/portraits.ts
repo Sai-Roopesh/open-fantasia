@@ -1,7 +1,7 @@
 import { createHash, randomInt } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/lib/supabase/database.types";
-import type { CharacterPortraitStatus, CharacterRecord } from "@/lib/types";
+import type { CharacterRecord } from "@/lib/types";
 
 export const CHARACTER_PORTRAITS_BUCKET = "character-portraits";
 export const CHARACTER_PORTRAIT_SIZE = 768;
@@ -179,9 +179,21 @@ export async function fetchCharacterPortraitFromPollinations(args: {
   }
 
   const contentType = response.headers.get("content-type") ?? "image/jpeg";
+  if (!contentType.startsWith("image/")) {
+    throw new Error(
+      `Pollinations returned an unexpected content-type: ${contentType}`,
+    );
+  }
+
+  const MAX_PORTRAIT_BYTES = 10 * 1024 * 1024; // 10 MB
   const arrayBuffer = await response.arrayBuffer();
   if (!arrayBuffer.byteLength) {
     throw new Error("Pollinations returned an empty image payload.");
+  }
+  if (arrayBuffer.byteLength > MAX_PORTRAIT_BYTES) {
+    throw new Error(
+      `Portrait image exceeds maximum allowed size (${MAX_PORTRAIT_BYTES} bytes).`,
+    );
   }
 
   return {
@@ -190,15 +202,5 @@ export async function fetchCharacterPortraitFromPollinations(args: {
   };
 }
 
-export function buildCharacterPortraitStatusCopy(status: CharacterPortraitStatus) {
-  switch (status) {
-    case "pending":
-      return "Generating portrait";
-    case "ready":
-      return "Portrait ready";
-    case "failed":
-      return "Portrait failed";
-    default:
-      return "Portrait idle";
-  }
-}
+// Re-export from the canonical module to avoid duplicate implementations.
+export { buildCharacterPortraitStatusCopy } from "@/lib/characters/portrait-status";
