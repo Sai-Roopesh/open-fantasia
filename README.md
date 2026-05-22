@@ -137,3 +137,7 @@ pnpm eval:hybrid-memory
 - Chat generation issues: `src/app/api/chat/route.ts`, `src/lib/ai/thread-generation-service.ts`, `src/lib/ai/continuity.ts`
 - Branching/rewind issues: `src/lib/data/branches.ts`, chat API routes under `src/app/api/chats/[threadId]/`
 - Persistence/schema issues: `docs/data-model.md` and `supabase/migrations/`
+
+The current destructive pruning is intentional.
+
+<!-- coderabbit review trigger -->
