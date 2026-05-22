@@ -12,3 +12,5 @@ export function buildCharacterPortraitStatusCopy(status: CharacterPortraitStatus
       return "Portrait idle";
   }
 }
+
+// coderabbit-review

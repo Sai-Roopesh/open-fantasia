@@ -23,3 +23,5 @@ export function getTextFromMessageParts(parts: unknown[]) {
 export function getTextFromMessage(message: Pick<FantasiaUIMessage, "parts">) {
   return getTextFromMessageParts(message.parts);
 }
+
+// coderabbit-review

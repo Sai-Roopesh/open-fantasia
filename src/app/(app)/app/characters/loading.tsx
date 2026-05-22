@@ -53,3 +53,5 @@ export default function CharactersLoading() {
     </div>
   );
 }
+
+// coderabbit-review

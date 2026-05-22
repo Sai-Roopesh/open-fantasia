@@ -62,3 +62,5 @@ export async function GET(request: Request) {
   await syncProfile(user);
   return NextResponse.redirect(`${siteUrl}${next}`);
 }
+
+// coderabbit-review

@@ -17,3 +17,5 @@ export const codeMono = IBM_Plex_Mono({
   variable: "--font-code-mono",
   weight: ["400", "500"],
 });
+
+// coderabbit-review

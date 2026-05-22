@@ -10,3 +10,5 @@ export function resolveThreadGenerationSettings(args: {
     maxOutputTokens: args.character.max_output_tokens,
   };
 }
+
+// coderabbit-review

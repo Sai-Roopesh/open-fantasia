@@ -76,3 +76,5 @@ export function useOptimisticSwitches(args: {
     onModelSwitch,
   };
 }
+
+// coderabbit-review

@@ -26,3 +26,5 @@ export function humanizeChatError(message: string) {
   }
   return normalized;
 }
+
+// coderabbit-review

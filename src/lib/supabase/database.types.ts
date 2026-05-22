@@ -658,3 +658,5 @@ export type Database = {
     CompositeTypes: Record<string, never>;
   };
 };
+
+// coderabbit-review

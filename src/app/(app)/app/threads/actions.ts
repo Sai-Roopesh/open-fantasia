@@ -93,3 +93,5 @@ export async function deleteThreadFromListAction(formData: FormData) {
   revalidatePath("/app/threads");
   redirect("/app/threads?deleted=1");
 }
+
+// coderabbit-review

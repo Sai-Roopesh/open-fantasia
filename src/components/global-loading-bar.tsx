@@ -25,3 +25,5 @@ export function GlobalLoadingBar() {
     </div>
   );
 }
+
+// coderabbit-review

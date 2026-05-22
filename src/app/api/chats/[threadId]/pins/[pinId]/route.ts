@@ -14,3 +14,5 @@ export async function DELETE(
   await resolvePin(context.supabase, context.user.id, threadId, pinId);
   return Response.json({ ok: true });
 }
+
+// coderabbit-review

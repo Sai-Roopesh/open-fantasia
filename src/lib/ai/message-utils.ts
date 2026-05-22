@@ -43,3 +43,5 @@ export function toStoredMessage(message: FantasiaUIMessage) {
     metadata: (message.metadata ?? null) as MessageMetadata | null,
   };
 }
+
+// coderabbit-review

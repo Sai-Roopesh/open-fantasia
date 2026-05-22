@@ -51,3 +51,5 @@ export async function deleteConnectionAction(formData: FormData) {
   revalidatePath("/app/settings/providers");
   redirect("/app/settings/providers?deleted=1");
 }
+
+// coderabbit-review

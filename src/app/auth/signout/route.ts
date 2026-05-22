@@ -7,3 +7,5 @@ export async function POST() {
 
   redirect("/login");
 }
+
+// coderabbit-review

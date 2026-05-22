@@ -12,3 +12,5 @@ export function buildChatTurnTrimMessage(
   const suffix = excess === 1 ? "" : "s";
   return `${buildChatTurnLimitMessage(limit)} Trim ${excess.toLocaleString()} character${suffix} and send again.`;
 }
+
+// coderabbit-review

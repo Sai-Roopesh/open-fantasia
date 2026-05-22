@@ -33,3 +33,5 @@ export const inspectorTabs: Array<{ id: InspectorTab; label: string }> = [
   { id: "timeline", label: "Timeline" },
   { id: "branch", label: "Branch" },
 ];
+
+// coderabbit-review

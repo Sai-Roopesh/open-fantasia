@@ -65,3 +65,5 @@ export async function resolvePin(
 
   return parseRow(data, pinRecordSchema, "Resolved pin") as ChatPinRecord;
 }
+
+// coderabbit-review

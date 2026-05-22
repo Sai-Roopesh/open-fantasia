@@ -345,3 +345,5 @@ export function ChatScenePanel({
     </div>
   );
 }
+
+// coderabbit-review

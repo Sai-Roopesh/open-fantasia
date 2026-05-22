@@ -338,3 +338,5 @@ export default async function CharactersPage({
     </div>
   );
 }
+
+// coderabbit-review

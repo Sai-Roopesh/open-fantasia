@@ -134,3 +134,5 @@ export async function discoverModels(connection: ConnectionRecord) {
       return [];
   }
 }
+
+// coderabbit-review

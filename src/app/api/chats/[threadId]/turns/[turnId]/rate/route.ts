@@ -30,3 +30,5 @@ export async function POST(
   await rateTurn(context.supabase, threadId, turnId, parsedBody.data.rating);
   return Response.json({ ok: true });
 }
+
+// coderabbit-review

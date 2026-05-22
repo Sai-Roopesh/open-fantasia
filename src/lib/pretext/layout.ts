@@ -179,3 +179,5 @@ export function layoutRichMessage(args: {
     bubbleHeight: contentHeight + totalGap + paddingY * 2,
   } satisfies RenderedMessageLayout;
 }
+
+// coderabbit-review

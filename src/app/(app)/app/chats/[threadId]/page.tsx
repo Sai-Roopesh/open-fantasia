@@ -268,3 +268,5 @@ function truncateCopy(value: string, length: number) {
   if (value.length <= length) return value;
   return `${value.slice(0, length).trim()}...`;
 }
+
+// coderabbit-review

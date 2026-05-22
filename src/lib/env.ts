@@ -151,3 +151,5 @@ export function requireCronSecret() {
 export function isConfigured() {
   return hasSupabaseEnv() && Boolean(getEncryptionKeySecret()) && getAllowedEmails().length > 0;
 }
+
+// coderabbit-review

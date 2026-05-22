@@ -67,3 +67,5 @@ export function normalizeOllamaApiBaseUrl(baseUrl?: string | null) {
 
   return raw.endsWith("/api") ? raw : `${raw.replace(/\/+$/, "")}/api`;
 }
+
+// coderabbit-review

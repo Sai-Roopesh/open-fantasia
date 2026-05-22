@@ -28,3 +28,5 @@ export function parseRows<T>(
 
   return value.map((row, index) => parseRow(row, schema, `${label}[${index}]`));
 }
+
+// coderabbit-review

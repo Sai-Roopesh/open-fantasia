@@ -15,3 +15,5 @@ export async function POST(request: Request) {
   const processed = await drainPendingTasks(supabase, 10);
   return NextResponse.json(processed);
 }
+
+// coderabbit-review

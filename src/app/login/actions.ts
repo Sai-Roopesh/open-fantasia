@@ -29,3 +29,5 @@ export async function requestMagicLink(formData: FormData) {
 
   redirect("/login?sent=1");
 }
+
+// coderabbit-review

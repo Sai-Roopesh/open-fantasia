@@ -11,3 +11,5 @@ export class ConfigurationError extends Error {
 export function isConfigurationError(error: unknown): error is ConfigurationError {
   return error instanceof ConfigurationError;
 }
+
+// coderabbit-review

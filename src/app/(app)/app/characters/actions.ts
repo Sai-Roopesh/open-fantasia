@@ -257,3 +257,5 @@ export async function deleteCharacterAction(formData: FormData) {
   revalidatePath("/app/characters");
   redirect("/app/characters?deleted=1");
 }
+
+// coderabbit-review

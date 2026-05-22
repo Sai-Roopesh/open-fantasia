@@ -294,3 +294,5 @@ function SidebarThreadList({ promise }: { promise: Promise<ThreadListItem[]> }) 
     </div>
   );
 }
+
+// coderabbit-review

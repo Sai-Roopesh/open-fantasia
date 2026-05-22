@@ -76,3 +76,5 @@ export function buildSnapshotFromReconciliation(args: {
     updated_at: new Date().toISOString(),
   } satisfies ThreadStateSnapshot;
 }
+
+// coderabbit-review

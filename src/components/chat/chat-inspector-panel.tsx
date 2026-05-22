@@ -254,3 +254,5 @@ export function InspectorPanel({
     </section>
   );
 }
+
+// coderabbit-review

@@ -112,3 +112,5 @@ export async function requireAllowedUser() {
 export async function syncProfile(user: User) {
   await ensureProfileRecord(user);
 }
+
+// coderabbit-review
