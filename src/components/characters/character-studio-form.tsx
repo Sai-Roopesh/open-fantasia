@@ -9,6 +9,7 @@ import { SubmitButton } from "@/components/forms/submit-button";
 import { JsonPortabilityPanel } from "@/components/forms/json-portability-panel";
 import { useLocalDraft } from "@/components/forms/use-local-draft";
 import { useUnsavedChangesGuard } from "@/components/forms/use-unsaved-changes-guard";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import {
   characterDraftToPortableData,
   createCharacterDraft,
@@ -85,7 +86,7 @@ export function CharacterStudioForm({
   const [activeTab, setActiveTab] =
     useState<(typeof tabs)[number]["id"]>("story");
 
-  useUnsavedChangesGuard(
+  const { confirmRequest, clearConfirm } = useUnsavedChangesGuard(
     isDirty,
     "You have unsaved character changes. Leave this page and lose the current draft?",
   );
@@ -476,6 +477,7 @@ export function CharacterStudioForm({
           </SubmitButton>
         </div>
       </div>
+      <ConfirmationDialog request={confirmRequest} onClose={clearConfirm} />
     </form>
   );
 }

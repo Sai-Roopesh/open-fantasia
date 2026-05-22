@@ -173,6 +173,11 @@ export async function POST(request: Request) {
           failureMessage:
             error instanceof Error ? error.message : "Fantasia could not persist the completed turn.",
         }).catch(() => undefined);
+        // NOTE: toUIMessageStreamResponse() has already been returned to the
+        // client at this point. This rethrow propagates through the AI SDK's
+        // internal callback chain for server-side logging only — the client
+        // sees a stream that simply ends. Client code must handle incomplete
+        // streams (connection drops / unexpected end) gracefully.
         throw error;
       }
     },

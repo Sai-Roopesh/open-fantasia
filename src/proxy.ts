@@ -4,6 +4,13 @@ import { hasSupabaseEnv, requireSupabasePublicEnv } from "@/lib/env";
 import { isAllowedEmail } from "@/lib/auth";
 import type { Database } from "@/lib/supabase/database.types";
 
+/**
+ * Ensures a profile row exists for the authenticated user. Called on every
+ * protected request — issues a SELECT on each invocation and early-exits when
+ * the stored email matches. This is acceptable for a single-user personal app
+ * but would benefit from a short-lived edge cache or cookie-based session flag
+ * to skip the DB round-trip when the session is fresh at higher scale.
+ */
 async function ensureProfileInProxy(
   supabase: ReturnType<typeof createServerClient<Database>>,
   user: { id: string; email?: string | null },

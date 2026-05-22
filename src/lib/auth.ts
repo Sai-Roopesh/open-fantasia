@@ -95,6 +95,12 @@ export async function getCurrentUser() {
   };
 }
 
+/**
+ * Requires an authenticated and authorized user. If the user is not logged in
+ * or their profile is not allowed, this function throws via `redirect("/login")`
+ * (a Next.js internal error) and never returns. On success it returns a fully
+ * narrowed context with a guaranteed `user`, `profile`, and `supabase` client.
+ */
 export async function requireAllowedUser() {
   const context = await getCurrentUser();
   if (!context.user || !context.profile?.is_allowed) {

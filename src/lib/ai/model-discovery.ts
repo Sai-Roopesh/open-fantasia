@@ -42,6 +42,9 @@ export async function discoverModels(connection: ConnectionRecord) {
 
   switch (connection.provider) {
     case "google": {
+      // NOTE: The v1beta endpoint is pinned here. Google may eventually retire
+      // v1beta in favor of v1 or v2 — if model discovery breaks for Google
+      // connections, check whether this version is still valid.
       const data = (await fetchJson(
         "https://generativelanguage.googleapis.com/v1beta/models",
         {
@@ -100,6 +103,10 @@ export async function discoverModels(connection: ConnectionRecord) {
         (data.data ?? [])
           .filter((model): model is { id: string; name?: string; context_length?: number } => Boolean(model.id))
           .filter((model) => !/vision|audio|image/i.test(model.id))
+          // Cap at 80 models to keep the picker usable. OpenRouter exposes
+          // hundreds of models; showing all of them overwhelms the model
+          // switcher UI. Users needing a model beyond this cap can search by
+          // ID in the connection settings.
           .slice(0, 80)
           .map<ModelCatalogEntry>((model) => ({
             id: model.id,

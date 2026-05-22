@@ -91,6 +91,14 @@ function createTextMessage(args: {
   } satisfies FantasiaUIMessage;
 }
 
+/**
+ * Converts a committed turn into UI messages for the **displayed transcript**.
+ * Turns with `user_input_hidden === true` are omitted entirely — the user
+ * never sees the hidden prompt in the chat history.
+ *
+ * For building the model's context window (where hidden turns must be
+ * included), use {@link toModelContextMessages} instead.
+ */
 export function toTranscriptMessages(turn: ChatTurnRecord): FantasiaUIMessage[] {
   if (turn.generation_status !== "committed") {
     return [];
@@ -133,6 +141,13 @@ export function toTranscriptMessages(turn: ChatTurnRecord): FantasiaUIMessage[] 
   return messages;
 }
 
+/**
+ * Converts a committed turn into UI messages for the **model context window**.
+ * Unlike {@link toTranscriptMessages}, this always includes the user input —
+ * even when `user_input_hidden` is true — because the model needs the full
+ * conversational context. The `hiddenFromTranscript` and `starterSeed`
+ * metadata flags allow callers to distinguish hidden prompts if needed.
+ */
 export function toModelContextMessages(turn: ChatTurnRecord): FantasiaUIMessage[] {
   if (turn.generation_status !== "committed") {
     return [];

@@ -108,6 +108,12 @@ export function classifyConnectionError(error: unknown) {
     };
   }
 
+  // Fallback: string-matching on error messages as a last-resort heuristic.
+  // This is inherently fragile — providers may change their error wording,
+  // or an unrelated message could contain these substrings. The primary
+  // classification path above (HTTP status codes + error codes) should
+  // catch the vast majority of cases. This fallback exists only for edge
+  // cases where structured error info is unavailable.
   const rawMessage =
     error instanceof Error ? error.message.toLowerCase() : "connection check failed";
 

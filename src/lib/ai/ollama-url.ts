@@ -8,8 +8,30 @@ const BLOCKED_HOSTNAMES = new Set([
   "[::1]",
 ]);
 
+/**
+ * Detects IPv6 private/reserved addresses that should be blocked for SSRF
+ * protection. Covers:
+ *   - `::1` (loopback)
+ *   - `fc00::/7` (Unique Local Addresses — fd00::/8 and fc00::/8)
+ *   - `fe80::/10` (link-local)
+ *   - `::ffff:x.x.x.x` (IPv4-mapped IPv6 — delegates to IPv4 checks)
+ */
+function isPrivateIpv6(hostname: string) {
+  const h = hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  return (
+    h === "::1" ||
+    h.startsWith("fd") ||        // fc00::/7 ULA (fd prefix)
+    h.startsWith("fc") ||        // fc00::/7 ULA (fc prefix)
+    h.startsWith("fe80") ||      // link-local fe80::/10
+    h.startsWith("::ffff:")      // IPv4-mapped IPv6
+  );
+}
+
 function isPrivateIp(hostname: string) {
   if (BLOCKED_HOSTNAMES.has(hostname.toLowerCase())) return true;
+
+  // Check IPv6 private ranges before the IPv4 regex branch.
+  if (isPrivateIpv6(hostname)) return true;
 
   const ipv4Match = hostname.match(
     /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/,

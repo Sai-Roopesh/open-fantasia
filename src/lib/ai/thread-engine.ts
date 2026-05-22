@@ -48,7 +48,8 @@ export async function reconcileTurnState(args: {
     maxOutputTokens: 700,
   });
 
-  return (await result.output) as ReconciliationOutput;
+  const raw = await result.output;
+  return reconciliationSchema.parse(raw);
 }
 
 export function buildSnapshotFromReconciliation(args: {

@@ -137,6 +137,14 @@ export async function drainPendingTasks(
 
   for (const task of portraitTasks) {
     try {
+      // Idempotency note: if runCharacterPortraitTask succeeds (portrait
+      // uploaded and character row updated) but completeCharacterPortraitTask
+      // fails (task remains in queue), the task will be re-claimed on the
+      // next drain pass. The re-run is safe because runCharacterPortraitTask
+      // checks `character.portrait_source_hash !== task.source_hash` (line 41)
+      // before proceeding — if the hash matches and the character already has
+      // a portrait_path, the conditional update (eq portrait_source_hash)
+      // on line 81 will return no rows and the orphaned upload is cleaned up.
       await runCharacterPortraitTask(supabase, task);
       await completeCharacterPortraitTask(supabase, task.id);
     } catch (error) {
