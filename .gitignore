@@ -42,8 +42,13 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# Editor/macOS cleanup
+# Editor/macOS duplicate-file cleanup
 * 2
 * 2.*
+* 3
+* 3.*
+* 4
+* 4.*
+DESIGN.md
 
 deploy.log
