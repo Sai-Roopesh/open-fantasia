@@ -7,6 +7,18 @@ import { deleteConnection, saveConnection } from "@/lib/data/connections";
 import { validateConnectionInput } from "@/lib/ai/catalog";
 import { parseFormBoolean, saveConnectionCommandSchema, connectionRequestSchema } from "@/lib/validation";
 
+/**
+ * Checks whether a Supabase/Postgres error is a foreign-key violation (23503).
+ * `chat_threads.connection_id` references `ai_connections.id` with
+ * ON DELETE RESTRICT, so deleting a connection that is still used by a
+ * thread is rejected by the database.
+ */
+function isForeignKeyViolation(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  const candidate = error as { code?: string };
+  return candidate.code === "23503";
+}
+
 export async function saveConnectionAction(formData: FormData) {
   const { supabase, user } = await requireAllowedUser();
   const parsed = saveConnectionCommandSchema.safeParse({
@@ -33,7 +45,15 @@ export async function saveConnectionAction(formData: FormData) {
     );
   }
 
-  await saveConnection(supabase, user.id, parsed.data);
+  try {
+    await saveConnection(supabase, user.id, parsed.data);
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Failed to save connection.";
+    redirect(
+      `/app/settings/providers?reason=${encodeURIComponent(message)}`,
+    );
+  }
 
   revalidatePath("/app/settings/providers");
   redirect("/app/settings/providers?saved=1");
@@ -47,7 +67,26 @@ export async function deleteConnectionAction(formData: FormData) {
   if (!parsed.success) {
     redirect("/app/settings/providers");
   }
-  await deleteConnection(supabase, user.id, parsed.data.connectionId);
+
+  try {
+    await deleteConnection(supabase, user.id, parsed.data.connectionId);
+  } catch (error) {
+    if (isForeignKeyViolation(error)) {
+      redirect(
+        "/app/settings/providers?reason=" +
+          encodeURIComponent(
+            "This connection is still used by one or more threads. " +
+              "Switch those threads to a different provider first, then delete this lane.",
+          ),
+      );
+    }
+    const message =
+      error instanceof Error ? error.message : "Failed to delete connection.";
+    redirect(
+      `/app/settings/providers?reason=${encodeURIComponent(message)}`,
+    );
+  }
+
   revalidatePath("/app/settings/providers");
   redirect("/app/settings/providers?deleted=1");
 }
