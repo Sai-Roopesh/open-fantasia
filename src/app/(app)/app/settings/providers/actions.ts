@@ -45,48 +45,56 @@ export async function saveConnectionAction(formData: FormData) {
     );
   }
 
+  let redirectUrl = "/app/settings/providers?saved=1";
   try {
     await saveConnection(supabase, user.id, parsed.data);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Failed to save connection.";
-    redirect(
-      `/app/settings/providers?reason=${encodeURIComponent(message)}`,
-    );
+    redirectUrl = `/app/settings/providers?reason=${encodeURIComponent(message)}`;
   }
 
   revalidatePath("/app/settings/providers");
-  redirect("/app/settings/providers?saved=1");
+  redirect(redirectUrl);
 }
 
 export async function deleteConnectionAction(formData: FormData) {
+  console.log("[deleteConnectionAction] Action started");
   const { supabase, user } = await requireAllowedUser();
   const parsed = connectionRequestSchema.safeParse({
     connectionId: String(formData.get("id") ?? "").trim(),
   });
   if (!parsed.success) {
+    console.log("[deleteConnectionAction] Validation failed:", parsed.error);
     redirect("/app/settings/providers");
   }
 
+  console.log("[deleteConnectionAction] Parsed connectionId:", parsed.data.connectionId);
+  let redirectUrl = "/app/settings/providers?deleted=1";
   try {
+    console.log("[deleteConnectionAction] Calling deleteConnection in DB");
     await deleteConnection(supabase, user.id, parsed.data.connectionId);
+    console.log("[deleteConnectionAction] DB delete returned successfully");
   } catch (error) {
+    console.error("[deleteConnectionAction] Caught error during delete:", error);
     if (isForeignKeyViolation(error)) {
-      redirect(
+      console.log("[deleteConnectionAction] Error is foreign-key violation, preparing redirect to reason=constraint");
+      redirectUrl =
         "/app/settings/providers?reason=" +
-          encodeURIComponent(
-            "This connection is still used by one or more threads. " +
-              "Switch those threads to a different provider first, then delete this lane.",
-          ),
-      );
+        encodeURIComponent(
+          "This connection is still used by one or more threads. " +
+            "Switch those threads to a different provider first, then delete this lane.",
+        );
+    } else {
+      const message =
+        error instanceof Error ? error.message : "Failed to delete connection.";
+      console.log("[deleteConnectionAction] Preparing redirect with error message:", message);
+      redirectUrl = `/app/settings/providers?reason=${encodeURIComponent(message)}`;
     }
-    const message =
-      error instanceof Error ? error.message : "Failed to delete connection.";
-    redirect(
-      `/app/settings/providers?reason=${encodeURIComponent(message)}`,
-    );
   }
 
+  console.log("[deleteConnectionAction] Revalidating path and redirecting to:", redirectUrl);
   revalidatePath("/app/settings/providers");
-  redirect("/app/settings/providers?deleted=1");
+  redirect(redirectUrl);
 }
+
