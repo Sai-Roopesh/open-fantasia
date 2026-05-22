@@ -98,35 +98,107 @@ export async function POST(request: Request) {
   });
 
   let turnSettled = false;
-  const result = streamText({
-    model: createLanguageModel(runtime.connection, runtime.threadView.thread.model_id),
-    system: buildGenerationSystemPrompt({
+  let result;
+  try {
+    const model = createLanguageModel(runtime.connection, runtime.threadView.thread.model_id);
+    const system = buildGenerationSystemPrompt({
       runtime,
       snapshot: runtime.threadView.headSnapshot,
-    }),
-    messages: await convertToModelMessages(
+    });
+    const messages = await convertToModelMessages(
       buildGenerationMessages({
         recentSceneMessages: runtime.threadView.recentSceneMessages,
         pendingMessages: [userMessage],
       }),
-    ),
-    temperature: runtime.generationSettings.temperature,
-    topP: runtime.generationSettings.topP,
-    maxOutputTokens: runtime.generationSettings.maxOutputTokens,
-    onError: async ({ error }) => {
-      if (turnSettled) {
-        return;
-      }
+    );
 
+    result = streamText({
+      model,
+      system,
+      messages,
+      temperature: runtime.generationSettings.temperature,
+      topP: runtime.generationSettings.topP,
+      maxOutputTokens: runtime.generationSettings.maxOutputTokens,
+      onError: async ({ error }) => {
+        if (turnSettled) {
+          return;
+        }
+
+        turnSettled = true;
+        await failTurn(context.supabase, {
+          branchId,
+          turnId: reservedTurn.id,
+          failureCode: "generation_error",
+          failureMessage:
+            error instanceof Error ? error.message : "The model stream failed before completion.",
+        }).catch((persistError) => {
+          console.error("Failed to persist streaming failure.", {
+            threadId,
+            branchId,
+            turnId: reservedTurn.id,
+            error:
+              persistError instanceof Error
+                ? persistError.message
+                : String(persistError),
+          });
+        });
+      },
+      onFinish: async (event) => {
+        if (turnSettled) {
+          return;
+        }
+
+        turnSettled = true;
+        try {
+          await commitTurn(context.supabase, {
+            branchId,
+            turnId: reservedTurn.id,
+            assistantText: event.text,
+            provider: event.model.provider,
+            model: event.model.modelId,
+            connectionLabel: runtime.connection.label,
+            finishReason: event.finishReason ?? null,
+            totalTokens: event.totalUsage.totalTokens ?? null,
+            promptTokens: event.totalUsage.inputTokens ?? null,
+            completionTokens: event.totalUsage.outputTokens ?? null,
+          });
+          await materializeSnapshotForTurn({
+            supabase: context.supabase,
+            userId: context.user.id,
+            threadId,
+            turnId: reservedTurn.id,
+            connection: runtime.connection,
+            modelId: runtime.threadView.thread.model_id,
+            character: runtime.character.character,
+          });
+        } catch (error) {
+          await failTurn(context.supabase, {
+            branchId,
+            turnId: reservedTurn.id,
+            failureCode: "commit_error",
+            failureMessage:
+              error instanceof Error ? error.message : "Fantasia could not persist the completed turn.",
+          }).catch(() => undefined);
+          // NOTE: toUIMessageStreamResponse() has already been returned to the
+          // client at this point. This rethrow propagates through the AI SDK's
+          // internal callback chain for server-side logging only — the client
+          // sees a stream that simply ends. Client code must handle incomplete
+          // streams (connection drops / unexpected end) gracefully.
+          throw error;
+        }
+      },
+    });
+  } catch (error) {
+    if (!turnSettled) {
       turnSettled = true;
       await failTurn(context.supabase, {
         branchId,
         turnId: reservedTurn.id,
         failureCode: "generation_error",
         failureMessage:
-          error instanceof Error ? error.message : "The model stream failed before completion.",
+          error instanceof Error ? error.message : "Failed to initialize generation stream.",
       }).catch((persistError) => {
-        console.error("Failed to persist streaming failure.", {
+        console.error("Failed to persist initialization failure.", {
           threadId,
           branchId,
           turnId: reservedTurn.id,
@@ -136,52 +208,9 @@ export async function POST(request: Request) {
               : String(persistError),
         });
       });
-    },
-    onFinish: async (event) => {
-      if (turnSettled) {
-        return;
-      }
-
-      turnSettled = true;
-      try {
-        await commitTurn(context.supabase, {
-          branchId,
-          turnId: reservedTurn.id,
-          assistantText: event.text,
-          provider: event.model.provider,
-          model: event.model.modelId,
-          connectionLabel: runtime.connection.label,
-          finishReason: event.finishReason ?? null,
-          totalTokens: event.totalUsage.totalTokens ?? null,
-          promptTokens: event.totalUsage.inputTokens ?? null,
-          completionTokens: event.totalUsage.outputTokens ?? null,
-        });
-        await materializeSnapshotForTurn({
-          supabase: context.supabase,
-          userId: context.user.id,
-          threadId,
-          turnId: reservedTurn.id,
-          connection: runtime.connection,
-          modelId: runtime.threadView.thread.model_id,
-          character: runtime.character,
-        });
-      } catch (error) {
-        await failTurn(context.supabase, {
-          branchId,
-          turnId: reservedTurn.id,
-          failureCode: "commit_error",
-          failureMessage:
-            error instanceof Error ? error.message : "Fantasia could not persist the completed turn.",
-        }).catch(() => undefined);
-        // NOTE: toUIMessageStreamResponse() has already been returned to the
-        // client at this point. This rethrow propagates through the AI SDK's
-        // internal callback chain for server-side logging only — the client
-        // sees a stream that simply ends. Client code must handle incomplete
-        // streams (connection drops / unexpected end) gracefully.
-        throw error;
-      }
-    },
-  });
+    }
+    return toRouteError(error);
+  }
 
   return result.toUIMessageStreamResponse({
     generateMessageId: () => `${reservedTurn.id}:assistant`,

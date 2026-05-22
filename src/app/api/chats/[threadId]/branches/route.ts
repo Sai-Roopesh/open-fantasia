@@ -1,6 +1,7 @@
 import { getCurrentUser } from "@/lib/auth";
 import { createBranchFromTurn } from "@/lib/data/branches";
 import { insertTimelineEvent } from "@/lib/data/timeline";
+import { copyWorldStateToBranch } from "@/lib/data/world-state";
 import { getThreadGraphView } from "@/lib/threads/read-model";
 import { createBranchRequestSchema } from "@/lib/validation";
 
@@ -41,6 +42,8 @@ export async function POST(
     makeActive: parsedBody.data.makeActive,
   });
 
+  await copyWorldStateToBranch(context.supabase, threadId, threadView.activeBranch.id, branch.id);
+
   await insertTimelineEvent(context.supabase, {
     thread_id: threadId,
     branch_id: branch.id,
@@ -48,6 +51,9 @@ export async function POST(
     title: "Branch created",
     detail: `Created ${branch.name} from this turn.`,
     importance: 2,
+    event_type: "scene_change",
+    affected_entity_ids: [],
+    affected_relationship_ids: [],
   });
 
   return Response.json({ ok: true, branchId: branch.id, branchName: branch.name });

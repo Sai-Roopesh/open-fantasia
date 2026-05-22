@@ -69,7 +69,7 @@ export async function rewindBranchToTurn(
   const { data, error } = await supabase.rpc("rewind_branch_to_turn", {
     p_branch_id: args.branchId,
     p_target_turn_id: args.targetTurnId,
-    p_expected_head_turn_id: args.expectedHeadTurnId ?? null,
+    p_expected_head_turn_id: args.expectedHeadTurnId ?? undefined as unknown as string,
   });
 
   if (error) {

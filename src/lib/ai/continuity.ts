@@ -1,200 +1,209 @@
-import type { CharacterBundle } from "@/lib/data/characters";
 import type { DatabaseClient } from "@/lib/data/shared";
-import { getSnapshot, saveSnapshot } from "@/lib/data/snapshots";
+import { getWorldSnapshot, saveWorldSnapshot } from "@/lib/data/world-state";
+import {
+  insertEntity,
+  insertEntityFact,
+  insertRelationship,
+  insertLocation,
+  insertLocationEdge,
+  insertEntityPlacement,
+  insertNarrativeThread,
+  invalidateEntity,
+  invalidateEntityFact,
+  invalidateRelationship,
+  invalidateLocationEdge,
+  invalidateEntityPlacement,
+  invalidateNarrativeThread,
+  updateEntity,
+  updateRelationship,
+  updateLocation,
+  updateNarrativeThread,
+} from "@/lib/data/world-state";
 import { insertTimelineEvent } from "@/lib/data/timeline";
 import { listTurnsForThread, toTranscriptMessages } from "@/lib/data/turns";
-import { getTextFromMessage } from "@/lib/ai/message-text";
-import {
-  buildSnapshotFromReconciliation,
-  reconcileTurnState,
-} from "@/lib/ai/thread-engine";
 import { buildTurnPath } from "@/lib/threads/read-model";
+import {
+  materializeDurableSnapshot,
+  buildEmptyDurableSnapshot,
+} from "@/lib/ai/state-materializer";
+import {
+  extractStateChanges,
+  type ExtractionOutput,
+} from "@/lib/ai/state-extraction";
+import { validateAllMutations } from "@/lib/ai/state-validator";
+import { reflectOnFailedExtraction } from "@/lib/ai/state-reflector";
+import { getTextFromMessage } from "@/lib/ai/message-text";
 import type {
   ChatTurnRecord,
   ConnectionRecord,
-  FantasiaUIMessage,
-  ThreadStateSnapshot,
+  CharacterRecord,
+  DurableMemorySnapshot,
+  WorldSnapshotRecord,
+  EntityType,
+  FactType,
+  RelationshipType,
 } from "@/lib/types";
-import { dedupeStrings } from "@/lib/utils";
 
-const RECENT_RECONCILIATION_TURN_WINDOW = 10;
+const RECENT_EXTRACTION_TURN_WINDOW = 15;
+const DEFRAG_INTERVAL = 10;
 
-function clipText(value: string, limit: number) {
-  const compact = value.replace(/\s+/g, " ").trim();
-  if (compact.length <= limit) {
-    return compact;
-  }
-
-  return `${compact.slice(0, limit).trim()}...`;
-}
-
-function summarizeRecentMessages(messages: FantasiaUIMessage[]) {
-  return clipText(
-    messages
-      .map((message) => `${message.role.toUpperCase()}: ${getTextFromMessage(message)}`)
-      .filter(Boolean)
-      .join(" "),
-    900,
-  );
-}
-
-export function buildFallbackSnapshot(args: {
-  turn: ChatTurnRecord;
-  previousSnapshot: ThreadStateSnapshot | null;
-  recentMessages: FantasiaUIMessage[];
-}) {
-  const assistantText = args.turn.assistant_output_text ?? "";
-  const userText = args.turn.user_input_hidden ? "" : args.turn.user_input_text;
-  const recentSummary =
-    summarizeRecentMessages(args.recentMessages) ||
-    clipText([userText, assistantText].filter(Boolean).join(" "), 900) ||
-    args.previousSnapshot?.scene_summary ||
-    "The scene advanced through the latest exchange.";
-  const storySummary =
-    clipText(
-      [args.previousSnapshot?.story_summary, recentSummary].filter(Boolean).join(" "),
-      1_200,
-    ) ||
-    args.previousSnapshot?.story_summary ||
-    "The scene advanced through the latest exchange.";
-  const lastTurnBeat =
-    clipText([userText, assistantText].filter(Boolean).join(" "), 280) ||
-    args.previousSnapshot?.last_turn_beat ||
-    "The latest exchange shifted the scene.";
-
-  return {
-    turn_id: args.turn.id,
-    thread_id: args.turn.thread_id,
-    branch_id: args.turn.branch_origin_id,
-    based_on_turn_id: args.previousSnapshot?.turn_id ?? null,
-    story_summary: storySummary,
-    scene_summary: recentSummary,
-    last_turn_beat: lastTurnBeat,
-    relationship_state:
-      args.previousSnapshot?.relationship_state ||
-      "The relationship is evolving through the latest exchange.",
-    user_facts: dedupeStrings(args.previousSnapshot?.user_facts ?? []).slice(0, 8),
-    active_threads: dedupeStrings(args.previousSnapshot?.active_threads ?? []).slice(0, 5),
-    resolved_threads: dedupeStrings(args.previousSnapshot?.resolved_threads ?? []).slice(0, 5),
-    next_turn_pressure: dedupeStrings(args.previousSnapshot?.next_turn_pressure ?? []).slice(0, 3),
-    scene_goals: dedupeStrings(args.previousSnapshot?.scene_goals ?? []).slice(0, 5),
-    version: (args.previousSnapshot?.version ?? 0) + 1,
-    updated_at: new Date().toISOString(),
-  } satisfies ThreadStateSnapshot;
-}
-
-async function persistSnapshot(
+async function applyMutationsToDb(
   supabase: DatabaseClient,
-  snapshot: ThreadStateSnapshot,
-) {
-  try {
-    await saveSnapshot(supabase, snapshot);
-  } catch (error) {
-    console.error("Failed to persist continuity snapshot.", {
-      turnId: snapshot.turn_id,
-      threadId: snapshot.thread_id,
-      branchId: snapshot.branch_id,
-      error: error instanceof Error ? error.message : String(error),
+  threadId: string,
+  branchId: string,
+  turnId: string,
+  extraction: ExtractionOutput,
+): Promise<void> {
+  const newEntityIds = new Map<string, string>();
+  const newLocationIds = new Map<string, string>();
+
+  for (const m of extraction.entity_mutations) {
+    if (m.op === "add") {
+      const result = await insertEntity(supabase, {
+        thread_id: threadId,
+        branch_id: branchId,
+        canonical_name: m.canonical_name,
+        entity_type: m.entity_type as EntityType,
+        aliases: m.aliases ?? [],
+        is_present: m.is_present ?? true,
+        primary_emotion: m.primary_emotion ?? "neutral",
+        emotion_intensity: m.emotion_intensity ?? 5,
+        emotion_catalyst: m.emotion_catalyst ?? "",
+        valid_from_turn_id: turnId,
+      });
+      newEntityIds.set(`NEW:${m.canonical_name}`, result.id);
+    } else if (m.op === "update") {
+      await updateEntity(supabase, m.entity_id, m.changes);
+    } else if (m.op === "invalidate") {
+      await invalidateEntity(supabase, m.entity_id, turnId);
+    }
+  }
+
+  for (const m of extraction.fact_mutations) {
+    if (m.op === "add") {
+      const resolvedEntityId = newEntityIds.get(`NEW:${m.entity_id}`) ?? m.entity_id;
+      await insertEntityFact(supabase, {
+        entity_id: resolvedEntityId,
+        thread_id: threadId,
+        branch_id: branchId,
+        fact_type: m.fact_type as FactType,
+        body: m.body,
+        valid_from_turn_id: turnId,
+      });
+    } else if (m.op === "invalidate") {
+      await invalidateEntityFact(supabase, m.fact_id, turnId);
+    }
+  }
+
+  for (const m of extraction.relationship_mutations) {
+    if (m.op === "add") {
+      const resolvedSourceId = newEntityIds.get(`NEW:${m.source_entity_id}`) ?? m.source_entity_id;
+      const resolvedTargetId = newEntityIds.get(`NEW:${m.target_entity_id}`) ?? m.target_entity_id;
+      await insertRelationship(supabase, {
+        thread_id: threadId,
+        branch_id: branchId,
+        source_entity_id: resolvedSourceId,
+        target_entity_id: resolvedTargetId,
+        relationship_type: m.relationship_type as RelationshipType,
+        dynamic_status: m.dynamic_status,
+        valid_from_turn_id: turnId,
+      });
+    } else if (m.op === "update") {
+      await updateRelationship(supabase, m.relationship_id, m.changes);
+    } else if (m.op === "invalidate") {
+      await invalidateRelationship(supabase, m.relationship_id, turnId);
+    }
+  }
+
+  for (const m of extraction.location_mutations) {
+    if (m.op === "add") {
+      const result = await insertLocation(supabase, {
+        thread_id: threadId,
+        branch_id: branchId,
+        canonical_name: m.canonical_name,
+        description: m.description ?? "",
+        environmental_modifiers: m.environmental_modifiers ?? [],
+        valid_from_turn_id: turnId,
+      });
+      newLocationIds.set(`NEW:${m.canonical_name}`, result.id);
+    } else if (m.op === "update") {
+      await updateLocation(supabase, m.location_id, m.changes);
+    }
+  }
+
+  for (const m of extraction.location_edge_mutations) {
+    if (m.op === "add") {
+      const resolvedFromId = newLocationIds.get(`NEW:${m.from_location_id}`) ?? m.from_location_id;
+      const resolvedToId = newLocationIds.get(`NEW:${m.to_location_id}`) ?? m.to_location_id;
+      await insertLocationEdge(supabase, {
+        thread_id: threadId,
+        branch_id: branchId,
+        from_location_id: resolvedFromId,
+        to_location_id: resolvedToId,
+        is_bidirectional: m.is_bidirectional ?? true,
+        valid_from_turn_id: turnId,
+      });
+    } else if (m.op === "invalidate") {
+      await invalidateLocationEdge(supabase, m.edge_id, turnId);
+    }
+  }
+
+  for (const m of extraction.placement_mutations) {
+    const resolvedEntityId = newEntityIds.get(`NEW:${m.entity_id}`) ?? m.entity_id;
+    const resolvedLocationId = newLocationIds.get(`NEW:${m.to_location_id}`) ?? m.to_location_id;
+    await invalidateEntityPlacement(supabase, resolvedEntityId, turnId);
+    await insertEntityPlacement(supabase, {
+      thread_id: threadId,
+      branch_id: branchId,
+      entity_id: resolvedEntityId,
+      location_id: resolvedLocationId,
+      micro_position: m.micro_position ?? "",
+      valid_from_turn_id: turnId,
     });
+  }
+
+  for (const m of extraction.narrative_thread_mutations) {
+    if (m.op === "add") {
+      await insertNarrativeThread(supabase, {
+        thread_id: threadId,
+        branch_id: branchId,
+        objective: m.objective,
+        status: "open",
+        dependency_ids: [],
+        valid_from_turn_id: turnId,
+      });
+    } else if (m.op === "update") {
+      await updateNarrativeThread(supabase, m.thread_id, m.changes);
+    } else if (m.op === "resolve") {
+      await updateNarrativeThread(supabase, m.thread_id, { status: "resolved" });
+    }
+  }
+
+  for (const event of extraction.timeline_events) {
+    try {
+      await insertTimelineEvent(supabase, {
+        thread_id: threadId,
+        branch_id: branchId,
+        turn_id: turnId,
+        title: event.title,
+        detail: event.detail,
+        importance: event.importance,
+        event_type: event.event_type,
+        affected_entity_ids: event.affected_entity_ids ?? [],
+        affected_relationship_ids: event.affected_relationship_ids ?? [],
+      });
+    } catch (error) {
+      console.error("[HCE] Failed to persist timeline event.", {
+        turnId,
+        threadId,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
 }
 
-async function materializeSnapshotFromTurns(args: {
-  supabase: DatabaseClient;
-  userId: string;
-  turns: ChatTurnRecord[];
-  turn: ChatTurnRecord;
-  connection: ConnectionRecord;
-  modelId: string;
-  character: CharacterBundle;
-  snapshotCache: Map<string, ThreadStateSnapshot | null>;
-}) {
-  const cached = args.snapshotCache.get(args.turn.id);
-  if (cached !== undefined) {
-    return cached;
-  }
-
-  const existing = await getSnapshot(args.supabase, args.userId, args.turn.id);
-  if (existing) {
-    args.snapshotCache.set(args.turn.id, existing);
-    return existing;
-  }
-
-  let previousSnapshot: ThreadStateSnapshot | null = null;
-  if (args.turn.parent_turn_id) {
-    const parentTurn = args.turns.find((turn) => turn.id === args.turn.parent_turn_id) ?? null;
-    previousSnapshot = parentTurn
-      ? await materializeSnapshotFromTurns({
-          ...args,
-          turn: parentTurn,
-        })
-      : await getSnapshot(args.supabase, args.userId, args.turn.parent_turn_id);
-  }
-
-  const turnPath = buildTurnPath(args.turns, args.turn.id);
-  const recentMessages = turnPath
-    .filter((turn) => turn.generation_status === "committed")
-    .slice(-RECENT_RECONCILIATION_TURN_WINDOW)
-    .flatMap((turn) => toTranscriptMessages(turn));
-
-  try {
-    const reconciliation = await reconcileTurnState({
-      connection: args.connection,
-      modelId: args.modelId,
-      character: args.character,
-      previousSnapshot,
-      recentMessages,
-    });
-
-    const snapshot = buildSnapshotFromReconciliation({
-      turnId: args.turn.id,
-      threadId: args.turn.thread_id,
-      branchId: args.turn.branch_origin_id,
-      previousSnapshot,
-      reconciliation,
-    });
-
-    await persistSnapshot(args.supabase, snapshot);
-    args.snapshotCache.set(args.turn.id, snapshot);
-
-    if (reconciliation.timelineEvent) {
-      try {
-        await insertTimelineEvent(args.supabase, {
-          thread_id: args.turn.thread_id,
-          branch_id: args.turn.branch_origin_id,
-          turn_id: args.turn.id,
-          title: reconciliation.timelineEvent.title,
-          detail: reconciliation.timelineEvent.detail,
-          importance: reconciliation.timelineEvent.importance,
-        });
-      } catch (error) {
-        console.error("Failed to persist continuity timeline event.", {
-          turnId: args.turn.id,
-          threadId: args.turn.thread_id,
-          branchId: args.turn.branch_origin_id,
-          error: error instanceof Error ? error.message : String(error),
-        });
-      }
-    }
-
-    return snapshot;
-  } catch (error) {
-    console.error("Continuity reconciliation fell back to deterministic snapshot.", {
-      turnId: args.turn.id,
-      threadId: args.turn.thread_id,
-      branchId: args.turn.branch_origin_id,
-      error: error instanceof Error ? error.message : String(error),
-    });
-
-    const fallback = buildFallbackSnapshot({
-      turn: args.turn,
-      previousSnapshot,
-      recentMessages,
-    });
-    await persistSnapshot(args.supabase, fallback);
-    args.snapshotCache.set(args.turn.id, fallback);
-    return fallback;
-  }
+function shouldDefrag(turnCount: number): boolean {
+  return turnCount > 0 && turnCount % DEFRAG_INTERVAL === 0;
 }
 
 export async function materializeSnapshotForTurn(args: {
@@ -204,22 +213,152 @@ export async function materializeSnapshotForTurn(args: {
   turnId: string;
   connection: ConnectionRecord;
   modelId: string;
-  character: CharacterBundle;
-}) {
-  const turns = await listTurnsForThread(args.supabase, args.threadId);
-  const turn = turns.find((entry) => entry.id === args.turnId) ?? null;
+  character: CharacterRecord;
+}): Promise<DurableMemorySnapshot | null> {
+  const {
+    supabase,
+    userId,
+    threadId,
+    turnId,
+    connection,
+    modelId,
+    character,
+  } = args;
+
+  const turns = await listTurnsForThread(supabase, threadId);
+  const turn = turns.find((t) => t.id === turnId) ?? null;
   if (!turn || turn.generation_status !== "committed") {
     return null;
   }
 
-  return materializeSnapshotFromTurns({
-    supabase: args.supabase,
-    userId: args.userId,
-    turns,
-    turn,
-    connection: args.connection,
-    modelId: args.modelId,
-    character: args.character,
-    snapshotCache: new Map(),
-  });
+  const branchId = turn.branch_origin_id;
+
+  const existingSnapshot = await getWorldSnapshot(supabase, turnId);
+  if (existingSnapshot) {
+    return materializeDurableSnapshot(supabase, threadId, branchId, turnId, existingSnapshot);
+  }
+
+  let previousSnapshotRecord: WorldSnapshotRecord | null = null;
+  if (turn.parent_turn_id) {
+    previousSnapshotRecord = await getWorldSnapshot(supabase, turn.parent_turn_id);
+  }
+
+  const currentSnapshot = previousSnapshotRecord
+    ? await materializeDurableSnapshot(supabase, threadId, branchId, turnId, previousSnapshotRecord)
+    : buildEmptyDurableSnapshot(turnId);
+
+  const turnPath = buildTurnPath(turns, turnId);
+  const committedTurns = turnPath.filter((t) => t.generation_status === "committed");
+
+  const isDefrag = shouldDefrag(committedTurns.length);
+  const windowSize = isDefrag
+    ? committedTurns.length
+    : RECENT_EXTRACTION_TURN_WINDOW;
+
+  const recentMessages = committedTurns
+    .slice(-windowSize)
+    .flatMap((t) => toTranscriptMessages(t));
+
+  try {
+    let extraction = await extractStateChanges({
+      connection,
+      modelId,
+      character,
+      currentSnapshot,
+      recentMessages,
+      isFullMaterialization: isDefrag,
+    });
+
+    const validationResult = validateAllMutations(extraction, currentSnapshot);
+
+    if (validationResult.shouldReflect) {
+      console.warn("[HCE] Extraction failed validation, attempting reflection.", {
+        turnId,
+        threadId,
+        totalErrors: validationResult.totalErrors,
+      });
+
+      const transcript = recentMessages
+        .map((msg) => `${msg.role.toUpperCase()}: ${getTextFromMessage(msg)}`)
+        .join("\n\n");
+
+      const reflected = await reflectOnFailedExtraction({
+        connection,
+        modelId,
+        character,
+        currentSnapshot,
+        recentTranscript: transcript,
+        previousOutput: extraction,
+        validationResult,
+      });
+
+      if (reflected) {
+        const revalidation = validateAllMutations(reflected, currentSnapshot);
+        if (!revalidation.shouldReflect) {
+          extraction = reflected;
+        } else {
+          console.warn("[HCE] Reflection also failed validation. Proceeding with valid-only mutations from original.", {
+            turnId,
+            threadId,
+          });
+        }
+      }
+    }
+
+    await applyMutationsToDb(supabase, threadId, branchId, turnId, extraction);
+
+    const newSnapshotRecord: WorldSnapshotRecord = {
+      turn_id: turnId,
+      thread_id: threadId,
+      branch_id: branchId,
+      based_on_turn_id: previousSnapshotRecord?.turn_id ?? null,
+      story_summary: extraction.story_summary,
+      scene_summary: extraction.scene_summary,
+      last_turn_beat: extraction.last_turn_beat,
+      narrative_timestamp: extraction.narrative_timestamp,
+      transition_type: extraction.transition_type,
+      version: (previousSnapshotRecord?.version ?? 0) + 1,
+      is_full_materialization: isDefrag,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    await saveWorldSnapshot(supabase, newSnapshotRecord);
+
+    return materializeDurableSnapshot(supabase, threadId, branchId, turnId, newSnapshotRecord);
+  } catch (error) {
+    console.error("[HCE] State extraction failed completely. Saving deterministic fallback.", {
+      turnId,
+      threadId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+
+    const fallbackRecord: WorldSnapshotRecord = {
+      turn_id: turnId,
+      thread_id: threadId,
+      branch_id: branchId,
+      based_on_turn_id: previousSnapshotRecord?.turn_id ?? null,
+      story_summary: previousSnapshotRecord?.story_summary ?? "",
+      scene_summary: previousSnapshotRecord?.scene_summary ?? "The scene advanced through the latest exchange.",
+      last_turn_beat: "The latest exchange shifted the scene.",
+      narrative_timestamp: previousSnapshotRecord?.narrative_timestamp ?? "",
+      transition_type: "continuation",
+      version: (previousSnapshotRecord?.version ?? 0) + 1,
+      is_full_materialization: false,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    try {
+      await saveWorldSnapshot(supabase, fallbackRecord);
+    } catch (persistError) {
+      console.error("[HCE] Failed to persist fallback snapshot.", {
+        turnId,
+        threadId,
+        error: persistError instanceof Error ? persistError.message : String(persistError),
+      });
+    }
+
+    return currentSnapshot;
+  }
 }

@@ -263,7 +263,7 @@ export async function beginTurn(
 ) {
   const { data, error } = await supabase.rpc("begin_turn", {
     p_branch_id: args.branchId,
-    p_expected_head_turn_id: args.expectedHeadTurnId ?? null,
+    p_expected_head_turn_id: args.expectedHeadTurnId ?? undefined as unknown as string,
     p_user_input_text: args.text,
     p_user_input_payload: ((args.payload ?? [
       {
@@ -271,7 +271,7 @@ export async function beginTurn(
         text: args.text,
       },
     ]) as Json),
-    p_parent_turn_id_override: args.parentTurnIdOverride ?? null,
+    p_parent_turn_id_override: args.parentTurnIdOverride ?? undefined,
     p_force_parent_override: args.forceParentOverride ?? false,
     p_user_input_hidden: args.hiddenFromTranscript ?? false,
     p_starter_seed: args.starterSeed ?? false,
@@ -310,13 +310,13 @@ export async function commitTurn(
         text: args.assistantText,
       },
     ]) as Json),
-    p_assistant_provider: args.provider,
-    p_assistant_model: args.model,
-    p_assistant_connection_label: args.connectionLabel,
-    p_finish_reason: args.finishReason,
-    p_total_tokens: args.totalTokens,
-    p_prompt_tokens: args.promptTokens,
-    p_completion_tokens: args.completionTokens,
+    p_assistant_provider: args.provider ?? undefined as unknown as string,
+    p_assistant_model: args.model ?? undefined as unknown as string,
+    p_assistant_connection_label: args.connectionLabel ?? undefined as unknown as string,
+    p_finish_reason: args.finishReason ?? undefined as unknown as string,
+    p_total_tokens: args.totalTokens ?? undefined as unknown as number,
+    p_prompt_tokens: args.promptTokens ?? undefined as unknown as number,
+    p_completion_tokens: args.completionTokens ?? undefined as unknown as number,
   });
 
   if (error) {

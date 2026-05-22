@@ -9,7 +9,8 @@ import {
   toThreadGenerationErrorResponse,
 } from "@/lib/ai/thread-generation-service";
 import { materializeSnapshotForTurn } from "@/lib/ai/continuity";
-import { getSnapshot } from "@/lib/data/snapshots";
+import { getWorldSnapshot } from "@/lib/data/world-state";
+import { materializeDurableSnapshot } from "@/lib/ai/state-materializer";
 import { beginTurn, commitTurn, failTurn } from "@/lib/data/turns";
 import { buildRecentSceneMessages, createTextMessage } from "@/lib/threads/read-model";
 import { getValidationErrorMessage, rewriteLatestTurnRequestSchema } from "@/lib/validation";
@@ -116,8 +117,17 @@ export async function POST(
           starterSeed: latestTurn.starter_seed,
         },
       });
-      const previousSnapshot = latestTurn.parent_turn_id
-        ? await getSnapshot(context.supabase, context.user.id, latestTurn.parent_turn_id)
+      const previousSnapshotRecord = latestTurn.parent_turn_id
+        ? await getWorldSnapshot(context.supabase, latestTurn.parent_turn_id)
+        : null;
+      const previousSnapshot = previousSnapshotRecord
+        ? await materializeDurableSnapshot(
+            context.supabase,
+            threadId,
+            parsedBody.data.branchId,
+            latestTurn.parent_turn_id!,
+            previousSnapshotRecord,
+          )
         : null;
 
       const { assistantMessage, result } = await generateAssistantReply({
@@ -150,7 +160,7 @@ export async function POST(
       turnId: reservedTurn.id,
       connection: runtime.connection,
       modelId: runtime.threadView.thread.model_id,
-      character: runtime.character,
+      character: runtime.character.character,
     });
 
     return Response.json({ ok: true, turnId: reservedTurn.id });

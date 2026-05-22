@@ -107,6 +107,9 @@ export async function POST(
       title: "Starter opening generated",
       detail: "Opened the scene from a seeded first-turn prompt.",
       importance: 2,
+      event_type: "beat",
+      affected_entity_ids: [],
+      affected_relationship_ids: [],
     });
     await materializeSnapshotForTurn({
       supabase: context.supabase,
@@ -115,7 +118,7 @@ export async function POST(
       turnId: reservedTurn.id,
       connection: runtime.connection,
       modelId: runtime.threadView.thread.model_id,
-      character: runtime.character,
+      character: runtime.character.character,
     });
 
     return Response.json({ ok: true, turnId: reservedTurn.id });

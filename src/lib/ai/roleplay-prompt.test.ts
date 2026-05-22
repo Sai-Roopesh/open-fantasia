@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildRoleplaySystemPrompt } from "@/lib/ai/roleplay-prompt";
 import type { CharacterBundle } from "@/lib/data/characters";
-import type { ThreadStateSnapshot, TimelineEventRecord, UserPersonaRecord } from "@/lib/types";
+import type { DurableMemorySnapshot, TimelineEventRecord, UserPersonaRecord } from "@/lib/types";
 
 const mockCharacter: CharacterBundle = {
   character: {
@@ -49,8 +49,21 @@ const mockPersona: UserPersonaRecord = {
   updated_at: "2024-01-01",
 };
 
+function makeTimelineEvent(overrides: Partial<TimelineEventRecord> & Pick<TimelineEventRecord, "id" | "title" | "detail" | "importance">): TimelineEventRecord {
+  return {
+    thread_id: "t1",
+    branch_id: "b1",
+    turn_id: "turn_1",
+    event_type: "beat",
+    affected_entity_ids: [],
+    affected_relationship_ids: [],
+    created_at: "",
+    ...overrides,
+  };
+}
+
 describe("buildRoleplaySystemPrompt", () => {
-  it("includes tagged sections for the hybrid memory prompt", () => {
+  it("includes tagged sections for the HCE prompt", () => {
     const prompt = buildRoleplaySystemPrompt({
       character: mockCharacter,
       persona: mockPersona,
@@ -63,10 +76,8 @@ describe("buildRoleplaySystemPrompt", () => {
     expect(prompt).toContain("You are roleplaying as Alex.");
     expect(prompt).toContain("<story_setting>");
     expect(prompt).toContain("<character_persona>");
-    expect(prompt).toContain("<durable_memory>");
-    expect(prompt).toContain("Story summary: No durable story summary yet.");
-    expect(prompt).toContain("<current_scene>");
-    expect(prompt).toContain("Scene summary: No current-scene summary yet.");
+    expect(prompt).toContain("<durable_state>");
+    expect(prompt).toContain("No world state has been materialized yet.");
     expect(prompt).toContain("<response_contract>");
     expect(prompt).toContain("Advance the plot by one concrete beat");
     expect(prompt).not.toContain("Hey there.");
@@ -91,13 +102,13 @@ describe("buildRoleplaySystemPrompt", () => {
 
   it("limits timeline context to recent high-importance beats", () => {
     const timeline: TimelineEventRecord[] = [
-      { id: "1", thread_id: "t1", title: "Met Alex", detail: "Shook hands", importance: 5, branch_id: "b1", turn_id: "turn_1", created_at: "" },
-      { id: "2", thread_id: "t1", title: "Signal spiked", detail: "A distress call cut in", importance: 4, branch_id: "b1", turn_id: "turn_2", created_at: "" },
-      { id: "3", thread_id: "t1", title: "Dock lights failed", detail: "Everything went red", importance: 3, branch_id: "b1", turn_id: "turn_3", created_at: "" },
-      { id: "4", thread_id: "t1", title: "Engine room opened", detail: "Steam rushed out", importance: 4, branch_id: "b1", turn_id: "turn_4", created_at: "" },
-      { id: "5", thread_id: "t1", title: "Map updated", detail: "New route appeared", importance: 3, branch_id: "b1", turn_id: "turn_5", created_at: "" },
-      { id: "6", thread_id: "t1", title: "Old rumor", detail: "A minor aside", importance: 2, branch_id: "b1", turn_id: "turn_6", created_at: "" },
-      { id: "7", thread_id: "t1", title: "Fuel leak", detail: "A line cracked open", importance: 5, branch_id: "b1", turn_id: "turn_7", created_at: "" },
+      makeTimelineEvent({ id: "1", title: "Met Alex", detail: "Shook hands", importance: 5, turn_id: "turn_1" }),
+      makeTimelineEvent({ id: "2", title: "Signal spiked", detail: "A distress call cut in", importance: 4, turn_id: "turn_2" }),
+      makeTimelineEvent({ id: "3", title: "Dock lights failed", detail: "Everything went red", importance: 3, turn_id: "turn_3" }),
+      makeTimelineEvent({ id: "4", title: "Engine room opened", detail: "Steam rushed out", importance: 4, turn_id: "turn_4" }),
+      makeTimelineEvent({ id: "5", title: "Map updated", detail: "New route appeared", importance: 3, turn_id: "turn_5" }),
+      makeTimelineEvent({ id: "6", title: "Old rumor", detail: "A minor aside", importance: 2, turn_id: "turn_6" }),
+      makeTimelineEvent({ id: "7", title: "Fuel leak", detail: "A line cracked open", importance: 5, turn_id: "turn_7" }),
     ];
     const prompt = buildRoleplaySystemPrompt({
       character: mockCharacter,
@@ -126,24 +137,62 @@ describe("buildRoleplaySystemPrompt", () => {
     expect(prompt).not.toContain("Fuel leak");
   });
 
-  it("renders the new snapshot fields defensively", () => {
-    const snapshot = {
-      turn_id: "1",
-      thread_id: "t1",
-      branch_id: "b1",
-      based_on_turn_id: null,
-      version: 1,
-      story_summary: "Alex met Riley in a failing shipyard and realized the station was more damaged than it first looked.",
-      scene_summary: "They are in the engine bay, standing over a ruptured coolant line while alarms pulse through the corridor.",
-      last_turn_beat: "Riley admitted the ship cannot leave unless Alex trusts them with the override codes.",
-      relationship_state: "Wary, but beginning to rely on each other.",
-      user_facts: ["Is a pilot", "Needs help"],
-      active_threads: ["Engine fix"],
-      resolved_threads: ["Introductions"],
-      next_turn_pressure: ["Choose whether to share the override codes"],
-      scene_goals: ["Stabilize the engine"],
-      updated_at: "",
-    } as ThreadStateSnapshot;
+  it("serializes the durable memory snapshot as structured JSON", () => {
+    const snapshot: DurableMemorySnapshot = {
+      metadata: {
+        current_turn_id: "1",
+        narrative_timestamp: "Dusk, day 3",
+        transition_type: "continuation",
+        version: 1,
+      },
+      spatial_state: {
+        current_location: {
+          id: "loc_1",
+          name: "Engine Bay",
+          description: "Dimly lit, steam venting from ruptured coolant line",
+          environmental_modifiers: ["red alarm lights", "steam"],
+        },
+        adjacent_locations: [{ id: "loc_2", name: "Corridor B" }],
+        entity_placements: [],
+      },
+      entity_state: [
+        {
+          entity_id: "ent_1",
+          canonical_name: "Alex",
+          entity_type: "character",
+          is_present: true,
+          primary_emotion: "worried",
+          emotion_intensity: 7,
+          emotion_catalyst: "reactor failing",
+          aliases: [],
+          knowledge_boundary: [],
+          traits: ["Gruff mechanic"],
+          goals: [],
+          secrets: [],
+          abilities: [],
+          possessions: [],
+        },
+      ],
+      relational_state: [
+        {
+          relationship_id: "rel_1",
+          source_entity_id: "ent_1",
+          source_entity_name: "Alex",
+          target_entity_id: "ent_2",
+          target_entity_name: "Riley",
+          relationship_type: "social",
+          dynamic_status: "Wary, but beginning to rely on each other",
+          valid_from_turn_id: "turn_1",
+        },
+      ],
+      narrative_state: {
+        story_summary: "Alex met Riley in a failing shipyard.",
+        scene_summary: "They are in the engine bay.",
+        last_turn_beat: "Riley admitted the ship cannot leave.",
+        active_threads: [{ id: "nt_1", objective: "Engine fix", status: "open", dependencies: [] }],
+        resolved_threads: ["Introductions"],
+      },
+    };
 
     const prompt = buildRoleplaySystemPrompt({
       character: mockCharacter,
@@ -153,13 +202,12 @@ describe("buildRoleplaySystemPrompt", () => {
       timeline: [],
     });
 
-    expect(prompt).toContain("Story summary: Alex met Riley");
-    expect(prompt).toContain("Scene summary: They are in the engine bay");
-    expect(prompt).toContain("Last beat: Riley admitted");
-    expect(prompt).toContain("Relationship state: Wary, but beginning to rely on each other.");
-    expect(prompt).toContain("- Engine fix");
-    expect(prompt).toContain("- Introductions");
-    expect(prompt).toContain("- Choose whether to share the override codes");
-    expect(prompt).toContain("- Stabilize the engine");
+    // The snapshot is JSON-serialized into the durable_state section
+    expect(prompt).toContain("<durable_state>");
+    expect(prompt).toContain("Alex met Riley in a failing shipyard.");
+    expect(prompt).toContain("Engine Bay");
+    expect(prompt).toContain("Wary, but beginning to rely on each other");
+    expect(prompt).toContain("Engine fix");
+    expect(prompt).not.toContain("No world state has been materialized yet.");
   });
 });

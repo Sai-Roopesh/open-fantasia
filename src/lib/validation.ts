@@ -220,7 +220,7 @@ export const branchRecordSchema = z.object({
   updated_at: z.string(),
 });
 
-export const snapshotRecordSchema = z.object({
+export const worldSnapshotRecordSchema = z.object({
   turn_id: z.string().uuid(),
   thread_id: z.string().uuid(),
   branch_id: z.string().uuid(),
@@ -228,13 +228,11 @@ export const snapshotRecordSchema = z.object({
   story_summary: z.string(),
   scene_summary: z.string(),
   last_turn_beat: z.string(),
-  relationship_state: z.string(),
-  user_facts: z.array(z.string()),
-  active_threads: z.array(z.string()),
-  resolved_threads: z.array(z.string()),
-  next_turn_pressure: z.array(z.string()),
-  scene_goals: z.array(z.string()),
+  narrative_timestamp: z.string(),
+  transition_type: z.enum(["continuation", "scene_transition", "time_skip"]),
   version: z.number().int().positive(),
+  is_full_materialization: z.boolean(),
+  created_at: z.string(),
   updated_at: z.string(),
 });
 

@@ -114,18 +114,6 @@ export type CharacterPortraitTaskRecord = DbRow<"character_portrait_tasks"> & {
   status: TaskStatus;
 };
 
-export type TurnSnapshotRecord = Omit<
-  DbRow<"chat_turn_snapshots">,
-  "user_facts" | "active_threads" | "resolved_threads" | "next_turn_pressure" | "scene_goals"
-> & {
-  user_facts: string[];
-  active_threads: string[];
-  resolved_threads: string[];
-  next_turn_pressure: string[];
-  scene_goals: string[];
-};
-export type ThreadStateSnapshot = TurnSnapshotRecord;
-
 export const messageMetadataSchema = z
   .object({
     model: z.string().optional(),
@@ -157,27 +145,6 @@ export type TranscriptControl = {
   feedbackRating: number | null;
 };
 
-export const reconciliationSchema = z.object({
-  storySummary: z.string().default(""),
-  sceneSummary: z.string().default(""),
-  lastTurnBeat: z.string().default(""),
-  relationshipState: z.string().default(""),
-  userFacts: z.array(z.string()).default([]),
-  activeThreads: z.array(z.string()).default([]),
-  resolvedThreads: z.array(z.string()).default([]),
-  nextTurnPressure: z.array(z.string()).default([]),
-  sceneGoals: z.array(z.string()).default([]),
-  timelineEvent: z
-    .object({
-      title: z.string(),
-      detail: z.string(),
-      importance: z.number().min(1).max(5).default(3),
-    })
-    .optional(),
-});
-
-export type ReconciliationOutput = z.infer<typeof reconciliationSchema>;
-
 export type ThreadListItem = ThreadRecord & {
   character_name: string | null;
   persona_name: string | null;
@@ -208,6 +175,213 @@ export type PersonaUsageSummary = {
   personaId: string;
   totalThreads: number;
   activeThreads: number;
+};
+
+// --- HCE World State Types ---
+
+export const entityTypes = ['character', 'npc', 'creature', 'object', 'group'] as const;
+export type EntityType = (typeof entityTypes)[number];
+
+export const factTypes = ['knowledge', 'trait', 'goal', 'secret', 'ability', 'possession'] as const;
+export type FactType = (typeof factTypes)[number];
+
+export const relationshipTypes = ['social', 'romantic', 'familial', 'professional', 'adversarial', 'alliance', 'other'] as const;
+export type RelationshipType = (typeof relationshipTypes)[number];
+
+export const narrativeThreadStatuses = ['open', 'blocked', 'resolving', 'resolved'] as const;
+export type NarrativeThreadStatus = (typeof narrativeThreadStatuses)[number];
+
+export const transitionTypes = ['continuation', 'scene_transition', 'time_skip'] as const;
+export type TransitionType = (typeof transitionTypes)[number];
+
+export const timelineEventTypes = ['beat', 'reveal', 'betrayal', 'discovery', 'combat', 'scene_change', 'time_skip', 'relationship_shift', 'emotion_shift', 'spatial_move'] as const;
+export type TimelineEventType = (typeof timelineEventTypes)[number];
+
+export type WorldSnapshotRecord = {
+  turn_id: string;
+  thread_id: string;
+  branch_id: string;
+  based_on_turn_id: string | null;
+  story_summary: string;
+  scene_summary: string;
+  last_turn_beat: string;
+  narrative_timestamp: string;
+  transition_type: TransitionType;
+  version: number;
+  is_full_materialization: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorldEntityRecord = {
+  id: string;
+  thread_id: string;
+  branch_id: string;
+  canonical_name: string;
+  entity_type: EntityType;
+  aliases: string[];
+  character_id: string | null;
+  is_present: boolean;
+  primary_emotion: string;
+  emotion_intensity: number;
+  emotion_catalyst: string;
+  valid_from_turn_id: string;
+  invalidated_at_turn_id: string | null;
+  t_created: string;
+  t_expired: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorldEntityFactRecord = {
+  id: string;
+  entity_id: string;
+  thread_id: string;
+  branch_id: string;
+  fact_type: FactType;
+  body: string;
+  valid_from_turn_id: string;
+  invalidated_at_turn_id: string | null;
+  t_created: string;
+  t_expired: string | null;
+  created_at: string;
+};
+
+export type WorldRelationshipRecord = {
+  id: string;
+  thread_id: string;
+  branch_id: string;
+  source_entity_id: string;
+  target_entity_id: string;
+  relationship_type: RelationshipType;
+  dynamic_status: string;
+  valid_from_turn_id: string;
+  invalidated_at_turn_id: string | null;
+  t_created: string;
+  t_expired: string | null;
+  created_at: string;
+};
+
+export type WorldLocationRecord = {
+  id: string;
+  thread_id: string;
+  branch_id: string;
+  canonical_name: string;
+  description: string;
+  environmental_modifiers: string[];
+  valid_from_turn_id: string;
+  invalidated_at_turn_id: string | null;
+  t_created: string;
+  t_expired: string | null;
+  created_at: string;
+};
+
+export type WorldLocationEdgeRecord = {
+  id: string;
+  thread_id: string;
+  branch_id: string;
+  from_location_id: string;
+  to_location_id: string;
+  is_bidirectional: boolean;
+  valid_from_turn_id: string;
+  invalidated_at_turn_id: string | null;
+  t_created: string;
+  t_expired: string | null;
+  created_at: string;
+};
+
+export type WorldEntityPlacementRecord = {
+  id: string;
+  thread_id: string;
+  branch_id: string;
+  entity_id: string;
+  location_id: string;
+  micro_position: string;
+  valid_from_turn_id: string;
+  invalidated_at_turn_id: string | null;
+  t_created: string;
+  t_expired: string | null;
+  created_at: string;
+};
+
+export type WorldNarrativeThreadRecord = {
+  id: string;
+  thread_id: string;
+  branch_id: string;
+  objective: string;
+  status: NarrativeThreadStatus;
+  dependency_ids: string[];
+  valid_from_turn_id: string;
+  invalidated_at_turn_id: string | null;
+  t_created: string;
+  t_expired: string | null;
+  created_at: string;
+};
+
+export type DurableMemorySnapshot = {
+  metadata: {
+    current_turn_id: string;
+    narrative_timestamp: string;
+    transition_type: TransitionType;
+    version: number;
+  };
+  spatial_state: {
+    current_location: {
+      id: string;
+      name: string;
+      description: string;
+      environmental_modifiers: string[];
+    } | null;
+    adjacent_locations: Array<{
+      id: string;
+      name: string;
+    }>;
+    entity_placements: Array<{
+      entity_id: string;
+      entity_name: string;
+      location_id: string;
+      location_name: string;
+      micro_position: string;
+    }>;
+  };
+  entity_state: Array<{
+    entity_id: string;
+    canonical_name: string;
+    entity_type: EntityType;
+    aliases: string[];
+    is_present: boolean;
+    primary_emotion: string;
+    emotion_intensity: number;
+    emotion_catalyst: string;
+    knowledge_boundary: string[];
+    traits: string[];
+    goals: string[];
+    secrets: string[];
+    abilities: string[];
+    possessions: string[];
+  }>;
+  relational_state: Array<{
+    relationship_id: string;
+    source_entity_id: string;
+    source_entity_name: string;
+    target_entity_id: string;
+    target_entity_name: string;
+    relationship_type: RelationshipType;
+    dynamic_status: string;
+    valid_from_turn_id: string;
+  }>;
+  narrative_state: {
+    story_summary: string;
+    scene_summary: string;
+    last_turn_beat: string;
+    active_threads: Array<{
+      id: string;
+      objective: string;
+      status: NarrativeThreadStatus;
+      dependencies: string[];
+    }>;
+    resolved_threads: string[];
+  };
 };
 
 export type ContinuityInspectorView = {

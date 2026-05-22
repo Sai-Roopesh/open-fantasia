@@ -36,8 +36,9 @@ describe("baseline rewind schema", () => {
     expect(baselineSql).toContain("delete from public.chat_branches");
   });
 
-  it("captures the squashed post-hybrid schema without legacy reconcile tasks", () => {
-    expect(baselineSql).toContain("CREATE TABLE public.chat_turn_snapshots");
+  it("captures the HCE world-state schema without legacy reconcile tasks", () => {
+    expect(baselineSql).toContain("CREATE TABLE public.world_snapshots");
+    expect(baselineSql).toContain("CREATE TABLE public.world_entities");
     expect(baselineSql).toContain("story_summary");
     expect(baselineSql).toContain("scene_summary");
     expect(baselineSql).not.toContain("turn_reconcile_tasks");

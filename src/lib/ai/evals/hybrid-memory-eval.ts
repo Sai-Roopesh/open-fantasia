@@ -8,8 +8,8 @@ import { toModelContextMessages } from "@/lib/data/turns";
 import { buildRecentSceneMessages, createTextMessage } from "@/lib/threads/read-model";
 import type {
   ConnectionRecord,
+  DurableMemorySnapshot,
   ProviderId,
-  ThreadStateSnapshot,
 } from "@/lib/types";
 import {
   type HybridMemoryEvalCase,
@@ -92,9 +92,12 @@ function makeEvalConnection(config: HybridMemoryEvalConfig): ConnectionRecord {
 function buildLegacySystemPrompt(args: {
   character: HybridMemoryEvalCase["character"];
   persona: HybridMemoryEvalCase["persona"];
-  snapshot: ThreadStateSnapshot;
+  snapshot: DurableMemorySnapshot;
 }) {
   const { character, persona, snapshot } = args;
+  const activeThreads = snapshot.narrative_state.active_threads.map((t) => t.objective);
+  const resolvedThreads = snapshot.narrative_state.resolved_threads;
+  const relationships = snapshot.relational_state.map((r) => `${r.source_entity_name} → ${r.target_entity_name}: ${r.dynamic_status}`).join("; ") || "None established.";
   return [
     `You are roleplaying as ${character.character.name}.`,
     "",
@@ -115,16 +118,13 @@ function buildLegacySystemPrompt(args: {
     `Goals: ${persona.goals}`,
     "",
     "NARRATIVE STATE",
-    `Current scenario: ${snapshot.scene_summary}`,
-    `Relationship: ${snapshot.relationship_state}`,
-    `What happened so far: ${snapshot.story_summary}`,
-    `Known facts about the user: ${snapshot.user_facts.join("; ") || "None yet."}`,
+    `Current scenario: ${snapshot.narrative_state.scene_summary}`,
+    `Relationships: ${relationships}`,
+    `What happened so far: ${snapshot.narrative_state.story_summary}`,
     "",
     "ACTIVE THREADS",
-    `Unresolved story threads:\n${snapshot.active_threads.map((item) => `- ${item}`).join("\n") || "- None active."}`,
-    `Narrative hooks:\n${snapshot.next_turn_pressure.map((item) => `- ${item}`).join("\n") || "- None yet."}`,
-    `Resolved threads:\n${snapshot.resolved_threads.map((item) => `- ${item}`).join("\n") || "- Nothing resolved yet."}`,
-    `Scene goals:\n${snapshot.scene_goals.map((item) => `- ${item}`).join("\n") || "- None set."}`,
+    `Unresolved story threads:\n${activeThreads.map((item) => `- ${item}`).join("\n") || "- None active."}`,
+    `Resolved threads:\n${resolvedThreads.map((item) => `- ${item}`).join("\n") || "- Nothing resolved yet."}`,
     "",
     "DIRECTIVES",
     "- Be proactive and vivid.",
@@ -234,13 +234,12 @@ async function scoreResponse(args: {
           "</character>",
           "",
           "<memory>",
-          `Story summary: ${args.fixture.snapshot.story_summary}`,
-          `Scene summary: ${args.fixture.snapshot.scene_summary}`,
-          `Last beat: ${args.fixture.snapshot.last_turn_beat}`,
-          `Relationship: ${args.fixture.snapshot.relationship_state}`,
-          `Active threads: ${args.fixture.snapshot.active_threads.join("; ") || "None"}`,
-          `Resolved threads: ${args.fixture.snapshot.resolved_threads.join("; ") || "None"}`,
-          `Next pressure: ${args.fixture.snapshot.next_turn_pressure.join("; ") || "None"}`,
+          `Story summary: ${args.fixture.snapshot.narrative_state.story_summary}`,
+          `Scene summary: ${args.fixture.snapshot.narrative_state.scene_summary}`,
+          `Last beat: ${args.fixture.snapshot.narrative_state.last_turn_beat}`,
+          `Relationships: ${args.fixture.snapshot.relational_state.map((r) => `${r.source_entity_name} → ${r.target_entity_name}: ${r.dynamic_status}`).join("; ") || "None"}`,
+          `Active threads: ${args.fixture.snapshot.narrative_state.active_threads.map((t) => t.objective).join("; ") || "None"}`,
+          `Resolved threads: ${args.fixture.snapshot.narrative_state.resolved_threads.join("; ") || "None"}`,
           "</memory>",
           "",
           "<transcript>",

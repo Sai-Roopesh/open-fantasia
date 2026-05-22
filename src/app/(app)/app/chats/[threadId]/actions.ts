@@ -53,6 +53,9 @@ export async function switchThreadModelAction(input: {
     title: "Model switched",
     detail: `Switched to ${connection.label} using ${parsed.modelId}.`,
     importance: 2,
+    event_type: "beat",
+    affected_entity_ids: [],
+    affected_relationship_ids: [],
   });
 
   revalidatePath(`/app/chats/${parsed.threadId}`);
@@ -83,6 +86,9 @@ export async function switchThreadPersonaAction(input: {
     title: "Persona switched",
     detail: `Switched the active persona to ${persona.name}.`,
     importance: 2,
+    event_type: "beat",
+    affected_entity_ids: [],
+    affected_relationship_ids: [],
   });
 
   revalidatePath(`/app/chats/${parsed.threadId}`);
