@@ -1,0 +1,380 @@
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  ArrowDown,
+  Check,
+  Copy,
+  GitBranchPlus,
+  PencilLine,
+  Pin,
+  RefreshCcw,
+  RotateCcw,
+  Star,
+} from "lucide-react";
+import { getTextFromMessage } from "@/lib/ai/message-text";
+import type { EditableTurnTarget, FantasiaUIMessage, TranscriptControl } from "@/lib/types";
+import { cn } from "@/lib/utils";
+import {
+  parseMarkdownLite,
+  type InlineMark,
+  type RichTextBlock,
+} from "@/lib/pretext/markdown-lite";
+import { ActionButton } from "@/components/chat/chat-action-ui";
+
+function isNearBottom(element: HTMLDivElement) {
+  return element.scrollHeight - element.scrollTop - element.clientHeight < 120;
+}
+
+function sliceMarkedRuns(text: string, marks: InlineMark[]) {
+  const boundaries = new Set<number>([0, text.length]);
+  for (const mark of marks) {
+    boundaries.add(mark.start);
+    boundaries.add(mark.end);
+  }
+
+  return Array.from(boundaries)
+    .sort((left, right) => left - right)
+    .slice(0, -1)
+    .map((start, index, items) => {
+      const end = items[index + 1] ?? text.length;
+      const value = text.slice(start, end);
+      const activeMarks = marks.filter((mark) => mark.start <= start && mark.end >= end);
+      return {
+        text: value,
+        bold: activeMarks.some((mark) => mark.bold),
+        italic: activeMarks.some((mark) => mark.italic),
+      };
+    })
+    .filter((run) => run.text.length > 0);
+}
+
+function RichTextBlockView({ block, focusMode }: { block: RichTextBlock; focusMode?: boolean }) {
+  if (block.kind === "separator") {
+    return (
+      <div className="flex items-center justify-center py-2">
+        <div className="h-px w-16 rounded-full bg-current/18" />
+      </div>
+    );
+  }
+
+  const Tag = block.kind === "quote" ? "blockquote" : "p";
+  const runs = sliceMarkedRuns(block.text, block.marks);
+
+  return (
+    <Tag
+      className={cn(
+        "whitespace-pre-wrap",
+        focusMode ? "text-[16px] leading-[2.15] md:text-[17px]" : "text-[15px] leading-7",
+        block.kind === "quote" && "border-l border-current/20 pl-4 italic",
+      )}
+    >
+      {runs.length
+        ? runs.map((run, index) => (
+            <span
+              key={`${block.kind}-${index}-${run.text}`}
+              className={cn(run.bold && "font-semibold", run.italic && "italic")}
+            >
+              {run.text}
+            </span>
+          ))
+        : block.text}
+    </Tag>
+  );
+}
+
+export function PretextTranscript({
+  messages,
+  assistantLabel,
+  controlsByMessageId,
+  pendingAction,
+  focusMode = false,
+  rewriteBlocked = false,
+  onRegenerate,
+  onOpenEditMessage,
+  onOpenBranchFromCheckpoint,
+  onRewindCheckpoint,
+  onOpenPinMessage,
+  onRateCheckpoint,
+}: {
+  messages: FantasiaUIMessage[];
+  assistantLabel: string;
+  controlsByMessageId: Record<string, TranscriptControl>;
+  pendingAction: string | null;
+  focusMode?: boolean;
+  rewriteBlocked?: boolean;
+  onRegenerate: (turnId: string) => Promise<void>;
+  onOpenEditMessage: (
+    messageId: string,
+    currentText: string,
+    target: EditableTurnTarget,
+  ) => void;
+  onOpenBranchFromCheckpoint: (turnId: string) => void;
+  onRewindCheckpoint: (turnId: string) => Promise<void>;
+  onOpenPinMessage: (messageId: string, currentText: string) => void;
+  onRateCheckpoint: (turnId: string, rating: number) => Promise<void>;
+}) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const copyResetTimerRef = useRef<number | null>(null);
+  const [followOutput, setFollowOutput] = useState(true);
+  const [copyFeedback, setCopyFeedback] = useState<{
+    messageId: string;
+    status: "success" | "error";
+  } | null>(null);
+
+  useEffect(() => {
+    if (!scrollRef.current) return;
+    const element = scrollRef.current;
+
+    const updateFollowState = () => {
+      setFollowOutput(isNearBottom(element));
+    };
+
+    updateFollowState();
+    element.addEventListener("scroll", updateFollowState, { passive: true });
+
+    return () => {
+      element.removeEventListener("scroll", updateFollowState);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!scrollRef.current || !followOutput) return;
+    const element = scrollRef.current;
+    requestAnimationFrame(() => {
+      element.scrollTop = element.scrollHeight;
+    });
+  }, [followOutput, messages.length]);
+
+  useEffect(() => {
+    return () => {
+      if (copyResetTimerRef.current !== null) {
+        window.clearTimeout(copyResetTimerRef.current);
+      }
+    };
+  }, []);
+
+  function setCopyFeedbackWithReset(
+    messageId: string,
+    status: "success" | "error",
+  ) {
+    setCopyFeedback({ messageId, status });
+    if (copyResetTimerRef.current !== null) {
+      window.clearTimeout(copyResetTimerRef.current);
+    }
+    copyResetTimerRef.current = window.setTimeout(() => {
+      setCopyFeedback((current) =>
+        current?.messageId === messageId ? null : current,
+      );
+    }, 1800);
+  }
+
+  async function copyMessage(messageId: string, value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopyFeedbackWithReset(messageId, "success");
+    } catch {
+      setCopyFeedbackWithReset(messageId, "error");
+    }
+  }
+
+  const showJumpToLatest = messages.length > 0 && !followOutput;
+
+  const timestampFormatter = useMemo(
+    () =>
+      new Intl.DateTimeFormat(undefined, {
+        hour: "numeric",
+        minute: "2-digit",
+      }),
+    [],
+  );
+
+  return (
+    <div className={cn("relative", focusMode && "h-full")}>
+      <div
+        ref={scrollRef}
+        className={cn(
+          "relative overflow-y-auto bg-[#141010]/75 px-3 py-4",
+          focusMode
+            ? "h-full rounded-xl border border-white/6"
+            : "h-[68vh] min-h-[28rem] rounded-[2rem] border border-white/8",
+        )}
+      >
+        <div className={cn("mx-auto flex flex-col gap-5 py-1", focusMode ? "max-w-[65ch]" : "max-w-4xl")}>
+          {messages.map((message) => {
+            const metadata = message.metadata;
+            const isUser = message.role === "user";
+            const controls = controlsByMessageId[message.id];
+            const messageText = getTextFromMessage(message);
+            const createdAt = metadata?.createdAt
+              ? timestampFormatter.format(new Date(metadata.createdAt))
+              : null;
+            const messageLabel =
+              message.role === "assistant"
+                ? assistantLabel
+                : message.role === "user"
+                  ? "You"
+                  : "System";
+            const blocks = parseMarkdownLite(messageText);
+            const hasActionBar = Boolean(controls) || messageText.trim().length > 0;
+            const isCopySuccess = copyFeedback?.messageId === message.id && copyFeedback.status === "success";
+            const isCopyError = copyFeedback?.messageId === message.id && copyFeedback.status === "error";
+
+            return (
+              <div key={message.id} className={cn("flex flex-col gap-3", isUser && "items-end")}>
+                <article
+                  className={cn(
+                    "w-full rounded-[1.8rem] px-5 py-4 shadow-[0_14px_40px_rgba(35,23,16,0.08)]",
+                    isUser
+                      ? "max-w-[min(54ch,92%)] bg-[#2a1f18] text-[#f0e0cf]"
+                      : "max-w-[min(72ch,100%)] bg-[#0f0c0a] text-[#e8ddd2]",
+                  )}
+                >
+                  <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.24em] opacity-65">
+                    <span>{messageLabel}</span>
+                    {createdAt ? <span>{createdAt}</span> : null}
+                    {!isUser && metadata?.provider ? <span>{metadata.provider}</span> : null}
+                    {!isUser && metadata?.model ? <span className="truncate">{metadata.model}</span> : null}
+                  </div>
+
+                  <div className="space-y-3 text-left">
+                    {blocks.map((block, blockIndex) => (
+                      <RichTextBlockView
+                        key={`${message.id}-${block.kind}-${blockIndex}`}
+                        block={block}
+                        focusMode={focusMode}
+                      />
+                    ))}
+                  </div>
+                </article>
+
+                {hasActionBar ? (
+                  <div
+                    className={cn(
+                      "flex max-w-[min(72ch,100%)] flex-col gap-3 px-1 text-left",
+                      isUser && "items-end text-right",
+                    )}
+                  >
+                    <div className={cn("flex flex-wrap gap-2", isUser && "justify-end")}>
+                      {controls?.canEdit ? (
+                        <ActionButton
+                          disabled={pendingAction !== null || rewriteBlocked}
+                          onClick={() =>
+                            onOpenEditMessage(
+                              message.id,
+                              messageText,
+                              isUser ? "user" : "assistant",
+                            )
+                          }
+                          icon={PencilLine}
+                        >
+                          {isUser ? "Edit last user" : "Edit last reply"}
+                        </ActionButton>
+                      ) : null}
+                      {controls?.canRewind ? (
+                        <ActionButton
+                          disabled={pendingAction !== null}
+                          onClick={() => void onRewindCheckpoint(controls.turnId)}
+                          icon={RotateCcw}
+                        >
+                          Rewind here
+                        </ActionButton>
+                      ) : null}
+                      {controls?.canRegenerate ? (
+                        <ActionButton
+                          disabled={pendingAction !== null || rewriteBlocked}
+                          onClick={() => onRegenerate(controls.turnId)}
+                          icon={RefreshCcw}
+                        >
+                          Regenerate
+                        </ActionButton>
+                      ) : null}
+                      {controls?.canBranch ? (
+                        <ActionButton
+                          disabled={pendingAction !== null}
+                          onClick={() => onOpenBranchFromCheckpoint(controls.turnId)}
+                          icon={GitBranchPlus}
+                        >
+                          Branch from here
+                        </ActionButton>
+                      ) : null}
+                      {messageText.trim().length > 0 ? (
+                        <ActionButton
+                          onClick={() => void copyMessage(message.id, messageText)}
+                          icon={isCopySuccess ? Check : Copy}
+                        >
+                          {isCopySuccess
+                            ? "Copied"
+                            : isCopyError
+                              ? "Copy failed"
+                              : "Copy"}
+                        </ActionButton>
+                      ) : null}
+                      {controls?.canPin ? (
+                        <ActionButton
+                          disabled={pendingAction !== null}
+                          onClick={() => onOpenPinMessage(message.id, messageText)}
+                          icon={Pin}
+                        >
+                          Pin fact
+                        </ActionButton>
+                      ) : null}
+                    </div>
+
+                    {controls?.canRate ? (
+                      <div
+                        className={cn(
+                          "flex flex-wrap items-center gap-2 text-xs text-foreground/70",
+                          isUser && "justify-end",
+                        )}
+                      >
+                        <span className="uppercase tracking-[0.18em]">Rate this turn</span>
+                        {[1, 2, 3, 4].map((rating) => (
+                          <button
+                            key={`${controls.turnId}-rating-${rating}`}
+                            type="button"
+                            disabled={pendingAction !== null}
+                            onClick={() => onRateCheckpoint(controls.turnId, rating)}
+                            className={cn(
+                              "rounded-full border border-border bg-white/8 px-3 py-1.5 font-semibold text-foreground transition disabled:opacity-60",
+                              controls.feedbackRating === rating
+                                ? "border-brand bg-brand/8 text-brand"
+                                : "hover:border-brand hover:text-brand",
+                            )}
+                          >
+                            <span className="inline-flex items-center gap-1">
+                              <Star className="h-3.5 w-3.5" />
+                              {rating}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {showJumpToLatest ? (
+        <button
+          type="button"
+          onClick={() => {
+            if (!scrollRef.current) return;
+            setFollowOutput(true);
+            scrollRef.current.scrollTo({
+              top: scrollRef.current.scrollHeight,
+              behavior: "smooth",
+            });
+          }}
+          className="absolute bottom-4 right-4 inline-flex items-center gap-2 rounded-full border border-white/12 bg-[#1a1412] px-4 py-2 text-sm font-semibold text-foreground shadow-lg transition hover:border-brand hover:text-brand"
+        >
+          <ArrowDown className="h-4 w-4" />
+          Jump to latest
+        </button>
+      ) : null}
+    </div>
+  );
+}

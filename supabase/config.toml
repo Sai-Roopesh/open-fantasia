@@ -1,0 +1,23 @@
+# Hosted Supabase Auth settings for Open Fantasia.
+# The site URL must point at production so magic links sent from the live app
+# do not fall back to localhost.
+
+[auth]
+site_url = "https://open-fantasia.vercel.app"
+additional_redirect_urls = [
+  "https://open-fantasia.vercel.app",
+  "https://open-fantasia.vercel.app/auth/callback",
+  "http://localhost:3000",
+  "http://localhost:3000/auth/callback",
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:3000/auth/callback",
+]
+
+[auth.mfa.totp]
+enroll_enabled = true
+verify_enabled = true
+
+[auth.email]
+enable_confirmations = true
+max_frequency = "1m0s"
+otp_length = 8

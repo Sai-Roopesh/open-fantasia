@@ -1,0 +1,94 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  quality-gate:
+    name: Code Quality & Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Run Linter
+        run: pnpm lint
+
+      - name: Run Type Check
+        run: pnpm typecheck
+
+      - name: Run Unit Tests
+        run: pnpm test:unit
+
+  deploy-production:
+    name: Deploy to Vercel (Production)
+    needs: quality-gate
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Pull Vercel Environment Information
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: team_QzSSA090AklFfjnc1BadydMn
+          VERCEL_PROJECT_ID: prj_cmj6Vu2NeUSHKnGS5HoTmi8MpP0H
+
+      - name: Build Project Artifacts
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+        env:
+          VERCEL_ORG_ID: team_QzSSA090AklFfjnc1BadydMn
+          VERCEL_PROJECT_ID: prj_cmj6Vu2NeUSHKnGS5HoTmi8MpP0H
+
+      - name: Deploy Project Artifacts to Vercel
+        run: |
+          for attempt in 1 2 3; do
+            echo "Production deploy attempt ${attempt}/3"
+            if vercel deploy --prebuilt --prod --yes --token=${{ secrets.VERCEL_TOKEN }}; then
+              exit 0
+            fi
+
+            if [ "$attempt" -lt 3 ]; then
+              echo "Deploy failed, retrying in 15 seconds..."
+              sleep 15
+            fi
+          done
+
+          echo "Production deploy failed after 3 attempts."
+          exit 1
+        env:
+          VERCEL_ORG_ID: team_QzSSA090AklFfjnc1BadydMn
+          VERCEL_PROJECT_ID: prj_cmj6Vu2NeUSHKnGS5HoTmi8MpP0H
