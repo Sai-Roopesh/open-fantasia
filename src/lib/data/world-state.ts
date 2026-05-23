@@ -90,7 +90,7 @@ export async function invalidateEntity(
 ) {
   const { error } = await supabase
     .from("world_entities")
-    .update({ invalidated_at_turn_id: turnId, t_expired: turnId })
+    .update({ invalidated_at_turn_id: turnId, t_expired: new Date().toISOString() })
     .eq("id", entityId);
 
   if (error) throw error;
@@ -154,7 +154,7 @@ export async function invalidateEntityFact(
 ) {
   const { error } = await supabase
     .from("world_entity_facts")
-    .update({ invalidated_at_turn_id: turnId, t_expired: turnId })
+    .update({ invalidated_at_turn_id: turnId, t_expired: new Date().toISOString() })
     .eq("id", factId);
 
   if (error) throw error;
@@ -198,7 +198,7 @@ export async function invalidateRelationship(
 ) {
   const { error } = await supabase
     .from("world_relationships")
-    .update({ invalidated_at_turn_id: turnId, t_expired: turnId })
+    .update({ invalidated_at_turn_id: turnId, t_expired: new Date().toISOString() })
     .eq("id", relationshipId);
 
   if (error) throw error;
@@ -298,7 +298,7 @@ export async function invalidateLocationEdge(
 ) {
   const { error } = await supabase
     .from("world_location_edges")
-    .update({ invalidated_at_turn_id: turnId, t_expired: turnId })
+    .update({ invalidated_at_turn_id: turnId, t_expired: new Date().toISOString() })
     .eq("id", edgeId);
 
   if (error) throw error;
@@ -342,7 +342,7 @@ export async function invalidateEntityPlacement(
 ) {
   const { error } = await supabase
     .from("world_entity_placements")
-    .update({ invalidated_at_turn_id: turnId, t_expired: turnId })
+    .update({ invalidated_at_turn_id: turnId, t_expired: new Date().toISOString() })
     .eq("id", placementId);
 
   if (error) throw error;
@@ -399,7 +399,7 @@ export async function invalidateNarrativeThread(
 ) {
   const { error } = await supabase
     .from("world_narrative_threads")
-    .update({ invalidated_at_turn_id: turnId, t_expired: turnId })
+    .update({ invalidated_at_turn_id: turnId, t_expired: new Date().toISOString() })
     .eq("id", narrativeThreadId);
 
   if (error) throw error;

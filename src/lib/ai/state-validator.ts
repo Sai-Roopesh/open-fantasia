@@ -54,18 +54,15 @@ export function validateFactMutations(
   for (const m of mutations) {
     if (m.op === "add") {
       const entityId = m.entity_id as string;
-      if (!validateEntityId(entityId, snapshot)) {
+      // Allow NEW: refs that point to entities being created in the same extraction
+      if (!entityId.startsWith("NEW:") && !validateEntityId(entityId, snapshot)) {
         errors.push(`Fact add references unknown entity_id: ${entityId}`);
       }
     }
     if (m.op === "invalidate") {
       const factId = m.fact_id as string;
-      const found = snapshot.entity_state.some((e) =>
-        [...e.knowledge_boundary, ...e.traits, ...e.goals, ...e.secrets, ...e.abilities, ...e.possessions]
-          .length > 0,
-      );
-      if (!found && !factId) {
-        errors.push(`Fact invalidate references unknown fact_id: ${factId}`);
+      if (!factId) {
+        errors.push("Fact invalidate requires a non-empty fact_id.");
       }
     }
   }
@@ -83,10 +80,10 @@ export function validateRelationshipMutations(
     if (m.op === "add") {
       const sourceId = m.source_entity_id as string;
       const targetId = m.target_entity_id as string;
-      if (!validateEntityId(sourceId, snapshot)) {
+      if (!sourceId.startsWith("NEW:") && !validateEntityId(sourceId, snapshot)) {
         errors.push(`Relationship add references unknown source_entity_id: ${sourceId}`);
       }
-      if (!validateEntityId(targetId, snapshot)) {
+      if (!targetId.startsWith("NEW:") && !validateEntityId(targetId, snapshot)) {
         errors.push(`Relationship add references unknown target_entity_id: ${targetId}`);
       }
     }
@@ -94,6 +91,34 @@ export function validateRelationshipMutations(
       const relId = m.relationship_id as string;
       if (!validateRelationshipId(relId, snapshot)) {
         errors.push(`Relationship mutation references unknown relationship_id: ${relId}`);
+      }
+    }
+  }
+
+  return { valid: errors.length === 0, errors };
+}
+
+export function validateLocationEdgeMutations(
+  mutations: MutationOp[],
+  snapshot: DurableMemorySnapshot,
+): ValidationResult {
+  const errors: string[] = [];
+
+  for (const m of mutations) {
+    if (m.op === "add") {
+      const fromId = m.from_location_id as string;
+      const toId = m.to_location_id as string;
+      if (!fromId.startsWith("NEW:") && !validateLocationId(fromId, snapshot)) {
+        errors.push(`Location edge add references unknown from_location_id: ${fromId}`);
+      }
+      if (!toId.startsWith("NEW:") && !validateLocationId(toId, snapshot)) {
+        errors.push(`Location edge add references unknown to_location_id: ${toId}`);
+      }
+    }
+    if (m.op === "invalidate") {
+      const edgeId = m.edge_id as string;
+      if (!edgeId) {
+        errors.push("Location edge invalidate requires a non-empty edge_id.");
       }
     }
   }
@@ -119,11 +144,15 @@ export function validateSpatialMutations(
     if (m.op === "move") {
       const entityId = m.entity_id as string;
       const toLocationId = m.to_location_id as string;
-      if (!validateEntityId(entityId, snapshot)) {
+      if (!entityId.startsWith("NEW:") && !validateEntityId(entityId, snapshot)) {
         errors.push(`Placement move references unknown entity_id: ${entityId}`);
       }
-      if (!validateLocationId(toLocationId, snapshot) && !newLocationNames.size) {
-        errors.push(`Placement move to unknown location_id: ${toLocationId}. May be a new location — check location_mutations.`);
+      // Check if the destination is a known location OR a NEW: ref matching a location being added
+      const isNewLocationRef =
+        toLocationId.startsWith("NEW:") &&
+        newLocationNames.has(toLocationId.replace(/^NEW:/, ""));
+      if (!validateLocationId(toLocationId, snapshot) && !isNewLocationRef) {
+        errors.push(`Placement move to unknown location_id: ${toLocationId}.`);
       }
     }
   }
@@ -187,6 +216,7 @@ export type FullValidationResult = {
   factErrors: string[];
   relationshipErrors: string[];
   spatialErrors: string[];
+  locationEdgeErrors: string[];
   narrativeThreadErrors: string[];
   totalErrors: number;
   shouldReflect: boolean;
@@ -212,6 +242,7 @@ export function validateAllMutations(
     extraction.location_mutations,
     snapshot,
   );
+  const edgeResult = validateLocationEdgeMutations(extraction.location_edge_mutations, snapshot);
   const narrativeResult = validateNarrativeThreadMutations(
     extraction.narrative_thread_mutations,
     snapshot,
@@ -222,6 +253,7 @@ export function validateAllMutations(
     factResult.errors.length +
     relResult.errors.length +
     spatialResult.errors.length +
+    edgeResult.errors.length +
     narrativeResult.errors.length;
 
   const totalOps =
@@ -238,6 +270,7 @@ export function validateAllMutations(
     factErrors: factResult.errors,
     relationshipErrors: relResult.errors,
     spatialErrors: spatialResult.errors,
+    locationEdgeErrors: edgeResult.errors,
     narrativeThreadErrors: narrativeResult.errors,
     totalErrors,
     shouldReflect: totalOps > 0 && totalErrors / totalOps > 0.5,

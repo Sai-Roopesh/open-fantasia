@@ -290,6 +290,8 @@ async function resolveSnapshotState(
     : latestSnapshotRecord;
 
   let headSnapshot: DurableMemorySnapshot | null = null;
+  let headSnapshotFailed = false;
+  let headSnapshotFailureMessage: string | null = null;
   if (headSnapshotRecord) {
     try {
       headSnapshot = await materializeDurableSnapshot(
@@ -300,10 +302,13 @@ async function resolveSnapshotState(
         headSnapshotRecord,
       );
     } catch (error) {
+      headSnapshotFailed = true;
+      headSnapshotFailureMessage =
+        error instanceof Error ? error.message : String(error);
       console.error("[read-model] Failed to materialize durable snapshot.", {
         threadId,
         turnId: headSnapshotRecord.turn_id,
-        error: error instanceof Error ? error.message : String(error),
+        error: headSnapshotFailureMessage,
       });
     }
   }
@@ -311,8 +316,8 @@ async function resolveSnapshotState(
   return {
     headSnapshot,
     headSnapshotPending: false,
-    headSnapshotFailed: false,
-    headSnapshotFailureMessage: null,
+    headSnapshotFailed,
+    headSnapshotFailureMessage,
   };
 }
 

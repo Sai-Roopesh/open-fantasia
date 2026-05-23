@@ -30,7 +30,17 @@ import {
   extractStateChanges,
   type ExtractionOutput,
 } from "@/lib/ai/state-extraction";
-import { validateAllMutations } from "@/lib/ai/state-validator";
+import {
+  validateAllMutations,
+  validateAndPartition,
+  validateEntityMutations,
+  validateFactMutations,
+  validateRelationshipMutations,
+  validateSpatialMutations,
+  validateNarrativeThreadMutations,
+  validateLocationEdgeMutations,
+  type MutationOp,
+} from "@/lib/ai/state-validator";
 import { reflectOnFailedExtraction } from "@/lib/ai/state-reflector";
 import { getTextFromMessage } from "@/lib/ai/message-text";
 import type {
@@ -46,6 +56,37 @@ import type {
 
 const RECENT_EXTRACTION_TURN_WINDOW = 15;
 const DEFRAG_INTERVAL = 10;
+
+function stripInvalidMutations(
+  extraction: ExtractionOutput,
+  snapshot: DurableMemorySnapshot,
+): ExtractionOutput {
+  const entities = validateAndPartition(extraction.entity_mutations as MutationOp[], snapshot, validateEntityMutations);
+  const facts = validateAndPartition(extraction.fact_mutations as MutationOp[], snapshot, validateFactMutations);
+  const relationships = validateAndPartition(extraction.relationship_mutations as MutationOp[], snapshot, validateRelationshipMutations);
+  const spatial = validateAndPartition(
+    extraction.placement_mutations as MutationOp[],
+    snapshot,
+    (muts, snap) => validateSpatialMutations(muts, extraction.location_mutations as MutationOp[], snap),
+  );
+  const narratives = validateAndPartition(extraction.narrative_thread_mutations as MutationOp[], snapshot, validateNarrativeThreadMutations);
+  const edges = validateAndPartition(extraction.location_edge_mutations as MutationOp[], snapshot, validateLocationEdgeMutations);
+
+  return {
+    ...extraction,
+    entity_mutations: entities.valid as ExtractionOutput["entity_mutations"],
+    fact_mutations: facts.valid as ExtractionOutput["fact_mutations"],
+    relationship_mutations: relationships.valid as ExtractionOutput["relationship_mutations"],
+    placement_mutations: spatial.valid as ExtractionOutput["placement_mutations"],
+    narrative_thread_mutations: narratives.valid as ExtractionOutput["narrative_thread_mutations"],
+    location_edge_mutations: edges.valid as ExtractionOutput["location_edge_mutations"],
+  };
+}
+
+function resolveNewRef(value: string, map: Map<string, string>): string {
+  const key = value.startsWith("NEW:") ? value : `NEW:${value}`;
+  return map.get(key) ?? value;
+}
 
 async function applyMutationsToDb(
   supabase: DatabaseClient,
@@ -81,7 +122,7 @@ async function applyMutationsToDb(
 
   for (const m of extraction.fact_mutations) {
     if (m.op === "add") {
-      const resolvedEntityId = newEntityIds.get(`NEW:${m.entity_id}`) ?? m.entity_id;
+      const resolvedEntityId = resolveNewRef(m.entity_id, newEntityIds);
       await insertEntityFact(supabase, {
         entity_id: resolvedEntityId,
         thread_id: threadId,
@@ -97,8 +138,8 @@ async function applyMutationsToDb(
 
   for (const m of extraction.relationship_mutations) {
     if (m.op === "add") {
-      const resolvedSourceId = newEntityIds.get(`NEW:${m.source_entity_id}`) ?? m.source_entity_id;
-      const resolvedTargetId = newEntityIds.get(`NEW:${m.target_entity_id}`) ?? m.target_entity_id;
+      const resolvedSourceId = resolveNewRef(m.source_entity_id, newEntityIds);
+      const resolvedTargetId = resolveNewRef(m.target_entity_id, newEntityIds);
       await insertRelationship(supabase, {
         thread_id: threadId,
         branch_id: branchId,
@@ -133,8 +174,8 @@ async function applyMutationsToDb(
 
   for (const m of extraction.location_edge_mutations) {
     if (m.op === "add") {
-      const resolvedFromId = newLocationIds.get(`NEW:${m.from_location_id}`) ?? m.from_location_id;
-      const resolvedToId = newLocationIds.get(`NEW:${m.to_location_id}`) ?? m.to_location_id;
+      const resolvedFromId = resolveNewRef(m.from_location_id, newLocationIds);
+      const resolvedToId = resolveNewRef(m.to_location_id, newLocationIds);
       await insertLocationEdge(supabase, {
         thread_id: threadId,
         branch_id: branchId,
@@ -149,8 +190,8 @@ async function applyMutationsToDb(
   }
 
   for (const m of extraction.placement_mutations) {
-    const resolvedEntityId = newEntityIds.get(`NEW:${m.entity_id}`) ?? m.entity_id;
-    const resolvedLocationId = newLocationIds.get(`NEW:${m.to_location_id}`) ?? m.to_location_id;
+    const resolvedEntityId = resolveNewRef(m.entity_id, newEntityIds);
+    const resolvedLocationId = resolveNewRef(m.to_location_id, newLocationIds);
     await invalidateEntityPlacement(supabase, resolvedEntityId, turnId);
     await insertEntityPlacement(supabase, {
       thread_id: threadId,
@@ -271,37 +312,47 @@ export async function materializeSnapshotForTurn(args: {
 
     const validationResult = validateAllMutations(extraction, currentSnapshot);
 
-    if (validationResult.shouldReflect) {
-      console.warn("[HCE] Extraction failed validation, attempting reflection.", {
-        turnId,
-        threadId,
-        totalErrors: validationResult.totalErrors,
-      });
+    if (validationResult.totalErrors > 0) {
+      if (validationResult.shouldReflect) {
+        console.warn("[HCE] Extraction failed validation, attempting reflection.", {
+          turnId,
+          threadId,
+          totalErrors: validationResult.totalErrors,
+        });
 
-      const transcript = recentMessages
-        .map((msg) => `${msg.role.toUpperCase()}: ${getTextFromMessage(msg)}`)
-        .join("\n\n");
+        const transcript = recentMessages
+          .map((msg) => `${msg.role.toUpperCase()}: ${getTextFromMessage(msg)}`)
+          .join("\n\n");
 
-      const reflected = await reflectOnFailedExtraction({
-        connection,
-        modelId,
-        character,
-        currentSnapshot,
-        recentTranscript: transcript,
-        previousOutput: extraction,
-        validationResult,
-      });
+        const reflected = await reflectOnFailedExtraction({
+          connection,
+          modelId,
+          character,
+          currentSnapshot,
+          recentTranscript: transcript,
+          previousOutput: extraction,
+          validationResult,
+        });
 
-      if (reflected) {
-        const revalidation = validateAllMutations(reflected, currentSnapshot);
-        if (!revalidation.shouldReflect) {
-          extraction = reflected;
+        if (reflected) {
+          const revalidation = validateAllMutations(reflected, currentSnapshot);
+          if (revalidation.totalErrors === 0) {
+            extraction = reflected;
+          } else {
+            console.warn("[HCE] Reflection still has errors. Stripping invalid mutations.", {
+              turnId,
+              threadId,
+              reflectedErrors: revalidation.totalErrors,
+            });
+            extraction = stripInvalidMutations(reflected, currentSnapshot);
+          }
         } else {
-          console.warn("[HCE] Reflection also failed validation. Proceeding with valid-only mutations from original.", {
-            turnId,
-            threadId,
-          });
+          console.warn("[HCE] Reflection returned nothing. Stripping invalid mutations from original.", { turnId, threadId });
+          extraction = stripInvalidMutations(extraction, currentSnapshot);
         }
+      } else {
+        // Errors exist but under threshold — still strip the bad ones
+        extraction = stripInvalidMutations(extraction, currentSnapshot);
       }
     }
 

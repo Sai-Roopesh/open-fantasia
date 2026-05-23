@@ -1435,7 +1435,7 @@ export type Database = {
       begin_turn: {
         Args: {
           p_branch_id: string
-          p_expected_head_turn_id: string
+          p_expected_head_turn_id: string | null
           p_force_parent_override?: boolean
           p_parent_turn_id_override?: string
           p_starter_seed?: boolean
@@ -1509,16 +1509,16 @@ export type Database = {
       }
       commit_turn: {
         Args: {
-          p_assistant_connection_label: string
-          p_assistant_model: string
+          p_assistant_connection_label: string | null
+          p_assistant_model: string | null
           p_assistant_output_payload: Json
           p_assistant_output_text: string
-          p_assistant_provider: string
+          p_assistant_provider: string | null
           p_branch_id: string
-          p_completion_tokens: number
-          p_finish_reason: string
-          p_prompt_tokens: number
-          p_total_tokens: number
+          p_completion_tokens: number | null
+          p_finish_reason: string | null
+          p_prompt_tokens: number | null
+          p_total_tokens: number | null
           p_turn_id: string
         }
         Returns: {
@@ -1631,7 +1631,7 @@ export type Database = {
       rewind_branch_to_turn: {
         Args: {
           p_branch_id: string
-          p_expected_head_turn_id?: string
+          p_expected_head_turn_id?: string | null
           p_target_turn_id: string
         }
         Returns: {

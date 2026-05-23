@@ -263,7 +263,7 @@ export async function beginTurn(
 ) {
   const { data, error } = await supabase.rpc("begin_turn", {
     p_branch_id: args.branchId,
-    p_expected_head_turn_id: args.expectedHeadTurnId ?? undefined as unknown as string,
+    p_expected_head_turn_id: args.expectedHeadTurnId ?? null,
     p_user_input_text: args.text,
     p_user_input_payload: ((args.payload ?? [
       {
@@ -310,13 +310,13 @@ export async function commitTurn(
         text: args.assistantText,
       },
     ]) as Json),
-    p_assistant_provider: args.provider ?? undefined as unknown as string,
-    p_assistant_model: args.model ?? undefined as unknown as string,
-    p_assistant_connection_label: args.connectionLabel ?? undefined as unknown as string,
-    p_finish_reason: args.finishReason ?? undefined as unknown as string,
-    p_total_tokens: args.totalTokens ?? undefined as unknown as number,
-    p_prompt_tokens: args.promptTokens ?? undefined as unknown as number,
-    p_completion_tokens: args.completionTokens ?? undefined as unknown as number,
+    p_assistant_provider: args.provider ?? null,
+    p_assistant_model: args.model ?? null,
+    p_assistant_connection_label: args.connectionLabel ?? null,
+    p_finish_reason: args.finishReason ?? null,
+    p_total_tokens: args.totalTokens ?? null,
+    p_prompt_tokens: args.promptTokens ?? null,
+    p_completion_tokens: args.completionTokens ?? null,
   });
 
   if (error) {
