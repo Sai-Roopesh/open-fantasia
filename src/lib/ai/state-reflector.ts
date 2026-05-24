@@ -4,6 +4,22 @@ import type { ConnectionRecord, CharacterRecord, DurableMemorySnapshot } from "@
 import { extractionOutputSchema, buildExtractionSystemPrompt, type ExtractionOutput } from "@/lib/ai/state-extraction";
 import type { FullValidationResult } from "@/lib/ai/state-validator";
 
+/**
+ * Strip markdown code fences and extract the JSON body from model text.
+ */
+function extractJsonFromText(text: string): string {
+  const fenceMatch = text.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
+  if (fenceMatch) {
+    return fenceMatch[1].trim();
+  }
+  const braceStart = text.indexOf("{");
+  const braceEnd = text.lastIndexOf("}");
+  if (braceStart !== -1 && braceEnd > braceStart) {
+    return text.slice(braceStart, braceEnd + 1);
+  }
+  return text.trim();
+}
+
 export async function reflectOnFailedExtraction(args: {
   connection: ConnectionRecord;
   modelId: string;
@@ -60,7 +76,9 @@ RULES FOR CORRECTION:
 3. If you referenced a relationship that doesn't exist, either add it first or remove the mutation.
 4. Keep all valid mutations from your previous output unchanged.
 5. The story_summary, scene_summary, last_turn_beat, and narrative_timestamp should remain the same unless they were also incorrect.
-6. Return the complete corrected extraction in the same schema format.`;
+6. Return the complete corrected extraction in the same schema format.
+7. OUTPUT COMPACTNESS: Respond ONLY with the JSON object. Do NOT repeat Current_State. Keep strings concise.
+8. Your response MUST be valid, complete JSON.`;
 
   try {
     const model = createLanguageModel(connection, modelId);
@@ -70,15 +88,34 @@ RULES FOR CORRECTION:
       messages: [{ role: "user", content: reflectionPrompt }],
       output: Output.object({ schema: extractionOutputSchema }),
       temperature: 0.1,
-      maxOutputTokens: 2500,
+      maxOutputTokens: 8000,
     });
 
-    if (!result.output) {
-      console.error("[HCE Reflector] Reflection pass returned no output.");
+    // Primary path: use SDK structured output
+    try {
+      const structured = result.output;
+      if (structured) {
+        return extractionOutputSchema.parse(structured) as ExtractionOutput;
+      }
+    } catch {
+      // output getter threw — fall through to text parsing
+    }
+
+    // Fallback: parse raw text
+    const rawText = result.text;
+    if (!rawText || rawText.trim().length === 0) {
+      console.error("[HCE Reflector] Reflection pass returned empty response.");
       return null;
     }
 
-    return result.output as ExtractionOutput;
+    console.warn("[HCE Reflector] Structured output unavailable, parsing raw text fallback.", {
+      modelId,
+      textLength: rawText.length,
+    });
+
+    const jsonBody = extractJsonFromText(rawText);
+    const parsed = JSON.parse(jsonBody);
+    return extractionOutputSchema.parse(parsed) as ExtractionOutput;
   } catch (error) {
     console.error("[HCE Reflector] Reflection pass failed:", error instanceof Error ? error.message : String(error));
     return null;

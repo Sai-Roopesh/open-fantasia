@@ -101,7 +101,7 @@ async function applyMutationsToDb(
       const result = await insertEntity(supabase, {
         thread_id: threadId,
         branch_id: branchId,
-        canonical_name: m.canonical_name,
+        canonical_name: m.canonical_name!,
         entity_type: m.entity_type as EntityType,
         aliases: m.aliases ?? [],
         is_present: m.is_present ?? true,
@@ -112,45 +112,45 @@ async function applyMutationsToDb(
       });
       newEntityIds.set(`NEW:${m.canonical_name}`, result.id);
     } else if (m.op === "update") {
-      await updateEntity(supabase, m.entity_id, m.changes);
+      await updateEntity(supabase, m.entity_id!, m.changes!);
     } else if (m.op === "invalidate") {
-      await invalidateEntity(supabase, m.entity_id, turnId);
+      await invalidateEntity(supabase, m.entity_id!, turnId);
     }
   }
 
   for (const m of extraction.fact_mutations) {
     if (m.op === "add") {
-      const resolvedEntityId = resolveNewRef(m.entity_id, newEntityIds);
+      const resolvedEntityId = resolveNewRef(m.entity_id!, newEntityIds);
       await insertEntityFact(supabase, {
         entity_id: resolvedEntityId,
         thread_id: threadId,
         branch_id: branchId,
         fact_type: m.fact_type as FactType,
-        body: m.body,
+        body: m.body!,
         valid_from_turn_id: turnId,
       });
     } else if (m.op === "invalidate") {
-      await invalidateEntityFact(supabase, m.fact_id, turnId);
+      await invalidateEntityFact(supabase, m.fact_id!, turnId);
     }
   }
 
   for (const m of extraction.relationship_mutations) {
     if (m.op === "add") {
-      const resolvedSourceId = resolveNewRef(m.source_entity_id, newEntityIds);
-      const resolvedTargetId = resolveNewRef(m.target_entity_id, newEntityIds);
+      const resolvedSourceId = resolveNewRef(m.source_entity_id!, newEntityIds);
+      const resolvedTargetId = resolveNewRef(m.target_entity_id!, newEntityIds);
       await insertRelationship(supabase, {
         thread_id: threadId,
         branch_id: branchId,
         source_entity_id: resolvedSourceId,
         target_entity_id: resolvedTargetId,
         relationship_type: m.relationship_type as RelationshipType,
-        dynamic_status: m.dynamic_status,
+        dynamic_status: m.dynamic_status!,
         valid_from_turn_id: turnId,
       });
     } else if (m.op === "update") {
-      await updateRelationship(supabase, m.relationship_id, m.changes);
+      await updateRelationship(supabase, m.relationship_id!, m.changes!);
     } else if (m.op === "invalidate") {
-      await invalidateRelationship(supabase, m.relationship_id, turnId);
+      await invalidateRelationship(supabase, m.relationship_id!, turnId);
     }
   }
 
@@ -159,21 +159,21 @@ async function applyMutationsToDb(
       const result = await insertLocation(supabase, {
         thread_id: threadId,
         branch_id: branchId,
-        canonical_name: m.canonical_name,
+        canonical_name: m.canonical_name!,
         description: m.description ?? "",
         environmental_modifiers: m.environmental_modifiers ?? [],
         valid_from_turn_id: turnId,
       });
       newLocationIds.set(`NEW:${m.canonical_name}`, result.id);
     } else if (m.op === "update") {
-      await updateLocation(supabase, m.location_id, m.changes);
+      await updateLocation(supabase, m.location_id!, m.changes!);
     }
   }
 
   for (const m of extraction.location_edge_mutations) {
     if (m.op === "add") {
-      const resolvedFromId = resolveNewRef(m.from_location_id, newLocationIds);
-      const resolvedToId = resolveNewRef(m.to_location_id, newLocationIds);
+      const resolvedFromId = resolveNewRef(m.from_location_id!, newLocationIds);
+      const resolvedToId = resolveNewRef(m.to_location_id!, newLocationIds);
       await insertLocationEdge(supabase, {
         thread_id: threadId,
         branch_id: branchId,
@@ -183,7 +183,7 @@ async function applyMutationsToDb(
         valid_from_turn_id: turnId,
       });
     } else if (m.op === "invalidate") {
-      await invalidateLocationEdge(supabase, m.edge_id, turnId);
+      await invalidateLocationEdge(supabase, m.edge_id!, turnId);
     }
   }
 
@@ -206,20 +206,29 @@ async function applyMutationsToDb(
       await insertNarrativeThread(supabase, {
         thread_id: threadId,
         branch_id: branchId,
-        objective: m.objective,
+        objective: m.objective!,
         status: "open",
         dependency_ids: [],
         valid_from_turn_id: turnId,
       });
     } else if (m.op === "update") {
-      await updateNarrativeThread(supabase, m.thread_id, m.changes);
+      await updateNarrativeThread(supabase, m.thread_id!, m.changes!);
     } else if (m.op === "resolve") {
-      await updateNarrativeThread(supabase, m.thread_id, { status: "resolved" });
+      await updateNarrativeThread(supabase, m.thread_id!, { status: "resolved" });
     }
   }
 
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
   for (const event of extraction.timeline_events) {
     try {
+      // Resolve NEW: refs and filter to valid UUIDs only (DB column is uuid[])
+      const resolvedEntityIds = (event.affected_entity_ids ?? [])
+        .map((id) => resolveNewRef(id, newEntityIds))
+        .filter((id) => uuidPattern.test(id));
+      const resolvedRelIds = (event.affected_relationship_ids ?? [])
+        .filter((id) => uuidPattern.test(id));
+
       await insertTimelineEvent(supabase, {
         thread_id: threadId,
         branch_id: branchId,
@@ -228,14 +237,20 @@ async function applyMutationsToDb(
         detail: event.detail,
         importance: event.importance,
         event_type: event.event_type,
-        affected_entity_ids: event.affected_entity_ids ?? [],
-        affected_relationship_ids: event.affected_relationship_ids ?? [],
+        affected_entity_ids: resolvedEntityIds,
+        affected_relationship_ids: resolvedRelIds,
       });
     } catch (error) {
+      // Supabase errors are plain objects with a .message property, not Error instances
+      const msg = error instanceof Error
+        ? error.message
+        : typeof error === "object" && error !== null && "message" in error
+          ? String((error as { message: unknown }).message)
+          : String(error);
       console.error("[HCE] Failed to persist timeline event.", {
         turnId,
         threadId,
-        error: error instanceof Error ? error.message : String(error),
+        error: msg,
       });
     }
   }
