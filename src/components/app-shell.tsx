@@ -44,8 +44,9 @@ export function AppShell({
 
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
 
-  // Close drawer on route change
+  // Close drawer on route change — pathname is an external system value
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing with router pathname
     setDrawerOpen(false);
   }, [pathname]);
 

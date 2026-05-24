@@ -2,7 +2,7 @@
 
 import { DefaultChatTransport } from "ai";
 import { useChat } from "@ai-sdk/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useConfirmation } from "@/components/ui/confirmation-dialog";
 import { getTextFromMessage } from "@/lib/ai/message-text";

@@ -13,7 +13,6 @@ import {
   invalidateRelationship,
   invalidateLocationEdge,
   invalidateEntityPlacement,
-  invalidateNarrativeThread,
   updateEntity,
   updateRelationship,
   updateLocation,
@@ -44,7 +43,6 @@ import {
 import { reflectOnFailedExtraction } from "@/lib/ai/state-reflector";
 import { getTextFromMessage } from "@/lib/ai/message-text";
 import type {
-  ChatTurnRecord,
   ConnectionRecord,
   CharacterRecord,
   DurableMemorySnapshot,
@@ -258,7 +256,6 @@ export async function materializeSnapshotForTurn(args: {
 }): Promise<DurableMemorySnapshot | null> {
   const {
     supabase,
-    userId,
     threadId,
     turnId,
     connection,

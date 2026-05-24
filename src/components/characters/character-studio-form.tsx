@@ -280,7 +280,7 @@ export function CharacterStudioForm({
               </p>
               {hasUnsavedPortraitInputs ? (
                 <p className="mt-1 text-[11px] text-status-warning">
-                  Unsaved changes won't affect the portrait until saved.
+                  Unsaved changes won&apos;t affect the portrait until saved.
                 </p>
               ) : null}
             </div>

@@ -3,7 +3,7 @@ import { listBranches } from "@/lib/data/branches";
 import type { CharacterBundle } from "@/lib/data/characters";
 import { getCharacterBundle } from "@/lib/data/characters";
 import { parseRow, type DatabaseClient } from "@/lib/data/shared";
-import { listWorldSnapshots, getWorldSnapshot } from "@/lib/data/world-state";
+import { listWorldSnapshots } from "@/lib/data/world-state";
 import { materializeDurableSnapshot } from "@/lib/ai/state-materializer";
 import {
   listTurnsForThread,

@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Plus, WandSparkles } from "lucide-react";
+import { Plus } from "lucide-react";
 import { requireAllowedUser } from "@/lib/auth";
 import { resolveCharacterPortraitUrl } from "@/lib/characters/portraits";
 import { CharacterStudioForm } from "@/components/characters/character-studio-form";
