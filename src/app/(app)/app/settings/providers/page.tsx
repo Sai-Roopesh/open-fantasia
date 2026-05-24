@@ -12,29 +12,17 @@ import { formatDateTime } from "@/lib/utils";
 
 function humanizeProviderReason(reason: string) {
   if (!reason) return "";
-  if (reason === "connection") {
-    return "Add at least one enabled provider lane, test it, and refresh models before starting a thread.";
-  }
-  if (reason.toLowerCase().includes("requires an api key")) {
-    return reason;
-  }
-  if (reason.toLowerCase().includes("connection label")) {
-    return "Give the lane a label so it is recognizable when you switch models inside a thread.";
-  }
+  if (reason === "connection") return "Add a provider, test it, and refresh models first.";
+  if (reason.toLowerCase().includes("requires an api key")) return reason;
+  if (reason.toLowerCase().includes("connection label")) return "Give the lane a label.";
   return reason;
 }
 
-function healthBadge(status: string) {
-  if (status === "healthy") {
-    return "bg-emerald-950/40 text-emerald-400";
-  }
-  if (status === "untested") {
-    return "bg-slate-800/50 text-slate-400";
-  }
-  if (status === "rate_limited") {
-    return "bg-amber-950/40 text-amber-400";
-  }
-  return "bg-rose-950/40 text-rose-400";
+function healthBadgeClass(status: string) {
+  if (status === "healthy") return "border-status-success/30 bg-status-success/10 text-status-success";
+  if (status === "untested") return "border-status-unknown/30 bg-status-unknown/10 text-status-unknown";
+  if (status === "rate_limited") return "border-status-warning/30 bg-status-warning/10 text-status-warning";
+  return "border-status-critical/30 bg-status-critical/10 text-status-critical";
 }
 
 export default async function ProviderSettingsPage({
@@ -50,145 +38,135 @@ export default async function ProviderSettingsPage({
   const deleted = params.deleted === "1";
 
   return (
-    <div className="space-y-8">
-      <section className="paper-panel rounded-[2rem] p-8">
-        <p className="text-xs uppercase tracking-[0.24em] text-ink-soft">
-          Provider settings
-        </p>
-        <h1 className="mt-3 font-serif text-5xl text-foreground">
-          Verify the lane before you trust it with a scene.
-        </h1>
-        <p className="mt-4 max-w-3xl text-sm leading-7 text-ink-soft">
-          Save a connection, test it, then refresh models. Fantasia keeps the health state visible
-          so you can tell the difference between an untested lane, a bad key, and a rate-limited
-          quota before a thread gets interrupted mid-scene.
-        </p>
+    <div className="space-y-4">
+      {/* Header */}
+      <h1 className="font-display text-xl font-bold text-on-surface">Providers</h1>
 
-        {reason ? (
-          <div className="mt-5 rounded-2xl bg-amber-950/40 px-4 py-3 text-sm text-amber-400">
-            {humanizeProviderReason(reason)}
-          </div>
-        ) : null}
-        {saved ? (
-          <div className="mt-5 rounded-2xl bg-emerald-950/40 px-4 py-3 text-sm text-emerald-400">
-            Provider lane saved. Test it next so the workspace knows whether it is actually usable.
-          </div>
-        ) : null}
-        {deleted ? (
-          <div className="mt-5 rounded-2xl bg-emerald-950/40 px-4 py-3 text-sm text-emerald-400">
-            Provider lane removed from the workspace.
-          </div>
-        ) : null}
+      {/* Banners */}
+      {reason && (
+        <div className="rounded border border-status-warning/30 bg-status-warning/10 px-3 py-2 text-xs font-medium text-status-warning">
+          {humanizeProviderReason(reason)}
+        </div>
+      )}
+      {saved && (
+        <div className="rounded border border-status-success/30 bg-status-success/10 px-3 py-2 text-xs font-medium text-status-success">
+          Provider saved. Test it next.
+        </div>
+      )}
+      {deleted && (
+        <div className="rounded border border-status-success/30 bg-status-success/10 px-3 py-2 text-xs font-medium text-status-success">
+          Provider removed.
+        </div>
+      )}
+
+      {/* New connection form */}
+      <section className="rounded-lg border border-border-subtle bg-background-front p-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+          Add new lane
+        </p>
+        <div className="mt-3">
+          <ProviderConnectionForm
+            action={saveConnectionAction}
+            submitLabel="Save connection"
+          />
+        </div>
       </section>
 
-      <section className="grid gap-8 xl:grid-cols-[0.92fr_1.08fr]">
-        <div className="paper-panel rounded-[2rem] p-8">
-          <p className="text-xs uppercase tracking-[0.24em] text-ink-soft">New lane</p>
-          <div className="mt-4 space-y-4">
-            <ProviderConnectionForm
-              action={saveConnectionAction}
-              submitLabel="Save connection"
-            />
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          {connections.length ? (
-            connections.map((connection) => (
-              <article key={connection.id} className="paper-panel rounded-[2rem] p-6">
-                <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="max-w-lg">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <p className="text-xs uppercase tracking-[0.22em] text-ink-soft">
-                        {providerCatalog[connection.provider].name}
-                      </p>
-                      <span
-                        className={`rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] ${healthBadge(connection.health_status)}`}
-                      >
-                        {connection.health_status.replaceAll("_", " ")}
-                      </span>
-                    </div>
-                    <h2 className="mt-2 font-serif text-3xl text-foreground">
-                      {connection.label}
-                    </h2>
-                    <p className="mt-3 text-sm leading-7 text-ink-soft">
-                      {connection.health_message || providerCatalog[connection.provider].description}
-                    </p>
-                    <p className="mt-3 text-xs leading-6 text-ink-soft">
-                      {connection.base_url
-                        ? `Base URL: ${connection.base_url}`
-                        : "Using the default endpoint for this provider."}
-                    </p>
-                    <p className="mt-2 text-xs leading-6 text-ink-soft">
-                      Tested {formatDateTime(connection.last_checked_at)} • Refreshed{" "}
-                      {formatDateTime(connection.last_model_refresh_at)}
-                    </p>
+      {/* Connection cards */}
+      <section className="space-y-2">
+        {connections.length ? (
+          connections.map((connection) => (
+            <article
+              key={connection.id}
+              className="rounded-lg border border-border-subtle bg-background-front p-4"
+            >
+              {/* Header row */}
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-on-surface">{connection.label}</p>
+                    <span
+                      className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.05em] ${healthBadgeClass(connection.health_status)}`}
+                    >
+                      {connection.health_status.replaceAll("_", " ")}
+                    </span>
                   </div>
-
-                  <ProviderHealthActions connectionId={connection.id} />
-                </div>
-
-                <div className="mt-6 rounded-2xl border border-border bg-white/5 p-4">
-                  <p className="text-xs uppercase tracking-[0.22em] text-ink-soft">
-                    Cached models
+                  <p className="text-xs text-muted-foreground">
+                    {providerCatalog[connection.provider].name}
                   </p>
-                  {connection.model_cache.length ? (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {connection.model_cache.slice(0, 16).map((model) => (
-                        <span
-                          key={model.id}
-                          className="rounded-full border border-border bg-paper px-3 py-1 text-xs text-foreground"
-                        >
-                          {model.name}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="mt-3 text-sm leading-7 text-ink-soft">
-                      No model cache yet. Run connection test first, then refresh models once the key is healthy.
-                    </p>
+                </div>
+                <ProviderHealthActions connectionId={connection.id} />
+              </div>
+
+              {/* Health info */}
+              <p className="mt-2 text-xs text-muted-foreground">
+                {connection.health_message || providerCatalog[connection.provider].description}
+              </p>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {connection.base_url ? `URL: ${connection.base_url}` : "Default endpoint"}
+                {" · "}Tested {formatDateTime(connection.last_checked_at)}
+                {" · "}Refreshed {formatDateTime(connection.last_model_refresh_at)}
+              </p>
+
+              {/* Cached models */}
+              {connection.model_cache.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-1">
+                  {connection.model_cache.slice(0, 12).map((model) => (
+                    <span
+                      key={model.id}
+                      className="rounded border border-border-subtle bg-surface-container px-2 py-0.5 text-[10px] text-on-surface-variant"
+                    >
+                      {model.name}
+                    </span>
+                  ))}
+                  {connection.model_cache.length > 12 && (
+                    <span className="rounded px-2 py-0.5 text-[10px] text-muted-foreground">
+                      +{connection.model_cache.length - 12} more
+                    </span>
                   )}
                 </div>
+              )}
 
-                <div className="mt-6 rounded-[1.6rem] border border-border bg-white/3 p-5">
-                  <p className="text-xs uppercase tracking-[0.22em] text-ink-soft">Edit lane</p>
-                  <div className="mt-4">
-                    <ProviderConnectionForm
-                      action={saveConnectionAction}
-                      submitLabel="Save changes"
-                      connectionId={connection.id}
-                      initialProvider={connection.provider}
-                      initialLabel={connection.label}
-                      initialBaseUrl={connection.base_url ?? ""}
-                      initialEnabled={connection.enabled}
-                      keyPlaceholder={
-                        connection.encrypted_api_key
-                          ? "Leave blank to keep the current secret"
-                          : "Stored encrypted"
-                      }
-                      hasStoredSecret={Boolean(connection.encrypted_api_key)}
-                    />
-                  </div>
+              {/* Edit form (collapsible) */}
+              <details className="mt-3 rounded border border-border-subtle bg-surface-container-low px-3 py-2">
+                <summary className="cursor-pointer list-none text-xs font-semibold text-on-surface-variant">
+                  Edit lane
+                </summary>
+                <div className="mt-3">
+                  <ProviderConnectionForm
+                    action={saveConnectionAction}
+                    submitLabel="Save changes"
+                    connectionId={connection.id}
+                    initialProvider={connection.provider}
+                    initialLabel={connection.label}
+                    initialBaseUrl={connection.base_url ?? ""}
+                    initialEnabled={connection.enabled}
+                    keyPlaceholder={
+                      connection.encrypted_api_key
+                        ? "Leave blank to keep the current secret"
+                        : "Stored encrypted"
+                    }
+                    hasStoredSecret={Boolean(connection.encrypted_api_key)}
+                  />
                 </div>
+              </details>
 
-                <form action={deleteConnectionAction} className="mt-4">
-                  <input type="hidden" name="id" value={connection.id} />
-                  <ConfirmSubmitButton
-                    confirmMessage="Delete this provider lane and remove it from all future thread selection?"
-                    className="border border-red-900/40 bg-red-950/40 text-red-400 hover:bg-red-900/50"
-                  >
-                    Delete connection
-                  </ConfirmSubmitButton>
-                </form>
-              </article>
-            ))
-          ) : (
-            <div className="paper-panel rounded-[2rem] p-8 text-sm leading-7 text-ink-soft">
-              No providers configured yet. Add one lane, verify it, then refresh the models you
-              want available in the thread switcher.
-            </div>
-          )}
-        </div>
+              <form action={deleteConnectionAction} className="mt-2">
+                <input type="hidden" name="id" value={connection.id} />
+                <ConfirmSubmitButton
+                  confirmMessage="Delete this provider lane?"
+                  className="rounded bg-status-critical/10 border border-status-critical/30 px-2 py-1 text-xs font-semibold text-status-critical"
+                >
+                  Delete
+                </ConfirmSubmitButton>
+              </form>
+            </article>
+          ))
+        ) : (
+          <div className="rounded-lg border border-dashed border-border-subtle bg-surface-container-low p-6 text-center text-sm text-muted-foreground">
+            No providers configured yet. Add one above.
+          </div>
+        )}
       </section>
     </div>
   );

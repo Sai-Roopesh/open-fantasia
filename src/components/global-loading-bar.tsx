@@ -1,26 +1,21 @@
 "use client";
 
-import { useNavTransition } from "@/components/transition-provider";
-
 /**
  * A thin progress bar pinned to the very top of the viewport.
- * Visible only when a React transition (router.refresh) is in flight.
- * Uses a CSS animation so the bar feels alive even if the fetch is slow.
+ * Currently unused — kept as a placeholder for future navigation indicators.
  */
-export function GlobalLoadingBar() {
-  const { isNavigating } = useNavTransition();
-
-  if (!isNavigating) return null;
+export function GlobalLoadingBar({ visible = false }: { visible?: boolean }) {
+  if (!visible) return null;
 
   return (
     <div
       aria-live="polite"
       aria-label="Loading"
       data-testid="global-loading-bar"
-      className="fixed inset-x-0 top-0 z-[100] h-[3px] overflow-hidden"
+      className="fixed inset-x-0 top-0 z-[100] h-[2px] overflow-hidden"
     >
-      <div className="loading-bar-track h-full w-full bg-brand/30">
-        <div className="loading-bar-fill h-full bg-brand" />
+      <div className="loading-bar-track h-full w-full bg-primary-container/30">
+        <div className="loading-bar-fill h-full bg-primary-container" />
       </div>
     </div>
   );

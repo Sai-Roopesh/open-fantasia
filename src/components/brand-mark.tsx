@@ -3,15 +3,15 @@ import { cn } from "@/lib/utils";
 
 export function BrandMark({ className }: { className?: string }) {
   return (
-    <div className={cn("flex items-center gap-3", className)} data-testid="brand-mark">
-      <div className="flex h-11 w-11 items-center justify-center rounded-full border border-white/30 bg-white/20 text-white backdrop-blur-md">
-        <Sparkles className="h-5 w-5" />
+    <div className={cn("flex items-center gap-2", className)} data-testid="brand-mark">
+      <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-subtle bg-surface-container-high text-primary-container">
+        <Sparkles className="h-4 w-4" />
       </div>
       <div>
-        <p className="font-serif text-2xl leading-none tracking-[0.08em] text-white">
+        <p className="font-display text-lg font-bold leading-none tracking-[0.02em] text-on-surface">
           Fantasia
         </p>
-        <p className="mt-1 text-xs uppercase tracking-[0.28em] text-white/70">
+        <p className="text-[10px] uppercase tracking-[0.1em] text-muted-foreground">
           Open roleplay workspace
         </p>
       </div>

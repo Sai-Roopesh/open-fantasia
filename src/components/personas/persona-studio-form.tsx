@@ -36,15 +36,15 @@ function TextField({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-sm font-medium text-foreground">{label}</span>
+      <span className="mb-1 block text-xs font-medium text-on-surface">{label}</span>
       <textarea
         name={name}
         rows={rows}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="min-h-[6.5rem] w-full rounded-3xl border border-border bg-white/5 px-4 py-3 text-sm leading-7 outline-none transition focus:border-brand"
+        className="min-h-[5rem] w-full rounded border-b-2 border-border-subtle bg-surface-container px-3 py-2 text-sm leading-6 text-on-surface outline-none focus:border-primary-container"
       />
-      {helper ? <span className="mt-2 block text-xs leading-6 text-ink-soft">{helper}</span> : null}
+      {helper ? <span className="mt-1 block text-[11px] leading-4 text-muted-foreground">{helper}</span> : null}
     </label>
   );
 }
@@ -101,43 +101,33 @@ export function PersonaStudioForm({
   }
 
   return (
-    <form action={formAction} className="mt-8 space-y-5">
+    <form action={formAction} className="mt-4 space-y-3">
       <input type="hidden" name="id" value={editing?.id ?? ""} />
 
       {formState.formError ? (
-        <div className="rounded-[1.6rem] border border-red-900/40 bg-red-950/40 px-5 py-4 text-sm text-red-300">
+        <div className="rounded border border-status-critical/30 bg-status-critical/10 px-3 py-2 text-xs text-status-critical">
           {formState.formError}
         </div>
       ) : null}
 
       {hasStoredDraft ? (
-        <div className="rounded-[1.6rem] border border-accent/25 bg-accent/10 px-5 py-4 text-sm text-accent">
-          <p className="font-semibold">Local persona draft found.</p>
-          <p className="mt-2 leading-7">
-            Restore the unsaved version from this device or discard it before you continue.
-          </p>
-          <div className="mt-4 flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={restoreDraft}
-              className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
-            >
-              Restore local draft
+        <div className="rounded border border-primary-container/30 bg-primary-container/10 px-3 py-3 text-xs text-primary-container">
+          <p className="font-semibold">Local draft found.</p>
+          <p className="mt-1 leading-4">Restore or discard before editing.</p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <button type="button" onClick={restoreDraft} className="rounded bg-primary-container px-3 py-1 text-xs font-semibold text-on-primary-container">
+              Restore
             </button>
-            <button
-              type="button"
-              onClick={discardDraft}
-              className="rounded-full border border-accent/30 px-4 py-2 text-sm font-semibold transition hover:border-accent"
-            >
-              Discard it
+            <button type="button" onClick={discardDraft} className="rounded border border-primary-container/30 px-3 py-1 text-xs font-semibold">
+              Discard
             </button>
           </div>
         </div>
       ) : null}
 
       {restoredFromDraft ? (
-        <div aria-live="polite" className="rounded-[1.6rem] bg-emerald-950/40 px-5 py-4 text-sm text-emerald-400">
-          Local persona draft restored. Save when it feels right.
+        <div aria-live="polite" className="rounded border border-status-success/30 bg-status-success/10 px-3 py-2 text-xs text-status-success">
+          Draft restored. Save when ready.
         </div>
       ) : null}
 
@@ -149,87 +139,49 @@ export function PersonaStudioForm({
       />
 
       <label className="block">
-        <span className="mb-2 block text-sm font-medium text-foreground">Name</span>
+        <span className="mb-1 block text-xs font-medium text-on-surface">Name</span>
         <input
           name="name"
           required
           value={draft.name}
           onChange={(event) => update("name", event.target.value)}
-          className="w-full rounded-full border border-border bg-white/5 px-4 py-3 outline-none transition focus:border-brand"
+          className="w-full rounded border-b-2 border-border-subtle bg-surface-container px-3 py-2 text-sm text-on-surface outline-none focus:border-primary-container"
           placeholder="Late-night version of me"
         />
         {formState.fieldErrors.name ? (
-          <span className="mt-2 block text-xs leading-6 text-amber-300">
-            {formState.fieldErrors.name}
-          </span>
+          <span className="mt-1 block text-[11px] text-status-warning">{formState.fieldErrors.name}</span>
         ) : null}
       </label>
 
-      <TextField
-        label="Identity"
-        name="identity"
-        value={draft.identity}
-        helper="Who the user is in the story right now."
-        onChange={(value) => update("identity", value)}
-      />
-      <TextField
-        label="Backstory"
-        name="backstory"
-        value={draft.backstory}
-        helper="Context the character can assume without forcing it into every line."
-        onChange={(value) => update("backstory", value)}
-      />
-      <TextField
-        label="Voice style"
-        name="voice_style"
-        value={draft.voice_style}
-        helper="How the user tends to speak, emote, and respond under pressure."
-        onChange={(value) => update("voice_style", value)}
-      />
-      <TextField
-        label="Goals"
-        name="goals"
-        value={draft.goals}
-        helper="What this version of the user wants from the scene."
-        onChange={(value) => update("goals", value)}
-      />
-      <TextField
-        label="Boundaries"
-        name="boundaries"
-        value={draft.boundaries}
-        helper="Useful guardrails, limits, and emotional red lines."
-        onChange={(value) => update("boundaries", value)}
-      />
-      <TextField
-        label="Private notes"
-        name="private_notes"
-        value={draft.private_notes}
-        helper="Notes to yourself about the persona, not public-facing prose."
-        onChange={(value) => update("private_notes", value)}
-      />
+      <TextField label="Identity" name="identity" value={draft.identity} helper="Who the user is in the story." onChange={(value) => update("identity", value)} />
+      <TextField label="Backstory" name="backstory" value={draft.backstory} helper="Context the character can assume." onChange={(value) => update("backstory", value)} />
+      <TextField label="Voice style" name="voice_style" value={draft.voice_style} helper="How the user speaks and emotes." onChange={(value) => update("voice_style", value)} />
+      <TextField label="Goals" name="goals" value={draft.goals} helper="What this persona wants from the scene." onChange={(value) => update("goals", value)} />
+      <TextField label="Boundaries" name="boundaries" value={draft.boundaries} helper="Limits and emotional red lines." onChange={(value) => update("boundaries", value)} />
+      <TextField label="Private notes" name="private_notes" value={draft.private_notes} helper="Notes to yourself, not public-facing." onChange={(value) => update("private_notes", value)} />
 
-      <label className="flex items-center gap-3 rounded-2xl border border-border bg-white/5 px-4 py-3 text-sm text-foreground">
+      <label className="flex items-center gap-2 rounded border border-border-subtle bg-surface-container px-3 py-2 text-xs text-on-surface">
         <input
           type="checkbox"
           name="is_default"
           checked={draft.is_default}
           onChange={(event) => update("is_default", event.target.checked)}
-          className="h-4 w-4 accent-[var(--color-brand)]"
+          className="h-3.5 w-3.5 accent-[var(--primary-container)]"
         />
-        Make this the default persona for new threads
+        Make default for new threads
       </label>
 
-      <div className="sticky bottom-24 z-20 rounded-[1.8rem] border border-white/10 bg-[#1a1412]/96 px-5 py-4 shadow-[0_18px_40px_rgba(0,0,0,0.3)] backdrop-blur">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div className="sticky bottom-4 z-20 rounded-lg border border-border-subtle bg-surface-container-low/95 px-4 py-3 backdrop-blur-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-semibold text-foreground">
-              {isDirty ? "This persona is only saved locally until you commit it." : "Server copy is synced with this editor."}
+            <p className="text-xs font-semibold text-on-surface">
+              {isDirty ? "Unsaved changes." : "In sync."}
             </p>
-            <p className="mt-1 text-xs leading-6 text-ink-soft">
-              Personas shape every new thread, so it is worth making this one explicit.
+            <p className="text-[11px] text-muted-foreground">
+              Personas shape every new thread.
             </p>
           </div>
-          <SubmitButton className="shrink-0">
+          <SubmitButton className="shrink-0 rounded bg-primary-container px-4 py-2 text-sm font-semibold text-on-primary-container">
             {editing ? "Save persona" : "Create persona"}
           </SubmitButton>
         </div>

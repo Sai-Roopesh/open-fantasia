@@ -7,189 +7,186 @@ import { getCurrentUser } from "@/lib/auth";
 const featureCopy = [
   {
     title: "Manual model switching",
-    body: "Keep one voice per thread until you decide to change it. No silent fallback, no personality drift by surprise.",
+    body: "One voice per thread until you decide to change it. No silent fallback.",
     icon: Orbit,
   },
   {
     title: "Structured continuity",
-    body: "Scenario state, relationship state, open loops, and rolling summaries are persisted alongside the raw transcript.",
+    body: "Scene state, relationships, and rolling summaries persist alongside the raw transcript.",
     icon: NotebookTabs,
   },
   {
     title: "Private first",
-    body: "Single-user access, allowlisted auth, BYOK provider secrets, and roleplay surfaces built for your own workflow first.",
+    body: "Single-user, allowlisted auth, BYOK provider secrets, encrypted at rest.",
     icon: ShieldCheck,
   },
 ];
 
 const startSteps = [
-  "Create one default persona so the app knows how you speak.",
-  "Connect and test one free or BYOK provider lane.",
-  "Refresh models, build a character, and start the first thread.",
+  "Create a default persona.",
+  "Connect and test a provider.",
+  "Refresh models, build a character, start a thread.",
 ];
 
 export default async function Home() {
   const { user, isAllowed } = await getCurrentUser();
 
   return (
-    <div className="min-h-screen overflow-hidden bg-[#160f0b] text-white" data-testid="landing-page">
-      <div className="relative">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_10%_20%,rgba(255,168,91,0.26),transparent_20%),radial-gradient(circle_at_75%_18%,rgba(51,112,114,0.28),transparent_26%),linear-gradient(180deg,#160f0b_0%,#2a1b12_50%,#110d0a_100%)]" />
-        <div className="absolute inset-x-0 top-0 h-[42rem] bg-[linear-gradient(180deg,rgba(255,255,255,0.05),transparent)]" />
+    <div
+      className="min-h-dvh bg-background-base text-on-surface"
+      data-testid="landing-page"
+    >
+      <div className="mx-auto max-w-3xl px-5 py-8 sm:px-8">
+        {/* Header */}
+        <header className="flex items-center justify-between">
+          <BrandMark />
+          <Link
+            href={user && isAllowed ? "/app" : "/login"}
+            className="inline-flex items-center gap-1.5 rounded bg-primary-container px-3 py-1.5 text-xs font-semibold text-on-primary-container"
+          >
+            {user && isAllowed ? "Enter workspace" : "Sign in"}
+            <ArrowRight className="h-3 w-3" />
+          </Link>
+        </header>
 
-        <div className="relative mx-auto flex min-h-screen max-w-7xl flex-col px-6 pb-12 pt-8 md:px-10">
-          <header className="flex items-center justify-between">
-            <BrandMark />
+        {/* Hero */}
+        <section className="mt-12 sm:mt-16">
+          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-muted-foreground">
+            Open-Fantasia
+          </p>
+          <h1 className="mt-3 font-display text-3xl font-bold leading-tight text-on-surface sm:text-4xl md:text-5xl">
+            Roleplay software for people who care about context.
+          </h1>
+          <p className="mt-4 max-w-xl text-sm leading-7 text-on-surface-variant">
+            A private workspace for long, emotionally coherent AI roleplay. Bring your own
+            providers, switch models explicitly, and let the memory engine track the scene.
+          </p>
+
+          <div className="mt-6 flex flex-wrap gap-2">
             <Link
               href={user && isAllowed ? "/app" : "/login"}
-              className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-4 py-2 text-sm transition hover:bg-white/16"
+              className="inline-flex items-center gap-2 rounded bg-primary-container px-4 py-2 text-sm font-semibold text-on-primary-container"
             >
-              {user && isAllowed ? "Enter workspace" : "Private sign-in"}
-              <ArrowRight className="h-4 w-4" />
+              {user && isAllowed ? "Continue workspace" : "Start in 2 minutes"}
+              <ArrowRight className="h-3.5 w-3.5" />
             </Link>
-          </header>
+            <Link
+              href="#architecture"
+              className="inline-flex items-center gap-2 rounded border border-border-subtle px-4 py-2 text-sm font-semibold text-on-surface-variant"
+            >
+              Read the thesis
+            </Link>
+          </div>
 
-          <section className="grid flex-1 items-center gap-14 py-16 lg:grid-cols-[1.15fr_0.85fr]">
-            <div>
-              <p className="text-xs uppercase tracking-[0.38em] text-white/60">
-                Open-Fantasia v0.0.1
-              </p>
-              <h1 className="mt-5 max-w-4xl font-serif text-6xl leading-[0.9] md:text-8xl">
-                Roleplay software for people who would rather chase better context than bigger bills.
-              </h1>
-              <p className="mt-8 max-w-2xl text-lg leading-8 text-white/72">
-                Fantasia is a responsive web app for long, emotionally coherent AI roleplay with bring-your-own providers, explicit model switching, and a memory layer that tracks the scene instead of praying the prompt still remembers it.
-              </p>
+          {!isConfigured() && (
+            <div className="mt-6 flex items-center gap-2 rounded border border-status-warning/30 bg-status-warning/10 px-3 py-2 text-xs text-status-warning">
+              <Sparkles className="h-3.5 w-3.5 shrink-0" />
+              Add Supabase keys and encryption secret in `.env.local` to activate.
+            </div>
+          )}
+        </section>
 
-              <div className="mt-10 flex flex-wrap gap-3">
-                <Link
-                  href={user && isAllowed ? "/app" : "/login"}
-                  className="inline-flex items-center gap-2 rounded-full bg-brand px-6 py-3 text-sm font-semibold text-white transition hover:bg-brand-strong"
-                >
-                  {user && isAllowed ? "Continue your workspace" : "Start in 2 minutes"}
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-                <Link
-                  href="#architecture"
-                  className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/8 px-6 py-3 text-sm transition hover:bg-white/14"
-                >
-                  Read the build thesis
-                </Link>
-                </div>
-
-              <div className="mt-8 max-w-2xl rounded-[1.8rem] border border-white/10 bg-white/6 p-5 backdrop-blur">
-                <p className="text-xs uppercase tracking-[0.22em] text-white/55">
-                  Start in 2 minutes
+        {/* Quick start steps */}
+        <section className="mt-10 rounded-lg border border-border-subtle bg-background-front p-5">
+          <p className="text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+            Start in 2 minutes
+          </p>
+          <div className="mt-3 grid gap-3 sm:grid-cols-3">
+            {startSteps.map((step, index) => (
+              <div
+                key={step}
+                className="rounded border border-border-subtle bg-surface-container-low px-3 py-3"
+              >
+                <p className="text-xs font-bold text-primary-container">
+                  0{index + 1}
                 </p>
-                <div className="mt-4 grid gap-3 md:grid-cols-3">
-                  {startSteps.map((step, index) => (
-                    <div
-                      key={step}
-                      className="rounded-[1.35rem] border border-white/10 bg-black/12 px-4 py-4"
-                    >
-                      <p className="text-xs uppercase tracking-[0.18em] text-[#f0cba9]">
-                        0{index + 1}
-                      </p>
-                      <p className="mt-3 text-sm leading-7 text-white/78">{step}</p>
-                    </div>
-                  ))}
-                </div>
+                <p className="mt-2 text-xs leading-5 text-on-surface-variant">{step}</p>
               </div>
+            ))}
+          </div>
+        </section>
 
-              {!isConfigured() ? (
-                <div className="mt-8 inline-flex max-w-xl items-center gap-3 rounded-2xl border border-amber-300/25 bg-amber-200/10 px-4 py-3 text-sm text-amber-100">
-                  <Sparkles className="h-4 w-4 shrink-0" />
-                  Add Supabase keys, your allowlist, and an encryption secret in
-                  `.env.local` to activate the private build.
-                </div>
-              ) : null}
+        {/* Chat preview */}
+        <section className="mt-8 rounded-lg border border-border-subtle bg-background-front p-5">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+              Workspace preview
+            </p>
+            <span className="rounded border border-border-subtle px-2 py-0.5 text-[10px] text-muted-foreground">
+              manual switch
+            </span>
+          </div>
+
+          <div className="mt-4 space-y-3">
+            <div className="ml-auto max-w-[80%] rounded-lg rounded-br-sm bg-surface-container-high px-4 py-3 text-sm leading-6 text-on-surface">
+              Keep the scene warm, but make the tension sharper. Don&apos;t let
+              her forget the promise from the station platform.
             </div>
+            <div className="max-w-[82%] rounded-lg rounded-bl-sm border border-border-subtle bg-surface-container px-4 py-3 text-sm leading-6 text-on-surface-variant">
+              <p className="italic">
+                *She looks at you as if the whole city has gone quiet around the
+                sentence.*
+              </p>
+              <p className="mt-2">
+                &ldquo;I didn&apos;t forget. I just kept pretending I had time.&rdquo;
+              </p>
+            </div>
+          </div>
 
-            <div className="rounded-[2.25rem] border border-white/12 bg-white/8 p-5 backdrop-blur-xl">
-              <div className="rounded-[1.8rem] border border-white/10 bg-[#1d1511]/90 p-6 shadow-2xl">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.24em] text-white/55">
-                      Workspace promise
+          <div className="mt-5 grid gap-2 sm:grid-cols-3">
+            {featureCopy.map((feature) => {
+              const Icon = feature.icon;
+              return (
+                <div
+                  key={feature.title}
+                  className="rounded border border-border-subtle bg-surface-container-low px-3 py-3"
+                >
+                  <Icon className="h-4 w-4 text-primary-container" />
+                  <p className="mt-2 text-xs font-semibold text-on-surface">
+                    {feature.title}
                   </p>
-                    <p className="mt-2 font-serif text-3xl">Pretext-driven scene glass</p>
+                  <p className="mt-1 text-[11px] leading-4 text-muted-foreground">
+                    {feature.body}
+                  </p>
                 </div>
-                <div className="rounded-full border border-white/12 bg-white/8 px-3 py-1 text-xs text-white/70">
-                  manual switch
-                </div>
-              </div>
+              );
+            })}
+          </div>
+        </section>
 
-                <div className="mt-8 space-y-4">
-                  <div className="ml-auto max-w-[75%] rounded-[1.75rem] rounded-br-md bg-[#2a1f18] px-5 py-4 text-sm leading-7 text-[#f0e0cf] shadow-lg">
-                    Keep the scene warm, but make the tension sharper. Don&apos;t let
-                    her forget the promise from the station platform.
-                  </div>
-                  <div className="max-w-[78%] rounded-[1.75rem] rounded-bl-md border border-white/10 bg-[#2a1b13] px-5 py-4 text-sm leading-7 text-white/88">
-                    <p>
-                      *She looks at you as if the whole city has gone quiet around
-                      the sentence.*
-                    </p>
-                    <p className="mt-3">
-                      “I didn&apos;t forget. I just kept pretending I had time.”
-                    </p>
-                  </div>
-                </div>
-
-                <div className="mt-8 grid gap-3 sm:grid-cols-3">
-                  {featureCopy.map((feature) => {
-                    const Icon = feature.icon;
-                    return (
-                      <div
-                        key={feature.title}
-                        className="rounded-2xl border border-white/10 bg-white/5 p-4"
-                      >
-                        <Icon className="h-4 w-4 text-[#f0cba9]" />
-                        <p className="mt-3 text-sm font-semibold text-white">
-                          {feature.title}
-                        </p>
-                        <p className="mt-2 text-xs leading-6 text-white/58">
-                          {feature.body}
-                        </p>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section id="architecture" className="grid gap-6 border-t border-white/10 py-10 text-sm text-white/68 md:grid-cols-3">
-            <div>
-              <p className="text-xs uppercase tracking-[0.28em] text-white/50">
-                Memory architecture
-              </p>
-              <p className="mt-3 leading-7">
-                Threads persist raw chat, structured continuity, and notable
-                beats separately so each answer is grounded by more than a single
-                stuffed prompt.
-              </p>
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-[0.28em] text-white/50">
-                Provider design
-              </p>
-              <p className="mt-3 leading-7">
-                Google AI Studio, Groq, Mistral, OpenRouter, and Ollama Cloud are
-                all first-class connections. Each thread chooses explicitly.
-              </p>
-            </div>
-            <div>
-              <p className="text-xs uppercase tracking-[0.28em] text-white/50">
-                Reading surface
-              </p>
-              <p className="mt-3 leading-7">
-                The transcript uses Pretext for line layout, shrinkwrap bubbles,
-                and virtualization so the chat feels like an authored surface,
-                not generic markdown in a div.
-              </p>
-            </div>
-          </section>
-        </div>
+        {/* Architecture section */}
+        <section
+          id="architecture"
+          className="mt-10 grid gap-4 border-t border-border-subtle pt-8 sm:grid-cols-3"
+        >
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+              Memory architecture
+            </p>
+            <p className="mt-2 text-xs leading-5 text-on-surface-variant">
+              Threads persist raw chat, structured continuity, and notable beats
+              separately so each answer is grounded by more than a single stuffed prompt.
+            </p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+              Provider design
+            </p>
+            <p className="mt-2 text-xs leading-5 text-on-surface-variant">
+              Google AI Studio, Groq, Mistral, OpenRouter, and Ollama Cloud are all
+              first-class connections. Each thread chooses explicitly.
+            </p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+              Reading surface
+            </p>
+            <p className="mt-2 text-xs leading-5 text-on-surface-variant">
+              The transcript uses Pretext for line layout and virtualization so the chat
+              feels like an authored surface, not generic markdown.
+            </p>
+          </div>
+        </section>
       </div>
     </div>
   );

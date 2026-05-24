@@ -27,182 +27,157 @@ export default async function ThreadsPage({
   const threads = await listThreadItems(supabase, user.id, { query, status });
 
   return (
-    <div className="space-y-8" data-testid="threads-page">
-      <section className="paper-panel rounded-[2rem] p-8">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-xs uppercase tracking-[0.24em] text-ink-soft">Thread library</p>
-            <h1 className="mt-3 font-serif text-5xl leading-tight text-foreground">
-              Every active scene, branch-ready and easy to resume.
-            </h1>
-            <p className="mt-4 max-w-3xl text-sm leading-7 text-ink-soft">
-              Search by title, sort by what was touched most recently, and keep the handful of
-              threads you revisit often pinned near the top.
-            </p>
-          </div>
-
-          <Link
-            href="/app/characters"
-          className="inline-flex items-center gap-2 rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-strong"
+    <div className="space-y-4" data-testid="threads-page">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="font-display text-xl font-bold text-on-surface">
+          Threads
+        </h1>
+        <Link
+          href="/app/characters"
+          className="inline-flex items-center gap-1 rounded bg-primary-container px-3 py-1.5 text-xs font-semibold text-on-primary-container"
         >
-          Start from a character
-          <ArrowRight className="h-4 w-4" />
+          New thread
+          <ArrowRight className="h-3 w-3" />
         </Link>
+      </div>
+
+      {deleted && (
+        <div className="rounded border border-status-success/30 bg-status-success/10 px-3 py-2 text-xs font-medium text-status-success">
+          Thread removed.
         </div>
+      )}
 
-        {deleted ? (
-          <div className="mt-5 rounded-2xl bg-emerald-950/40 px-4 py-3 text-sm text-emerald-400">
-            Thread removed from the library.
-          </div>
-        ) : null}
-
-        <form
-          method="get"
-          action="/app/threads"
-          className="mt-6 grid gap-3 md:grid-cols-[minmax(0,1fr)_12rem_10rem]"
+      {/* Search/filter */}
+      <form
+        method="get"
+        action="/app/threads"
+        className="flex gap-2"
+      >
+        <input
+          type="search"
+          name="q"
+          defaultValue={query}
+          placeholder="Search..."
+          className="min-w-0 flex-1 rounded border border-border-subtle bg-surface-container px-3 py-2 text-sm text-on-surface placeholder:text-muted-foreground outline-none focus:border-primary-container"
+        />
+        <select
+          name="status"
+          defaultValue={status}
+          className="rounded border border-border-subtle bg-surface-container px-2 py-2 text-xs text-on-surface outline-none focus:border-primary-container"
         >
-          <label className="block">
-            <span className="mb-2 block text-sm font-medium text-foreground">Search threads</span>
-            <input
-              type="search"
-              name="q"
-              defaultValue={query}
-              placeholder="Search by thread, character, or persona..."
-              className="w-full rounded-full border border-border bg-white/5 px-4 py-3 outline-none transition focus:border-brand"
-            />
-          </label>
+          <option value="active">Active</option>
+          <option value="archived">Archived</option>
+          <option value="all">All</option>
+        </select>
+        <button
+          type="submit"
+          className="rounded bg-surface-container-high px-3 py-2 text-xs font-semibold text-on-surface"
+        >
+          Filter
+        </button>
+      </form>
 
-          <label className="block">
-            <span className="mb-2 block text-sm font-medium text-foreground">Status</span>
-            <select
-              name="status"
-              defaultValue={status}
-              className="w-full rounded-full border border-border bg-white/5 px-4 py-3 outline-none transition focus:border-brand"
-            >
-              <option value="active">Active only</option>
-              <option value="archived">Archived only</option>
-              <option value="all">Everything</option>
-            </select>
-          </label>
-
-          <div className="flex items-end">
-            <button
-              type="submit"
-              className="inline-flex w-full items-center justify-center rounded-full border border-border bg-white/8 px-4 py-3 text-sm font-semibold text-foreground transition hover:border-brand hover:text-brand"
-            >
-              Apply filters
-            </button>
-          </div>
-        </form>
-      </section>
-
-      <section className="space-y-4">
+      {/* Thread list */}
+      <div className="space-y-2">
         {threads.length ? (
           threads.map((thread) => (
-            <article key={thread.id} className="paper-panel rounded-[2rem] p-6">
-              <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-                <div className="max-w-3xl">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="font-serif text-3xl text-foreground">{thread.title}</h2>
-                    {thread.pinned_at ? (
-                      <span className="rounded-full bg-brand/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-brand">
+            <article
+              key={thread.id}
+              className="rounded-lg border border-border-subtle bg-background-front p-4"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <Link
+                      href={`/app/chats/${thread.id}`}
+                      className="truncate text-sm font-semibold text-on-surface hover:text-primary"
+                    >
+                      {thread.title}
+                    </Link>
+                    {thread.pinned_at && (
+                      <span className="shrink-0 rounded border border-primary-container/30 bg-primary-container/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.05em] text-primary-container">
                         pinned
                       </span>
-                    ) : null}
-                    {thread.status === "archived" ? (
-                      <span className="rounded-full bg-slate-800/50 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                    )}
+                    {thread.status === "archived" && (
+                      <span className="shrink-0 rounded border border-muted-foreground/30 bg-muted/30 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
                         archived
                       </span>
-                    ) : null}
+                    )}
                   </div>
-
-                  <p className="mt-3 text-xs uppercase tracking-[0.18em] text-ink-soft">
-                    {thread.character_name ?? "Unknown character"}
-                    {thread.persona_name ? ` • ${thread.persona_name}` : ""}
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {thread.character_name ?? "Unknown"}
+                    {thread.persona_name ? ` · ${thread.persona_name}` : ""}
                   </p>
-                  <p className="mt-3 text-sm leading-7 text-ink-soft">
+                  <p className="mt-1 text-[11px] text-muted-foreground">
                     Updated {formatDateTime(thread.updated_at)}
-                    {thread.archived_at ? ` • Archived ${formatDateTime(thread.archived_at)}` : ""}
+                    {thread.archived_at ? ` · Archived ${formatDateTime(thread.archived_at)}` : ""}
                   </p>
                 </div>
 
-                <div className="flex flex-wrap gap-3">
+                <div className="flex shrink-0 items-center gap-1">
                   <Link
                     href={`/app/chats/${thread.id}`}
-                    className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+                    className="rounded bg-primary-container/10 px-2 py-1 text-xs font-semibold text-primary-container"
                   >
-                    Open thread
+                    Open
                   </Link>
 
                   <form action={setThreadPinnedAction}>
                     <input type="hidden" name="threadId" value={thread.id} />
-                    <input
-                      type="hidden"
-                      name="pinned"
-                      value={thread.pinned_at ? "false" : "true"}
-                    />
+                    <input type="hidden" name="pinned" value={thread.pinned_at ? "false" : "true"} />
                     <button
                       type="submit"
-                      className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-semibold text-foreground transition hover:border-brand hover:text-brand"
+                      className="flex h-7 w-7 items-center justify-center rounded text-on-surface-variant hover:text-on-surface"
+                      aria-label={thread.pinned_at ? "Unpin" : "Pin"}
                     >
-                      {thread.pinned_at ? (
-                        <PinOff className="h-4 w-4" />
-                      ) : (
-                        <Pin className="h-4 w-4" />
-                      )}
-                      {thread.pinned_at ? "Unpin" : "Pin"}
+                      {thread.pinned_at ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
                     </button>
                   </form>
 
                   <form action={setThreadArchiveAction}>
                     <input type="hidden" name="threadId" value={thread.id} />
-                    <input
-                      type="hidden"
-                      name="status"
-                      value={thread.status === "archived" ? "active" : "archived"}
-                    />
+                    <input type="hidden" name="status" value={thread.status === "archived" ? "active" : "archived"} />
                     <button
                       type="submit"
-                      className="inline-flex items-center gap-2 rounded-full border border-border px-4 py-2 text-sm font-semibold text-foreground transition hover:border-brand hover:text-brand"
+                      className="flex h-7 w-7 items-center justify-center rounded text-on-surface-variant hover:text-on-surface"
+                      aria-label={thread.status === "archived" ? "Restore" : "Archive"}
                     >
-                      <ArchiveRestore className="h-4 w-4" />
-                      {thread.status === "archived" ? "Restore" : "Archive"}
+                      <ArchiveRestore className="h-3.5 w-3.5" />
                     </button>
                   </form>
                 </div>
               </div>
 
-              <details className="mt-5 rounded-[1.5rem] border border-border bg-white/5 px-4 py-4">
-                <summary className="cursor-pointer list-none text-sm font-semibold text-foreground">
-                  <span className="inline-flex items-center gap-2">
-                    <PencilLine className="h-4 w-4 text-brand" />
-                    Manage thread details
-                  </span>
+              {/* Expandable manage section */}
+              <details className="mt-3 rounded border border-border-subtle bg-surface-container-low px-3 py-2">
+                <summary className="cursor-pointer list-none text-xs font-semibold text-on-surface-variant">
+                  <PencilLine className="mr-1 inline h-3 w-3" />
+                  Manage
                 </summary>
-
-                <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]">
-                  <form action={renameThreadAction} className="flex flex-col gap-3 sm:flex-row">
+                <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
+                  <form action={renameThreadAction} className="flex flex-1 gap-2">
                     <input type="hidden" name="threadId" value={thread.id} />
                     <input
                       name="title"
                       defaultValue={thread.title}
-                      className="min-w-0 flex-1 rounded-full border border-border bg-white/5 px-4 py-3 text-sm outline-none transition focus:border-brand"
+                      className="min-w-0 flex-1 rounded border border-border-subtle bg-surface-container px-2 py-1.5 text-sm text-on-surface outline-none focus:border-primary-container"
                     />
                     <button
                       type="submit"
-                      className="rounded-full bg-brand px-4 py-3 text-sm font-semibold text-white transition hover:bg-brand-strong"
+                      className="rounded bg-primary-container px-3 py-1.5 text-xs font-semibold text-on-primary-container"
                     >
-                      Save title
+                      Save
                     </button>
                   </form>
-
                   <form action={deleteThreadFromListAction}>
                     <input type="hidden" name="threadId" value={thread.id} />
                     <ConfirmSubmitButton
                       confirmMessage="Delete this thread and all of its branches, messages, snapshots, and pins?"
-                      className="border border-red-900/40 bg-red-950/40 text-red-400 hover:bg-red-900/50"
+                      className="rounded bg-status-critical/10 border border-status-critical/30 px-3 py-1.5 text-xs font-semibold text-status-critical"
                     >
-                      Delete thread
+                      Delete
                     </ConfirmSubmitButton>
                   </form>
                 </div>
@@ -210,12 +185,11 @@ export default async function ThreadsPage({
             </article>
           ))
         ) : (
-          <div className="paper-panel rounded-[2rem] p-8 text-sm leading-7 text-ink-soft">
-            No threads match this view yet. Start one from a character sheet, or switch the status
-            filter if you want to inspect archived scenes.
+          <div className="rounded-lg border border-dashed border-border-subtle bg-surface-container-low p-6 text-center text-sm text-muted-foreground">
+            No threads match this view. Start one from a character sheet.
           </div>
         )}
-      </section>
+      </div>
     </div>
   );
 }

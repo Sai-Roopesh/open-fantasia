@@ -1,15 +1,20 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
-import { brandSerif, chatSans, codeMono } from "@/lib/fonts";
-import { Geist } from "next/font/google";
+import { displayFont, bodyFont, codeMono } from "@/lib/fonts";
 import { cn } from "@/lib/utils";
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
-
 export const metadata: Metadata = {
-  title: "Open-Fantasia",
+  title: "Fantasia — Private Roleplay Workspace",
   description:
-    "A private roleplay workspace for long-form AI conversations across free and bring-your-own providers.",
+    "A private, single-user roleplay workspace for long-form AI conversations with persistent memory and branching narratives.",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: "cover",
+  themeColor: "#000000",
 };
 
 export default function RootLayout({
@@ -21,7 +26,11 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={cn(brandSerif.variable, chatSans.variable, codeMono.variable, "font-sans", geist.variable)}
+      className={cn(
+        displayFont.variable,
+        bodyFont.variable,
+        codeMono.variable,
+      )}
     >
       <body suppressHydrationWarning>
         <a href="#app-root-content" className="skip-link">

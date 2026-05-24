@@ -3,8 +3,8 @@
 import { DefaultChatTransport } from "ai";
 import { useChat } from "@ai-sdk/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useConfirmation } from "@/components/ui/confirmation-dialog";
-import { useNavTransition } from "@/components/transition-provider";
 import { getTextFromMessage } from "@/lib/ai/message-text";
 import { MAX_CHAT_TURN_TEXT, buildChatTurnTrimMessage } from "@/lib/chat-limits";
 import type {
@@ -16,10 +16,7 @@ import type {
   UserPersonaRecord,
 } from "@/lib/types";
 import { messageMetadataSchema } from "@/lib/types";
-import {
-  ChatFocusOverlay,
-  ChatScenePanel,
-} from "@/components/chat/chat-workspace-shell";
+import { ChatLayout } from "@/components/chat/chat-workspace-shell";
 import {
   ContinuityBanner,
   ErrorBanner,
@@ -71,7 +68,7 @@ export function ChatWorkspace({
   switchBranchAction: (input: { threadId: string; branchId: string; }) => Promise<void>;
   switchPersonaAction: (input: { threadId: string; personaId: string; }) => Promise<void>;
 }) {
-  const { refreshWithTransition } = useNavTransition();
+  const router = useRouter();
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const attemptedDraftRef = useRef<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -79,14 +76,12 @@ export function ChatWorkspace({
   const [failedDraft, setFailedDraft] = useState<string | null>(null);
   const [activeInspectorTab, setActiveInspectorTab] = useState<InspectorTab>("continuity");
   const [sheet, setSheet] = useState<ActionSheetState | null>(null);
-  const [focusMode, setFocusMode] = useState(false);
   const { confirm: confirmRewind, confirmDialog: rewindConfirmDialog } = useConfirmation();
   const [portraitState, setPortraitState] = useState<"idle" | "ready" | "error">(
     characterBackgroundUrl ? "idle" : "error",
   );
   const [lastUrl, setLastUrl] = useState(characterBackgroundUrl);
 
-  // Sync portrait state during render to avoid cascading useEffect renders
   if (characterBackgroundUrl !== lastUrl) {
     setLastUrl(characterBackgroundUrl);
     setPortraitState(characterBackgroundUrl ? "idle" : "error");
@@ -131,28 +126,6 @@ export function ChatWorkspace({
   const displayBranchId = optimisticBranchId ?? activeBranch.id;
   const displayPersonaId = optimisticPersonaId ?? (currentPersona?.id ?? "");
 
-  const toggleFocusMode = useCallback(() => setFocusMode((prev) => !prev), []);
-
-  useEffect(() => {
-    if (!focusMode) return;
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") setFocusMode(false);
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [focusMode]);
-
-  useEffect(() => {
-    if (focusMode) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => { document.body.style.overflow = ""; };
-  }, [focusMode]);
-
-
-
   const { messages, sendMessage, status, error } = useChat<FantasiaUIMessage>({
     id: threadId,
     messages: initialMessages,
@@ -179,7 +152,7 @@ export function ChatWorkspace({
       attemptedDraftRef.current = null;
       setFailedDraft(null);
       setSurfaceError(null);
-      refreshWithTransition();
+      router.refresh();
     },
     onError(nextError) {
       const nextMessage = humanizeChatError(nextError.message);
@@ -221,20 +194,15 @@ export function ChatWorkspace({
     composerContinuityBlocked;
 
   useEffect(() => {
-    if (continuityStatus?.tone !== "pending") {
-      return;
-    }
-
-    if (status === "streaming" || status === "submitted" || pendingAction || switchPending) {
-      return;
-    }
+    if (continuityStatus?.tone !== "pending") return;
+    if (status === "streaming" || status === "submitted" || pendingAction || switchPending) return;
 
     const timer = window.setTimeout(() => {
-      refreshWithTransition();
+      router.refresh();
     }, 4000);
 
     return () => window.clearTimeout(timer);
-  }, [continuityStatus?.tone, pendingAction, refreshWithTransition, status, switchPending]);
+  }, [continuityStatus?.tone, pendingAction, router, status, switchPending]);
 
   async function submitCurrentDraft(value: string) {
     const nextValue = value.trim();
@@ -281,7 +249,6 @@ export function ChatWorkspace({
     });
   }
 
-  /* ── Transcript + callbacks (shared props, used in both views) ── */
   const transcriptProps = {
     messages,
     assistantLabel: characterName,
@@ -338,38 +305,23 @@ export function ChatWorkspace({
       onShowModelPicker={() => setShowModelPicker(true)}
     />
   ) : null;
+
   const continuityBannerBlock = continuityStatus ? (
     <ContinuityBanner status={continuityStatus} />
   ) : null;
-  const focusBackdropColor = portraitState === "ready" ? "#120f0d" : "#0f0c0a";
 
   return (
     <>
-      <ChatFocusOverlay
-        focusMode={focusMode}
-        toggleFocusMode={toggleFocusMode}
-        focusBackdropColor={focusBackdropColor}
+      <ChatLayout
+        characterName={characterName}
+        characterBackgroundUrl={characterBackgroundUrl}
         portraitState={portraitState}
         onPortraitLoad={() => setPortraitState("ready")}
         onPortraitError={() => setPortraitState("error")}
-        characterBackgroundUrl={characterBackgroundUrl}
-        characterName={characterName}
-        displayConnectionLabel={displayConnectionLabel}
-        displayModel={displayModel}
-        transcriptProps={transcriptProps}
-        continuityBannerBlock={continuityBannerBlock}
-        errorBannerBlock={errorBannerBlock}
-        composerProps={composerProps}
-      />
-
-      <ChatScenePanel
-        focusMode={focusMode}
-        characterName={characterName}
         displayConnectionLabel={displayConnectionLabel}
         displayModel={displayModel}
         showModelPicker={showModelPicker}
         setShowModelPicker={setShowModelPicker}
-        toggleFocusMode={toggleFocusMode}
         displayBranchId={displayBranchId}
         branches={branches}
         switchPending={switchPending}
@@ -401,10 +353,10 @@ export function ChatWorkspace({
         <ActionSheet
           key={
             sheet.kind === "branch"
-                ? `branch-${sheet.turnId}`
-                : sheet.kind === "edit"
-                  ? `edit-${sheet.messageId}`
-                  : `pin-${sheet.messageId}`
+              ? `branch-${sheet.turnId}`
+              : sheet.kind === "edit"
+                ? `edit-${sheet.messageId}`
+                : `pin-${sheet.messageId}`
           }
           sheet={sheet}
           pendingAction={pendingAction}

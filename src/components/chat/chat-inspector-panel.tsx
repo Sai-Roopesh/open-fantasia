@@ -14,7 +14,7 @@ import {
 
 function EmptyInspectorState({ children }: { children: ReactNode }) {
   return (
-    <p className="rounded-[1.5rem] border border-dashed border-border px-4 py-4 text-sm leading-7 text-ink-soft">
+    <p className="rounded border border-dashed border-border-subtle px-3 py-3 text-xs text-muted-foreground">
       {children}
     </p>
   );
@@ -22,9 +22,9 @@ function EmptyInspectorState({ children }: { children: ReactNode }) {
 
 function BranchMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-border bg-paper px-4 py-3">
-      <dt className="text-xs uppercase tracking-[0.18em] text-ink-soft">{label}</dt>
-      <dd className="mt-2 font-medium text-foreground">{value}</dd>
+    <div className="rounded border border-border-subtle bg-surface-container px-3 py-2">
+      <dt className="text-[10px] uppercase tracking-[0.05em] text-muted-foreground">{label}</dt>
+      <dd className="mt-0.5 text-xs font-medium text-on-surface">{value}</dd>
     </div>
   );
 }
@@ -47,25 +47,25 @@ export function InspectorPanel({
   pendingAction: string | null;
 }) {
   return (
-    <section className="paper-panel rounded-[2rem] p-6">
-      <div className="flex items-center gap-2 text-brand">
-        <Sparkles className="h-4 w-4" />
-        <p className="text-xs uppercase tracking-[0.22em] text-ink-soft">
+    <section className="rounded-lg border border-border-subtle bg-background-front p-4">
+      <div className="flex items-center gap-1.5 text-primary-container">
+        <Sparkles className="h-3.5 w-3.5" />
+        <p className="text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
           Continuity inspector
         </p>
       </div>
 
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-2 flex flex-wrap gap-1">
         {inspectorTabs.map((tab) => (
           <button
             key={tab.id}
             type="button"
             onClick={() => onTabChange(tab.id)}
             className={cn(
-              "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
+              "rounded px-2 py-1 text-[11px] font-semibold",
               activeInspectorTab === tab.id
-                ? "border-brand bg-brand text-white"
-                : "border-border bg-white/8 text-foreground hover:border-brand hover:text-brand",
+                ? "bg-primary-container text-on-primary-container"
+                : "bg-surface-container-high text-on-surface-variant",
             )}
           >
             {tab.label}
@@ -73,34 +73,34 @@ export function InspectorPanel({
         ))}
       </div>
 
-      <div className="mt-5">
+      <div className="mt-3">
         {activeInspectorTab === "continuity" ? (
-          <div className="space-y-4">
+          <div className="space-y-2">
             {inspectorView.continuityStatus ? (
               <div
                 className={cn(
-                  "rounded-[1.5rem] p-4",
+                  "rounded border p-3",
                   inspectorView.continuityStatus.tone === "error"
-                    ? "border border-red-900/40 bg-red-950/35"
-                    : "border border-brand/20 bg-brand/8",
+                    ? "border-status-critical/30 bg-status-critical/10"
+                    : "border-status-warning/30 bg-status-warning/10",
                 )}
               >
                 <p
                   className={cn(
-                    "text-xs uppercase tracking-[0.18em]",
+                    "text-[10px] font-semibold uppercase tracking-[0.05em]",
                     inspectorView.continuityStatus.tone === "error"
-                      ? "text-red-300"
-                      : "text-brand",
+                      ? "text-status-critical"
+                      : "text-status-warning",
                   )}
                 >
                   {inspectorView.continuityStatus.title}
                 </p>
                 <p
                   className={cn(
-                    "mt-2 text-sm leading-7",
+                    "mt-1 text-xs leading-4",
                     inspectorView.continuityStatus.tone === "error"
-                      ? "text-red-100"
-                      : "text-brand-strong",
+                      ? "text-status-critical"
+                      : "text-status-warning",
                   )}
                 >
                   {inspectorView.continuityStatus.detail}
@@ -110,39 +110,39 @@ export function InspectorPanel({
             {inspectorView.continuity.map((section) => (
               <div
                 key={section.label}
-                className="rounded-[1.5rem] border border-border bg-white/5 p-4"
+                className="rounded border border-border-subtle bg-surface-container-low p-3"
               >
-                <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
                   {section.label}
                 </p>
-                <p className="mt-2 whitespace-pre-wrap text-sm leading-7 text-foreground">
+                <p className="mt-1 whitespace-pre-wrap text-xs leading-4 text-on-surface">
                   {section.value}
                 </p>
-                <p className="mt-3 text-xs leading-6 text-ink-soft">{section.helper}</p>
+                <p className="mt-1 text-[10px] text-muted-foreground">{section.helper}</p>
               </div>
             ))}
           </div>
         ) : null}
 
         {activeInspectorTab === "pins" ? (
-          <div className="space-y-4">
+          <div className="space-y-2">
             {inspectorView.pins.length ? (
               inspectorView.pins.map((pin) => (
                 <div
                   key={pin.id}
-                  className="rounded-[1.5rem] border border-border bg-white/5 p-4"
+                  className="rounded border border-border-subtle bg-surface-container-low p-3"
                 >
-                  <p className="text-sm leading-7 text-foreground">{pin.body}</p>
-                  <div className="mt-3 text-xs leading-6 text-ink-soft">
+                  <p className="text-xs leading-4 text-on-surface">{pin.body}</p>
+                  <div className="mt-1 text-[10px] text-muted-foreground">
                     <p>{pin.sourceLabel}</p>
-                    <p className="mt-1">{pin.sourceExcerpt}</p>
-                    <p className="mt-1">{formatLongDateTime(pin.createdAt)}</p>
+                    <p className="mt-0.5">{pin.sourceExcerpt}</p>
+                    <p className="mt-0.5">{formatLongDateTime(pin.createdAt)}</p>
                   </div>
                   <button
                     type="button"
                     disabled={pendingAction !== null}
                     onClick={() => void onRemovePin(pin.id)}
-                    className="mt-3 rounded-full border border-border px-3 py-1 text-xs font-semibold text-foreground transition hover:border-brand hover:text-brand"
+                    className="mt-2 rounded bg-surface-container-high px-2 py-1 text-[11px] font-semibold text-on-surface-variant"
                   >
                     Remove pin
                   </button>
@@ -150,98 +150,98 @@ export function InspectorPanel({
               ))
             ) : (
               <EmptyInspectorState>
-                Pin branch-local facts from transcript messages when continuity needs a durable reminder.
+                Pin branch-local facts from transcript messages.
               </EmptyInspectorState>
             )}
           </div>
         ) : null}
 
         {activeInspectorTab === "timeline" ? (
-          <div className="space-y-4">
+          <div className="space-y-2">
             {inspectorView.timeline.length ? (
               inspectorView.timeline.map((event) => (
                 <div
                   key={event.id}
-                  className="rounded-[1.5rem] border border-border bg-white/5 p-4"
+                  className="rounded border border-border-subtle bg-surface-container-low p-3"
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="font-semibold text-foreground">{event.title}</p>
-                    <span className="rounded-full bg-accent/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-accent">
-                      importance {event.importance}
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-on-surface">{event.title}</p>
+                    <span className="rounded bg-primary-container/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-primary-container">
+                      imp {event.importance}
                     </span>
                   </div>
-                  <p className="mt-2 text-sm leading-7 text-foreground">{event.detail}</p>
-                  <p className="mt-3 text-xs text-ink-soft">
+                  <p className="mt-1 text-xs leading-4 text-on-surface-variant">{event.detail}</p>
+                  <p className="mt-1 text-[10px] text-muted-foreground">
                     {formatLongDateTime(event.createdAt)}
                   </p>
                 </div>
               ))
             ) : (
               <EmptyInspectorState>
-                Once the thread records notable beats, they will appear here in branch-local order.
+                Notable beats will appear here once the thread records them.
               </EmptyInspectorState>
             )}
           </div>
         ) : null}
 
         {activeInspectorTab === "branch" ? (
-          <div className="space-y-4">
-            <div className="rounded-[1.5rem] border border-border bg-white/5 p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">
+          <div className="space-y-2">
+            <div className="rounded border border-border-subtle bg-surface-container-low p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
                 Active branch
               </p>
-              <p className="mt-2 font-semibold text-foreground">
+              <p className="mt-0.5 text-xs font-semibold text-on-surface">
                 {inspectorView.branch.activeBranchName}
               </p>
-              <dl className="mt-4 grid gap-3 text-sm text-foreground">
+              <dl className="mt-2 grid grid-cols-2 gap-2 text-on-surface">
                 <BranchMetric
-                  label="Parent branch"
-                  value={inspectorView.branch.parentBranchName ?? "Root branch"}
+                  label="Parent"
+                  value={inspectorView.branch.parentBranchName ?? "Root"}
                 />
                 <BranchMetric
                   label="Fork turn"
-                  value={inspectorView.branch.forkTurnId ?? "Started at the root"}
+                  value={inspectorView.branch.forkTurnId ?? "Root"}
                 />
                 <BranchMetric
                   label="Head turn"
-                  value={inspectorView.branch.headTurnId ?? "No assistant turn yet"}
+                  value={inspectorView.branch.headTurnId ?? "None"}
                 />
                 <BranchMetric
-                  label="Total branches"
+                  label="Branches"
                   value={String(inspectorView.branch.totalBranches)}
                 />
                 <BranchMetric
-                  label="Total turns"
+                  label="Turns"
                   value={String(inspectorView.branch.totalTurns)}
                 />
               </dl>
             </div>
 
-            <div className="rounded-[1.5rem] border border-border bg-white/5 p-4">
-              <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">
+            <div className="rounded border border-border-subtle bg-surface-container-low p-3">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
                 Available branches
               </p>
-              <div className="mt-3 space-y-2">
+              <div className="mt-2 space-y-1">
                 {branches.map((branch) => (
                   <div
                     key={branch.id}
                     className={cn(
-                      "rounded-2xl border px-4 py-3 text-sm",
+                      "rounded border px-3 py-2 text-xs",
                       branch.id === activeBranch.id
-                        ? "border-brand bg-brand/8 text-brand"
-                        : "border-border bg-paper text-foreground",
+                        ? "border-primary-container/30 bg-primary-container/10 text-primary-container"
+                        : "border-border-subtle bg-surface-container text-on-surface",
                     )}
                   >
-                    <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center justify-between gap-2">
                       <span className="font-semibold">{branch.name}</span>
                       {branch.id === activeBranch.id ? (
-                        <span className="inline-flex items-center gap-1 text-xs uppercase tracking-[0.18em]">
-                          <CheckCircle2 className="h-3.5 w-3.5" />
+                        <span className="inline-flex items-center gap-0.5 text-[10px] uppercase tracking-[0.05em]">
+                          <CheckCircle2 className="h-3 w-3" />
                           active
                         </span>
                       ) : null}
                     </div>
-                    <p className="mt-1 text-xs text-ink-soft">
+                    <p className="mt-0.5 text-[10px] text-muted-foreground">
                       Updated {formatLongDateTime(branch.updated_at)}
                     </p>
                   </div>

@@ -1,14 +1,12 @@
 import { notFound, redirect } from "next/navigation";
 import { ChatWorkspace } from "@/components/chat/chat-workspace";
 import { resolveCharacterPortraitUrl } from "@/lib/characters/portraits";
-import { ConfirmSubmitButton } from "@/components/forms/confirm-submit-button";
 import { requireAllowedUser } from "@/lib/auth";
 import { listConnections } from "@/lib/data/connections";
 import { listPersonas } from "@/lib/data/personas";
 import { getThreadGraphView } from "@/lib/threads/read-model";
 import type { ContinuityInspectorView } from "@/lib/types";
 import {
-  deleteThreadAction,
   switchThreadBranchAction,
   switchThreadModelAction,
   switchThreadPersonaAction,
@@ -192,71 +190,32 @@ export default async function ChatThreadPage({
   };
 
   return (
-    <div className="space-y-6">
-      <section className="paper-panel rounded-[2rem] p-8">
-        <p className="text-xs uppercase tracking-[0.24em] text-ink-soft">
-          Active thread
-        </p>
-        <div className="mt-3 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h1 className="font-serif text-5xl text-foreground">
-              {character.character.name}
-            </h1>
-            <p className="mt-4 max-w-3xl text-sm leading-7 text-ink-soft">
-              {character.character.story ||
-                character.character.core_persona ||
-                character.character.greeting}
-            </p>
-          </div>
-          <div className="flex flex-col gap-3 lg:items-end">
-            <div className="rounded-[1.5rem] bg-white/5 px-5 py-4 text-sm text-ink-soft">
-              <p className="text-xs uppercase tracking-[0.22em]">Current lane</p>
-              <p className="mt-2 font-medium text-foreground">
-                {currentConnection.label}
-              </p>
-              <p className="mt-1">{threadView.thread.model_id}</p>
-            </div>
-
-            <form action={deleteThreadAction}>
-              <input type="hidden" name="threadId" value={threadView.thread.id} />
-              <ConfirmSubmitButton
-                confirmMessage="Delete this thread and all of its branches, messages, snapshots, and pins?"
-                className="border border-red-900/40 bg-red-950/40 text-red-400 hover:bg-red-900/50"
-              >
-                Delete thread
-              </ConfirmSubmitButton>
-            </form>
-          </div>
-        </div>
-      </section>
-
-      <ChatWorkspace
-        threadId={view.thread.id}
-        characterName={character.character.name}
-        characterBackgroundUrl={characterBackgroundUrl}
-        currentModel={view.thread.model_id}
-        currentConnectionLabel={currentConnection.label}
-        activeBranch={view.activeBranch}
-        branches={view.branches}
-        currentPersona={currentPersona}
-        personas={personas}
-        initialMessages={view.canonicalMessages}
-        controlsByMessageId={view.controlsByMessageId}
-        suggestedStarters={character.starters.map((starter) => starter.text)}
-        modelChoices={connections
-          .filter((connection) => connection.enabled && connection.model_cache.length > 0)
-          .map((connection) => ({
-            connectionId: connection.id,
-            label: connection.label,
-            provider: connection.provider,
-            models: connection.model_cache,
-          }))}
-        inspectorView={inspectorView}
-        switchModelAction={switchThreadModelAction}
-        switchBranchAction={switchThreadBranchAction}
-        switchPersonaAction={switchThreadPersonaAction}
-      />
-    </div>
+    <ChatWorkspace
+      threadId={view.thread.id}
+      characterName={character.character.name}
+      characterBackgroundUrl={characterBackgroundUrl}
+      currentModel={view.thread.model_id}
+      currentConnectionLabel={currentConnection.label}
+      activeBranch={view.activeBranch}
+      branches={view.branches}
+      currentPersona={currentPersona}
+      personas={personas}
+      initialMessages={view.canonicalMessages}
+      controlsByMessageId={view.controlsByMessageId}
+      suggestedStarters={character.starters.map((starter) => starter.text)}
+      modelChoices={connections
+        .filter((connection) => connection.enabled && connection.model_cache.length > 0)
+        .map((connection) => ({
+          connectionId: connection.id,
+          label: connection.label,
+          provider: connection.provider,
+          models: connection.model_cache,
+        }))}
+      inspectorView={inspectorView}
+      switchModelAction={switchThreadModelAction}
+      switchBranchAction={switchThreadBranchAction}
+      switchPersonaAction={switchThreadPersonaAction}
+    />
   );
 }
 

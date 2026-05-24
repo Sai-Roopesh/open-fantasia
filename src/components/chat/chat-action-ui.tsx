@@ -23,9 +23,9 @@ export function ActionSheet({
         type="button"
         aria-label="Close action sheet"
         onClick={onClose}
-        className="absolute inset-0 bg-black/50"
+        className="absolute inset-0 bg-black/60"
       />
-      <div className="absolute inset-x-3 bottom-5 mx-auto max-w-2xl rounded-[2rem] border border-white/10 bg-[#1a1412] p-6 shadow-[0_30px_100px_rgba(0,0,0,0.4)]">
+      <div className="absolute inset-x-3 bottom-4 mx-auto max-w-xl rounded-lg border border-border-subtle bg-surface-container-low p-4">
         <form
           onSubmit={async (event) => {
             event.preventDefault();
@@ -34,7 +34,7 @@ export function ActionSheet({
             await onSubmit(trimmed);
           }}
         >
-          <p className="text-xs uppercase tracking-[0.22em] text-ink-soft">
+          <p className="text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
             {sheet.kind === "edit"
               ? sheet.target === "assistant"
                 ? "Edit latest reply"
@@ -43,7 +43,7 @@ export function ActionSheet({
                 ? "Branch from turn"
                 : "Pin fact"}
           </p>
-          <h3 className="mt-3 font-serif text-3xl text-foreground">
+          <h3 className="mt-1 text-sm font-semibold text-on-surface">
             {sheet.kind === "edit"
               ? sheet.target === "assistant"
                 ? "Rewrite the latest reply"
@@ -52,44 +52,44 @@ export function ActionSheet({
                 ? "Name the new branch"
                 : "Save a branch-local memory"}
           </h3>
-          <p className="mt-3 text-sm leading-7 text-ink-soft">
+          <p className="mt-1 text-xs leading-4 text-muted-foreground">
             {sheet.kind === "edit"
               ? sheet.target === "assistant"
-                ? "Saving this keeps the same user turn, replaces the latest assistant reply on the current branch, and re-runs continuity reconciliation from that edited text."
-                : "Saving this rewrites the latest visible user turn and regenerates the assistant reply on the current branch."
+                ? "Replaces the latest reply and re-runs continuity."
+                : "Rewrites the user turn and regenerates the reply."
               : sheet.kind === "branch"
-                ? "This forks a new branch from the selected turn and switches you onto that path."
-                : "Pinned facts stay local to the active branch and influence future replies on this path only."}
+                ? "Forks a new branch from the selected turn."
+                : "Pinned facts stay local to the active branch."}
           </p>
 
           {sheet.kind === "branch" ? (
             <input
               value={value}
               onChange={(event) => setValue(event.target.value)}
-              className="mt-5 w-full rounded-[1.5rem] border border-border bg-paper px-4 py-4 text-sm outline-none transition focus:border-brand"
+              className="mt-3 w-full rounded border-b-2 border-border-subtle bg-surface-container px-3 py-2 text-sm text-on-surface outline-none focus:border-primary-container"
               placeholder="branch-2"
             />
           ) : (
             <textarea
-              rows={sheet.kind === "edit" ? 6 : 5}
+              rows={sheet.kind === "edit" ? 5 : 4}
               value={value}
               onChange={(event) => setValue(event.target.value)}
-              className="mt-5 w-full rounded-[1.5rem] border border-border bg-paper px-4 py-4 text-sm leading-7 outline-none transition focus:border-brand"
+              className="mt-3 w-full rounded border-b-2 border-border-subtle bg-surface-container px-3 py-2 text-sm leading-6 text-on-surface outline-none focus:border-primary-container"
             />
           )}
 
-          <div className="mt-5 flex flex-wrap justify-end gap-2">
+          <div className="mt-3 flex flex-wrap justify-end gap-1">
             <button
               type="button"
               onClick={onClose}
-              className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-foreground transition hover:border-brand hover:text-brand"
+              className="rounded bg-surface-container-high px-3 py-1.5 text-xs font-semibold text-on-surface"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={pendingAction !== null}
-              className="rounded-full bg-brand px-5 py-2 text-sm font-semibold text-white transition hover:bg-brand-strong disabled:opacity-60"
+              className="rounded bg-primary-container px-3 py-1.5 text-xs font-semibold text-on-primary-container disabled:opacity-50"
             >
               {pendingAction !== null
                 ? "Working..."
@@ -124,9 +124,9 @@ export function ActionButton({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className="inline-flex items-center gap-2 rounded-full border border-current/15 px-3 py-1.5 text-xs font-semibold transition hover:bg-white/10 disabled:opacity-60"
+      className="inline-flex items-center gap-1 rounded bg-surface-container-high px-2 py-1 text-[11px] font-semibold text-on-surface-variant disabled:opacity-50"
     >
-      <Icon className="h-3.5 w-3.5" />
+      <Icon className="h-3 w-3" />
       {children}
     </button>
   );

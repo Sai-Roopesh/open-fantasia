@@ -50,11 +50,11 @@ export function ProviderConnectionForm({
   return (
     <form
       action={action}
-      className="space-y-4"
+      className="space-y-3"
       onSubmit={(event) => {
         if (!label.trim()) {
           event.preventDefault();
-          setLocalError("Give this lane a short label so it is recognizable in the switcher.");
+          setLocalError("Give this lane a label.");
           return;
         }
 
@@ -70,24 +70,24 @@ export function ProviderConnectionForm({
       {connectionId ? <input type="hidden" name="id" value={connectionId} /> : null}
 
       <label className="block">
-        <span className="mb-2 block text-sm font-medium text-foreground">Label</span>
+        <span className="mb-1 block text-xs font-medium text-on-surface">Label</span>
         <input
           name="label"
           required
           value={label}
           onChange={(event) => setLabel(event.target.value)}
           placeholder="Groq free lane"
-          className="w-full rounded-full border border-border bg-white/5 px-4 py-3 outline-none transition focus:border-brand"
+          className="w-full rounded border-b-2 border-border-subtle bg-surface-container px-3 py-2 text-sm text-on-surface outline-none focus:border-primary-container"
         />
       </label>
 
       <label className="block">
-        <span className="mb-2 block text-sm font-medium text-foreground">Provider</span>
+        <span className="mb-1 block text-xs font-medium text-on-surface">Provider</span>
         <select
           name="provider"
           value={provider}
           onChange={(event) => setProvider(event.target.value as ProviderId)}
-          className="w-full rounded-full border border-border bg-white/5 px-4 py-3 outline-none transition focus:border-brand"
+          className="w-full rounded border border-border-subtle bg-surface-container px-3 py-2 text-sm text-on-surface outline-none focus:border-primary-container"
         >
           {Object.values(providerCatalog).map((item) => (
             <option key={item.id} value={item.id}>
@@ -95,13 +95,13 @@ export function ProviderConnectionForm({
             </option>
           ))}
         </select>
-        <span className="mt-2 block text-xs leading-6 text-ink-soft">
+        <span className="mt-1 block text-[11px] leading-4 text-muted-foreground">
           {definition.description}
         </span>
       </label>
 
       <label className="block">
-        <span className="mb-2 block text-sm font-medium text-foreground">Base URL</span>
+        <span className="mb-1 block text-xs font-medium text-on-surface">Base URL</span>
         <input
           name="base_url"
           value={baseUrl}
@@ -109,58 +109,59 @@ export function ProviderConnectionForm({
           placeholder={
             provider === "ollama"
               ? providerCatalog.ollama.defaultBaseUrl
-              : "Usually leave blank unless this provider is self-hosted"
+              : "Leave blank for default endpoint"
           }
-          className="w-full rounded-full border border-border bg-white/5 px-4 py-3 outline-none transition focus:border-brand"
+          className="w-full rounded border-b-2 border-border-subtle bg-surface-container px-3 py-2 text-sm text-on-surface outline-none focus:border-primary-container"
         />
-        <span className="mt-2 block text-xs leading-6 text-ink-soft">
+        <span className="mt-1 block text-[11px] leading-4 text-muted-foreground">
           {provider === "ollama"
-            ? "Use this for Ollama Cloud or a custom remote Ollama-compatible endpoint."
-            : "Most hosted providers use their default endpoint. Only fill this when you know you need an override."}
+            ? "Ollama Cloud or custom remote endpoint."
+            : "Override only when needed."}
         </span>
       </label>
 
       <label className="block">
-        <span className="mb-2 block text-sm font-medium text-foreground">API key</span>
+        <span className="mb-1 block text-xs font-medium text-on-surface">API key</span>
         <input
           type="password"
           name="api_key"
           value={apiKey}
           onChange={(event) => setApiKey(event.target.value)}
           placeholder={keyPlaceholder}
-          className="w-full rounded-full border border-border bg-white/5 px-4 py-3 outline-none transition focus:border-brand"
+          className="w-full rounded border-b-2 border-border-subtle bg-surface-container px-3 py-2 text-sm text-on-surface outline-none focus:border-primary-container"
         />
-        <span className="mt-2 block text-xs leading-6 text-ink-soft">
+        <span className="mt-1 block text-[11px] leading-4 text-muted-foreground">
           {provider === "ollama"
-            ? "Ollama Cloud needs a key; many remote self-hosted Ollama endpoints do not."
-            : "Fantasia encrypts the key before storing it in Supabase."}
+            ? "Ollama Cloud needs a key; self-hosted may not."
+            : "Encrypted before storage."}
         </span>
       </label>
 
-      <label className="flex items-center gap-3 rounded-full border border-border bg-white/5 px-4 py-3 text-sm text-foreground">
+      <label className="flex items-center gap-2 rounded border border-border-subtle bg-surface-container px-3 py-2 text-xs text-on-surface">
         <input
           type="checkbox"
           name="enabled"
           checked={enabled}
           onChange={(event) => setEnabled(event.target.checked)}
+          className="h-3.5 w-3.5 accent-[var(--primary-container)]"
         />
         Enabled for thread selection
       </label>
 
       <div aria-live="polite" className="space-y-2">
         {validationMessage ? (
-          <p className="rounded-2xl bg-amber-950/40 px-4 py-3 text-sm text-amber-400">
+          <p className="rounded border border-status-warning/30 bg-status-warning/10 px-3 py-2 text-xs text-status-warning">
             {validationMessage}
           </p>
         ) : null}
         {localError ? (
-          <p className="rounded-2xl bg-rose-950/40 px-4 py-3 text-sm text-rose-400">
+          <p className="rounded border border-status-critical/30 bg-status-critical/10 px-3 py-2 text-xs text-status-critical">
             {localError}
           </p>
         ) : null}
       </div>
 
-      <SubmitButton>{submitLabel}</SubmitButton>
+      <SubmitButton className="rounded bg-primary-container px-4 py-2 text-sm font-semibold text-on-primary-container">{submitLabel}</SubmitButton>
     </form>
   );
 }
