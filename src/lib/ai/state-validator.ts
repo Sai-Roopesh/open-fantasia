@@ -22,7 +22,7 @@ function validateRelationshipId(relationshipId: string, snapshot: DurableMemoryS
 }
 
 function validateNarrativeThreadId(threadId: string, snapshot: DurableMemorySnapshot): boolean {
-  return snapshot.narrative_state.active_threads.some((t) => t.id === threadId);
+  return snapshot.narrative_state.active_threads.some((t) => t.thread_id === threadId);
 }
 
 export type MutationOp = { op: string; [key: string]: unknown };

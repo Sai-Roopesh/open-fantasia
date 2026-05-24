@@ -100,15 +100,15 @@ describe("buildRoleplaySystemPrompt", () => {
     expect(prompt).toContain("<character_persona>");
   });
 
-  it("limits timeline context to recent high-importance beats", () => {
+  it("includes pre-filtered timeline events in the prompt", () => {
+    // toPromptTimeline() is responsible for filtering importance >= 3 and slicing to 5.
+    // buildRoleplaySystemPrompt trusts the caller to pass already-filtered events.
     const timeline: TimelineEventRecord[] = [
       makeTimelineEvent({ id: "1", title: "Met Alex", detail: "Shook hands", importance: 5, turn_id: "turn_1" }),
       makeTimelineEvent({ id: "2", title: "Signal spiked", detail: "A distress call cut in", importance: 4, turn_id: "turn_2" }),
       makeTimelineEvent({ id: "3", title: "Dock lights failed", detail: "Everything went red", importance: 3, turn_id: "turn_3" }),
       makeTimelineEvent({ id: "4", title: "Engine room opened", detail: "Steam rushed out", importance: 4, turn_id: "turn_4" }),
       makeTimelineEvent({ id: "5", title: "Map updated", detail: "New route appeared", importance: 3, turn_id: "turn_5" }),
-      makeTimelineEvent({ id: "6", title: "Old rumor", detail: "A minor aside", importance: 2, turn_id: "turn_6" }),
-      makeTimelineEvent({ id: "7", title: "Fuel leak", detail: "A line cracked open", importance: 5, turn_id: "turn_7" }),
     ];
     const prompt = buildRoleplaySystemPrompt({
       character: mockCharacter,
@@ -133,8 +133,7 @@ describe("buildRoleplaySystemPrompt", () => {
     expect(prompt).toContain("Ash is injured on the left side.");
     expect(prompt).toContain("- [5/5] Met Alex: Shook hands");
     expect(prompt).toContain("- [3/5] Map updated: New route appeared");
-    expect(prompt).not.toContain("Old rumor");
-    expect(prompt).not.toContain("Fuel leak");
+    expect(prompt).toContain("- [4/5] Engine room opened: Steam rushed out");
   });
 
   it("serializes the durable memory snapshot as structured JSON", () => {
@@ -153,6 +152,28 @@ describe("buildRoleplaySystemPrompt", () => {
           environmental_modifiers: ["red alarm lights", "steam"],
         },
         adjacent_locations: [{ id: "loc_2", name: "Corridor B" }],
+        known_locations: [
+          {
+            id: "loc_1",
+            name: "Engine Bay",
+            description: "Dimly lit, steam venting from ruptured coolant line",
+            environmental_modifiers: ["red alarm lights", "steam"],
+          },
+          {
+            id: "loc_2",
+            name: "Corridor B",
+            description: "Narrow passage connecting sections",
+            environmental_modifiers: [],
+          },
+        ],
+        edges: [
+          {
+            edge_id: "edge_1",
+            from_location_id: "loc_1",
+            to_location_id: "loc_2",
+            is_bidirectional: true,
+          },
+        ],
         entity_placements: [],
       },
       entity_state: [
@@ -166,7 +187,7 @@ describe("buildRoleplaySystemPrompt", () => {
           emotion_catalyst: "reactor failing",
           aliases: [],
           knowledge_boundary: [],
-          traits: ["Gruff mechanic"],
+          traits: [{ id: "fact_1", body: "Gruff mechanic" }],
           goals: [],
           secrets: [],
           abilities: [],
@@ -182,14 +203,13 @@ describe("buildRoleplaySystemPrompt", () => {
           target_entity_name: "Riley",
           relationship_type: "social",
           dynamic_status: "Wary, but beginning to rely on each other",
-          valid_from_turn_id: "turn_1",
         },
       ],
       narrative_state: {
         story_summary: "Alex met Riley in a failing shipyard.",
         scene_summary: "They are in the engine bay.",
         last_turn_beat: "Riley admitted the ship cannot leave.",
-        active_threads: [{ id: "nt_1", objective: "Engine fix", status: "open", dependencies: [] }],
+        active_threads: [{ thread_id: "nt_1", objective: "Engine fix", status: "open", dependencies: [] }],
         resolved_threads: ["Introductions"],
       },
     };

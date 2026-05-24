@@ -17,6 +17,8 @@ describe("HCE continuity", () => {
     expect(snapshot.narrative_state.resolved_threads).toEqual([]);
     expect(snapshot.spatial_state.current_location).toBeNull();
     expect(snapshot.spatial_state.adjacent_locations).toEqual([]);
+    expect(snapshot.spatial_state.known_locations).toEqual([]);
+    expect(snapshot.spatial_state.edges).toEqual([]);
     expect(snapshot.spatial_state.entity_placements).toEqual([]);
   });
 });

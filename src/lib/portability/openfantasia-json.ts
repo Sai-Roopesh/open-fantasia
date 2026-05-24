@@ -251,6 +251,7 @@ export function buildPromptPack(
       ? [
           "Write a vivid, roleplay-ready Open-Fantasia character.",
           "Fill every field, even if some fields stay intentionally brief.",
+          "The `definition` field becomes hard behavioral constraints during roleplay — write it as binding rules, not soft suggestions.",
           "Suggested starters should feel like concrete scene openings, not generic greetings.",
           "Example conversations should teach rhythm and voice, not repeat the summary.",
         ]

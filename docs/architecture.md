@@ -107,7 +107,7 @@ The data layer is intentionally split by domain:
 - `src/lib/data/branches.ts`
 - `src/lib/data/turns.ts`
 - `src/lib/data/pins.ts`
-- `src/lib/data/snapshots.ts`
+- `src/lib/data/world-state.ts`
 - `src/lib/data/timeline.ts`
 - `src/lib/data/jobs.ts`
 
@@ -178,18 +178,28 @@ The starter route is only allowed before the first visible turn. It inserts a hi
 
 ## Continuity Architecture
 
-Continuity is handled by `src/lib/ai/continuity.ts` and `src/lib/ai/thread-engine.ts`.
+Continuity is handled by the Hybrid Continuity Engine (HCE), implemented across several modules:
+
+- `src/lib/ai/continuity.ts`: orchestrator that drives the full extraction → validation → reflection → persistence pipeline
+- `src/lib/ai/state-extraction.ts`: LLM-based structured state extraction, outputs entity/relationship/spatial/narrative mutations as validated JSON using Zod schemas
+- `src/lib/ai/state-materializer.ts`: assembles a `DurableMemorySnapshot` from normalized `world_*` database tables
+- `src/lib/ai/state-validator.ts`: validates LLM-emitted mutations against the current world state, partitions valid from invalid operations
+- `src/lib/ai/state-reflector.ts`: dual-pass reflection for failed extractions — re-prompts the LLM with validation errors to self-correct
 
 For a committed turn, the runtime tries to:
 
-1. load any existing snapshot
+1. load any existing world snapshot for the turn
 2. recursively materialize the parent snapshot if needed
-3. combine the previous snapshot with the last 10 committed turns on the reachable path
-4. ask the reconciliation engine for updated durable branch memory plus current-scene state
-5. persist the snapshot
-6. optionally persist a generated timeline event
+3. combine the previous snapshot with the last 15 committed turns on the reachable path
+4. call the state extraction engine to produce structured mutation operations (entity, fact, relationship, location, placement, narrative thread, timeline events)
+5. validate all mutations against the current snapshot
+6. if more than 50% of mutations fail validation, attempt a reflection pass to self-correct
+7. strip any remaining invalid mutations
+8. apply valid mutations to the normalized `world_*` tables
+9. persist the world snapshot record
+10. every 10 committed turns, run a full re-materialization (defragmentation) pass with anti-drift prompt engineering
 
-If reconciliation fails, the system falls back to a deterministic snapshot builder instead of leaving the branch without state. Normal generation still uses a short recent-scene transcript window instead of replaying the whole branch transcript every turn.
+If extraction fails completely, the system falls back to a deterministic snapshot that carries forward the previous state. Normal generation uses a short recent-scene transcript window instead of replaying the whole branch transcript every turn.
 
 The chat page still treats a missing or failed head snapshot as a first-class condition. When the head snapshot is pending or failed, the composer blocks new progress until the branch state is coherent again.
 

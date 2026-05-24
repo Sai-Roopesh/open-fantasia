@@ -336,6 +336,18 @@ export type DurableMemorySnapshot = {
       id: string;
       name: string;
     }>;
+    known_locations: Array<{
+      id: string;
+      name: string;
+      description: string;
+      environmental_modifiers: string[];
+    }>;
+    edges: Array<{
+      edge_id: string;
+      from_location_id: string;
+      to_location_id: string;
+      is_bidirectional: boolean;
+    }>;
     entity_placements: Array<{
       entity_id: string;
       entity_name: string;
@@ -353,12 +365,12 @@ export type DurableMemorySnapshot = {
     primary_emotion: string;
     emotion_intensity: number;
     emotion_catalyst: string;
-    knowledge_boundary: string[];
-    traits: string[];
-    goals: string[];
-    secrets: string[];
-    abilities: string[];
-    possessions: string[];
+    knowledge_boundary: Array<{ id: string; body: string }>;
+    traits: Array<{ id: string; body: string }>;
+    goals: Array<{ id: string; body: string }>;
+    secrets: Array<{ id: string; body: string }>;
+    abilities: Array<{ id: string; body: string }>;
+    possessions: Array<{ id: string; body: string }>;
   }>;
   relational_state: Array<{
     relationship_id: string;
@@ -368,14 +380,13 @@ export type DurableMemorySnapshot = {
     target_entity_name: string;
     relationship_type: RelationshipType;
     dynamic_status: string;
-    valid_from_turn_id: string;
   }>;
   narrative_state: {
     story_summary: string;
     scene_summary: string;
     last_turn_beat: string;
     active_threads: Array<{
-      id: string;
+      thread_id: string;
       objective: string;
       status: NarrativeThreadStatus;
       dependencies: string[];
