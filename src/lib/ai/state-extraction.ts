@@ -19,102 +19,72 @@ import {
 
 // --- Entity mutations ---
 
-const entityAddSchema = z.object({
-  op: z.literal("add"),
-  canonical_name: z.string(),
-  entity_type: z.enum(entityTypes),
-  aliases: z.array(z.string()).optional().default([]),
-  is_present: z.boolean().optional().default(true),
-  primary_emotion: z.string().optional().default("neutral"),
-  emotion_intensity: z.number().min(1).max(10).optional().default(5),
-  emotion_catalyst: z.string().optional().default(""),
-});
-
-const entityUpdateSchema = z.object({
-  op: z.literal("update"),
-  entity_id: z.string(),
+const entityMutationSchema = z.object({
+  op: z.enum(["add", "update", "invalidate"]),
+  canonical_name: z.string().optional(),
+  entity_type: z.enum(entityTypes).optional(),
+  aliases: z.array(z.string()).optional(),
+  is_present: z.boolean().optional(),
+  primary_emotion: z.string().optional(),
+  emotion_intensity: z.number().min(1).max(10).optional(),
+  emotion_catalyst: z.string().optional(),
+  entity_id: z.string().optional(),
   changes: z.object({
     is_present: z.boolean().optional(),
     primary_emotion: z.string().optional(),
     emotion_intensity: z.number().min(1).max(10).optional(),
     emotion_catalyst: z.string().optional(),
     aliases: z.array(z.string()).optional(),
-  }),
-});
-
-const entityInvalidateSchema = z.object({
-  op: z.literal("invalidate"),
-  entity_id: z.string(),
+  }).optional(),
 });
 
 // --- Fact mutations ---
 
-const factAddSchema = z.object({
-  op: z.literal("add"),
-  entity_id: z.string(),
-  fact_type: z.enum(factTypes),
-  body: z.string(),
-});
-
-const factInvalidateSchema = z.object({
-  op: z.literal("invalidate"),
-  fact_id: z.string(),
+const factMutationSchema = z.object({
+  op: z.enum(["add", "invalidate"]),
+  entity_id: z.string().optional(),
+  fact_type: z.enum(factTypes).optional(),
+  body: z.string().optional(),
+  fact_id: z.string().optional(),
 });
 
 // --- Relationship mutations ---
 
-const relationshipAddSchema = z.object({
-  op: z.literal("add"),
-  source_entity_id: z.string(),
-  target_entity_id: z.string(),
-  relationship_type: z.enum(relationshipTypes),
-  dynamic_status: z.string(),
-});
-
-const relationshipUpdateSchema = z.object({
-  op: z.literal("update"),
-  relationship_id: z.string(),
+const relationshipMutationSchema = z.object({
+  op: z.enum(["add", "update", "invalidate"]),
+  source_entity_id: z.string().optional(),
+  target_entity_id: z.string().optional(),
+  relationship_type: z.enum(relationshipTypes).optional(),
+  dynamic_status: z.string().optional(),
+  relationship_id: z.string().optional(),
   changes: z.object({
     dynamic_status: z.string().optional(),
     relationship_type: z.enum(relationshipTypes).optional(),
-  }),
-});
-
-const relationshipInvalidateSchema = z.object({
-  op: z.literal("invalidate"),
-  relationship_id: z.string(),
+  }).optional(),
 });
 
 // --- Location mutations ---
 
-const locationAddSchema = z.object({
-  op: z.literal("add"),
-  canonical_name: z.string(),
-  description: z.string().optional().default(""),
-  environmental_modifiers: z.array(z.string()).optional().default([]),
-});
-
-const locationUpdateSchema = z.object({
-  op: z.literal("update"),
-  location_id: z.string(),
+const locationMutationSchema = z.object({
+  op: z.enum(["add", "update"]),
+  canonical_name: z.string().optional(),
+  description: z.string().optional(),
+  environmental_modifiers: z.array(z.string()).optional(),
+  location_id: z.string().optional(),
   changes: z.object({
     description: z.string().optional(),
     environmental_modifiers: z.array(z.string()).optional(),
-  }),
+  }).optional(),
 });
 
 // --- Location edge mutations ---
 
-const locationEdgeAddSchema = z.object({
-  op: z.literal("add"),
-  from_location_id: z.string(),
-  to_location_id: z.string(),
-  is_bidirectional: z.boolean().optional().default(true),
-});
-
-const locationEdgeInvalidateSchema = z.object({
-  op: z.literal("invalidate"),
-  edge_id: z.string(),
+const locationEdgeMutationSchema = z.object({
+  op: z.enum(["add", "invalidate"]),
+  from_location_id: z.string().optional(),
+  to_location_id: z.string().optional(),
+  is_bidirectional: z.boolean().optional(),
+  edge_id: z.string().optional(),
 });
 
 // --- Placement mutations ---
@@ -123,28 +93,19 @@ const placementMoveSchema = z.object({
   op: z.literal("move"),
   entity_id: z.string(),
   to_location_id: z.string(),
-  micro_position: z.string().optional().default(""),
+  micro_position: z.string().optional(),
 });
 
 // --- Narrative thread mutations ---
 
-const narrativeThreadAddSchema = z.object({
-  op: z.literal("add"),
-  objective: z.string(),
-});
-
-const narrativeThreadUpdateSchema = z.object({
-  op: z.literal("update"),
-  thread_id: z.string(),
+const narrativeThreadMutationSchema = z.object({
+  op: z.enum(["add", "update", "resolve"]),
+  objective: z.string().optional(),
+  thread_id: z.string().optional(),
   changes: z.object({
     status: z.enum(narrativeThreadStatuses).optional(),
     objective: z.string().optional(),
-  }),
-});
-
-const narrativeThreadResolveSchema = z.object({
-  op: z.literal("resolve"),
-  thread_id: z.string(),
+  }).optional(),
 });
 
 // --- Timeline events ---
@@ -166,50 +127,13 @@ export const extractionOutputSchema = z.object({
   scene_summary: z.string(),
   last_turn_beat: z.string(),
   narrative_timestamp: z.string(),
-  entity_mutations: z
-    .array(
-      z.discriminatedUnion("op", [
-        entityAddSchema,
-        entityUpdateSchema,
-        entityInvalidateSchema,
-      ]),
-    )
-    .default([]),
-  fact_mutations: z
-    .array(z.discriminatedUnion("op", [factAddSchema, factInvalidateSchema]))
-    .default([]),
-  relationship_mutations: z
-    .array(
-      z.discriminatedUnion("op", [
-        relationshipAddSchema,
-        relationshipUpdateSchema,
-        relationshipInvalidateSchema,
-      ]),
-    )
-    .default([]),
-  location_mutations: z
-    .array(
-      z.discriminatedUnion("op", [locationAddSchema, locationUpdateSchema]),
-    )
-    .default([]),
-  location_edge_mutations: z
-    .array(
-      z.discriminatedUnion("op", [
-        locationEdgeAddSchema,
-        locationEdgeInvalidateSchema,
-      ]),
-    )
-    .default([]),
+  entity_mutations: z.array(entityMutationSchema).default([]),
+  fact_mutations: z.array(factMutationSchema).default([]),
+  relationship_mutations: z.array(relationshipMutationSchema).default([]),
+  location_mutations: z.array(locationMutationSchema).default([]),
+  location_edge_mutations: z.array(locationEdgeMutationSchema).default([]),
   placement_mutations: z.array(placementMoveSchema).default([]),
-  narrative_thread_mutations: z
-    .array(
-      z.discriminatedUnion("op", [
-        narrativeThreadAddSchema,
-        narrativeThreadUpdateSchema,
-        narrativeThreadResolveSchema,
-      ]),
-    )
-    .default([]),
+  narrative_thread_mutations: z.array(narrativeThreadMutationSchema).default([]),
   timeline_events: z.array(timelineEventOutputSchema).default([]),
 });
 
@@ -283,6 +207,8 @@ export function buildExtractionSystemPrompt(characterName: string) {
     "8. For the very first turn (empty Current_State), add all initial entities, locations, relationships, and facts as 'add' operations.",
     "9. Keep mutation operations minimal. Do not re-add entities or facts that already exist in Current_State unchanged.",
     "10. If the Current_State is empty or minimal, this is an initialization turn — be thorough in establishing the world state from the transcript.",
+    "11. OUTPUT COMPACTNESS: Respond ONLY with the JSON object. Do NOT repeat or echo back Current_State. Keep strings concise. Omit optional fields when unchanged.",
+    "12. Your response MUST be valid, complete JSON. Do not truncate, do not add trailing commentary.",
   ].join("\n");
 }
 
@@ -305,6 +231,25 @@ function formatTranscript(messages: FantasiaUIMessage[]) {
   return messages
     .map((message) => `${message.role.toUpperCase()}: ${getTextFromMessage(message)}`)
     .join("\n\n");
+}
+
+/**
+ * Strip markdown code fences and extract the JSON body from model text.
+ * Models like Mistral sometimes wrap structured output in ```json ... ```
+ * even when constrained decoding is requested.
+ */
+function extractJsonFromText(text: string): string {
+  const fenceMatch = text.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
+  if (fenceMatch) {
+    return fenceMatch[1].trim();
+  }
+  // Try to find a top-level JSON object
+  const braceStart = text.indexOf("{");
+  const braceEnd = text.lastIndexOf("}");
+  if (braceStart !== -1 && braceEnd > braceStart) {
+    return text.slice(braceStart, braceEnd + 1);
+  }
+  return text.trim();
 }
 
 export async function extractStateChanges(args: {
@@ -352,9 +297,34 @@ export async function extractStateChanges(args: {
     ],
     output: Output.object({ schema: extractionOutputSchema }),
     temperature: 0.15,
-    maxOutputTokens: 2000,
+    maxOutputTokens: 8000,
   });
 
-  const raw = await result.output;
-  return extractionOutputSchema.parse(raw);
+  // Primary path: use the SDK's structured output if available.
+  // Some providers (Mistral, Groq) may not support constrained decoding for
+  // complex schemas, causing result.output to be null/undefined or throwing
+  // NoOutputGeneratedError. In that case, fall back to parsing the raw text.
+  try {
+    const structured = result.output;
+    if (structured) {
+      return extractionOutputSchema.parse(structured);
+    }
+  } catch {
+    // output getter threw NoOutputGeneratedError — fall through to text parsing
+  }
+
+  // Fallback: parse the raw text response (may be wrapped in markdown fences)
+  const rawText = result.text;
+  if (!rawText || rawText.trim().length === 0) {
+    throw new Error("HCE extraction returned empty response from model.");
+  }
+
+  console.warn("[HCE] Structured output unavailable, parsing raw text fallback.", {
+    modelId: args.modelId,
+    textLength: rawText.length,
+  });
+
+  const jsonBody = extractJsonFromText(rawText);
+  const parsed = JSON.parse(jsonBody);
+  return extractionOutputSchema.parse(parsed);
 }
