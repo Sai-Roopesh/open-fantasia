@@ -242,7 +242,7 @@ export function buildExtractionSystemPrompt(characterName: string) {
     "",
     "## Fact mutations",
     "- 'add': a new piece of knowledge, trait, goal, secret, ability, or possession was revealed or established. Attach it to the entity_id it belongs to.",
-    "- 'invalidate': a previously recorded fact is now definitively false or obsolete. Reference fact_id. Note: facts are listed under each entity in Current_State as knowledge_boundary, traits, goals, secrets, abilities, possessions arrays — they do not have explicit IDs in the snapshot. Only invalidate facts that were stored with IDs in the underlying system. If you cannot reference a fact_id, do not emit an invalidate.",
+    "- 'invalidate': a previously recorded fact is now definitively false or obsolete. Reference the fact's id from the entity's knowledge_boundary, traits, goals, secrets, abilities, or possessions arrays in Current_State.",
     "",
     "## Relationship mutations",
     "- 'add': a new relationship formed between two entities. Use source_entity_id and target_entity_id from Current_State.",

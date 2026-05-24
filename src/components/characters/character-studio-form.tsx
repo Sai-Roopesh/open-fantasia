@@ -256,7 +256,7 @@ export function CharacterStudioForm({
           name="appearance"
           value={draft.appearance}
           rows={4}
-          helper="Face, hair, build, clothing for portrait generation. Not sent to the AI."
+          helper="Face, hair, build, clothing — used for portrait generation and included in the character persona sent to the AI."
           onChange={(value) => update("appearance", value)}
         />
 

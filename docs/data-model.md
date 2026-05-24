@@ -45,12 +45,19 @@ The application uses:
 | `chat_branches` | alternate timelines within a thread | `name`, `parent_branch_id`, `fork_turn_id`, `head_turn_id`, `is_active`, `generation_locked`, `locked_by_turn_id` |
 | `chat_turns` | user/assistant exchange records | `parent_turn_id`, `user_input_text`, `assistant_output_text`, `generation_status`, provider/model metadata, token counts, feedback |
 
-### Continuity and inspector state
+### World state and continuity
 
 | Table | Purpose | Key columns |
 | --- | --- | --- |
-| `chat_turn_snapshots` | branch continuity state keyed by turn | `story_summary`, `scene_summary`, `last_turn_beat`, `relationship_state`, `user_facts`, `active_threads`, `resolved_threads`, `next_turn_pressure`, `scene_goals`, `based_on_turn_id` |
-| `chat_timeline_events` | notable moments surfaced in the inspector | `title`, `detail`, `importance`, `turn_id` |
+| `world_snapshots` | per-turn narrative state checkpoint | `turn_id`, `story_summary`, `scene_summary`, `last_turn_beat`, `narrative_timestamp`, `transition_type`, `version`, `is_full_materialization`, `based_on_turn_id` |
+| `world_entities` | tracked characters, NPCs, creatures, objects, and groups | `canonical_name`, `entity_type`, `aliases`, `is_present`, `primary_emotion`, `emotion_intensity`, `emotion_catalyst`, `valid_from_turn_id`, `invalidated_at_turn_id` |
+| `world_entity_facts` | knowledge, traits, goals, secrets, abilities, possessions attached to entities | `entity_id`, `fact_type`, `body`, `valid_from_turn_id`, `invalidated_at_turn_id` |
+| `world_relationships` | dynamic relationships between entities | `source_entity_id`, `target_entity_id`, `relationship_type`, `dynamic_status`, `valid_from_turn_id`, `invalidated_at_turn_id` |
+| `world_locations` | named locations in the spatial DAG | `canonical_name`, `description`, `environmental_modifiers`, `valid_from_turn_id`, `invalidated_at_turn_id` |
+| `world_location_edges` | spatial connections between locations | `from_location_id`, `to_location_id`, `is_bidirectional`, `valid_from_turn_id`, `invalidated_at_turn_id` |
+| `world_entity_placements` | which entity is at which location | `entity_id`, `location_id`, `micro_position`, `valid_from_turn_id`, `invalidated_at_turn_id` |
+| `world_narrative_threads` | active plot threads and objectives | `objective`, `status`, `dependency_ids`, `valid_from_turn_id`, `invalidated_at_turn_id` |
+| `chat_timeline_events` | notable moments surfaced in the inspector | `title`, `detail`, `importance`, `event_type`, `turn_id`, `affected_entity_ids`, `affected_relationship_ids` |
 | `chat_pins` | manually pinned facts or reminders | `body`, `status`, `turn_id` |
 
 ### Background work
@@ -179,7 +186,7 @@ The baseline now contains the current live schema, including:
 - all current SQL RPCs
 - RLS policies
 - destructive rewind semantics
-- hybrid-memory continuity fields such as `story_summary`, `scene_summary`, and `last_turn_beat`
+- HCE world state tables (`world_snapshots`, `world_entities`, `world_entity_facts`, `world_relationships`, `world_locations`, `world_location_edges`, `world_entity_placements`, `world_narrative_threads`)
 - portrait task RLS hardening
 - removal of the old queued continuity pipeline (`turn_reconcile_tasks` and `claim_turn_reconcile_tasks(...)` are no longer present)
 

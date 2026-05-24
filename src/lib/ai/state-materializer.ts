@@ -136,6 +136,20 @@ function buildSpatialState(
       .map((loc) => ({ id: loc.id, name: loc.canonical_name }));
   }
 
+  const knownLocations = state.locations.map((loc) => ({
+    id: loc.id,
+    name: loc.canonical_name,
+    description: loc.description,
+    environmental_modifiers: loc.environmental_modifiers,
+  }));
+
+  const edges = state.edges.map((edge) => ({
+    edge_id: edge.id,
+    from_location_id: edge.from_location_id,
+    to_location_id: edge.to_location_id,
+    is_bidirectional: edge.is_bidirectional,
+  }));
+
   const entityPlacements = state.placements.map((p) => {
     const entity = entityMap.get(p.entity_id);
     const location = locationMap.get(p.location_id);
@@ -158,6 +172,8 @@ function buildSpatialState(
         }
       : null,
     adjacent_locations: adjacentLocations,
+    known_locations: knownLocations,
+    edges,
     entity_placements: entityPlacements,
   };
 }
@@ -176,7 +192,7 @@ function buildEntityState(
     const entityFacts = factsByEntity.get(entity.id) ?? [];
 
     const byType = (type: FactType) =>
-      entityFacts.filter((f) => f.fact_type === type).map((f) => f.body);
+      entityFacts.filter((f) => f.fact_type === type).map((f) => ({ id: f.id, body: f.body }));
 
     return {
       entity_id: entity.id,
@@ -210,7 +226,6 @@ function buildRelationalState(
     target_entity_name: entityMap.get(rel.target_entity_id)?.canonical_name ?? "",
     relationship_type: rel.relationship_type,
     dynamic_status: rel.dynamic_status,
-    valid_from_turn_id: rel.valid_from_turn_id,
   }));
 }
 
@@ -221,7 +236,7 @@ function buildNarrativeState(
   const activeThreads = state.narrativeThreads
     .filter((nt) => nt.status !== "resolved")
     .map((nt) => ({
-      id: nt.id,
+      thread_id: nt.id,
       objective: nt.objective,
       status: nt.status,
       dependencies: nt.dependency_ids,
@@ -274,6 +289,8 @@ export function buildEmptyDurableSnapshot(turnId: string): DurableMemorySnapshot
     spatial_state: {
       current_location: null,
       adjacent_locations: [],
+      known_locations: [],
+      edges: [],
       entity_placements: [],
     },
     entity_state: [],

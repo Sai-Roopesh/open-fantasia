@@ -158,7 +158,7 @@ Before the first visible turn, the user can seed the opening scene with hidden g
 3. Server reserves a turn and locks the active branch.
 4. AI SDK streams the assistant reply from the hybrid prompt context: durable branch memory, current-scene memory, filtered pins/timeline, and the last 4 committed turns of exact transcript context plus the new user message.
 5. On finish, the turn is committed.
-6. Continuity is materialized inline from the parent snapshot plus the last 10 committed turns on the active path.
+6. Continuity is materialized inline from the parent snapshot plus the last 15 committed turns on the active path.
 7. The client refreshes the page state.
 
 ### Files to inspect
@@ -239,17 +239,16 @@ This is intentionally destructive behavior and should not be softened accidental
 
 ### Continuity inspector
 
-The chat page surfaces:
+The chat page surfaces the following HCE world-state sections:
 
 - story summary
 - current scene
 - last beat
-- relationship state
-- active threads
+- entities (with emotional state, entity type, and emotion intensity)
+- relationships (with dynamic status and relationship type)
+- current location (from the spatial state graph)
+- active threads (unresolved narrative objectives)
 - resolved threads
-- next pressure
-- scene goals
-- durable user facts
 - branch metadata
 - timeline events
 - active pins

@@ -26,9 +26,7 @@ export function buildRoleplaySystemPrompt(args: {
 }) {
   const { character, persona, snapshot, pins, timeline } = args;
   const charName = character.character.name;
-  const promptTimeline = timeline
-    .filter((event) => event.importance >= 3)
-    .slice(0, 5);
+  const promptTimeline = timeline;
 
   const characterLines = compactLabeledLines([
     ["Personality", character.character.core_persona],
