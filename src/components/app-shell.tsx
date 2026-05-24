@@ -6,7 +6,6 @@ import {
   Compass,
   LibraryBig,
   Menu,
-  MessageCircleHeart,
   ScrollText,
   Settings2,
   UserRound,
@@ -15,10 +14,9 @@ import {
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { cn } from "@/lib/utils";
 import type { ThreadListItem } from "@/lib/types";
-import { useState, use, Suspense } from "react";
-import { Skeleton } from "@/components/ui/skeleton";
+import { useState, use, Suspense, useCallback, useEffect } from "react";
 
-const desktopNavItems = [
+const navItems = [
   { href: "/app", label: "Home", icon: Compass },
   { href: "/app/threads", label: "Threads", icon: LibraryBig },
   { href: "/app/characters", label: "Characters", icon: ScrollText },
@@ -26,16 +24,8 @@ const desktopNavItems = [
   { href: "/app/settings/providers", label: "Providers", icon: Settings2 },
 ];
 
-const mobileNavItems = [
-  { href: "/app", label: "Home", icon: Compass },
-  { href: "/app/threads", label: "Threads", icon: LibraryBig },
-  { href: "/app/characters", label: "Characters", icon: ScrollText },
-] as const;
-
 function isRouteActive(pathname: string, href: string) {
-  if (href === "/app") {
-    return pathname === "/app";
-  }
+  if (href === "/app") return pathname === "/app";
   return pathname.startsWith(href);
 }
 
@@ -49,248 +39,200 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const [moreOpen, setMoreOpen] = useState(false);
-  const hideMobileNav = pathname.startsWith("/app/chats/");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const hideShell = pathname.startsWith("/app/chats/");
+
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+
+  // Close drawer on route change — pathname is an external system value
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- syncing with router pathname
+    setDrawerOpen(false);
+  }, [pathname]);
+
+  // Lock body scroll when drawer is open
+  useEffect(() => {
+    if (drawerOpen) {
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.body.style.overflow = "";
+      };
+    }
+  }, [drawerOpen]);
 
   return (
-    <div className="min-h-screen bg-transparent">
-      <div className="mx-auto min-h-screen max-w-[1600px] lg:grid lg:grid-cols-[18rem_minmax(0,1fr)]">
-        <aside className="hidden min-h-screen border-r border-white/8 bg-[#161110]/94 px-5 py-6 backdrop-blur xl:block">
-          <div className="flex items-center gap-3">
-            <div className="h-11 w-11 rounded-full bg-brand/90 p-0.5">
-              <div className="flex h-full w-full items-center justify-center rounded-full bg-paper text-brand">
-                <MessageCircleHeart className="h-5 w-5" />
-              </div>
-            </div>
-            <div>
-              <p className="font-serif text-2xl text-foreground">Fantasia</p>
-              <p className="text-xs uppercase tracking-[0.24em] text-ink-soft">
-                private workspace
-              </p>
-            </div>
-          </div>
-
-          <nav className="mt-8 space-y-2">
-            {desktopNavItems.map((item) => {
-              const Icon = item.icon;
-              const active = isRouteActive(pathname, item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  aria-current={active ? "page" : undefined}
-                  className={cn(
-                    "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-medium transition",
-                    active
-                      ? "bg-brand text-white shadow-lg"
-                      : "text-ink-soft hover:bg-white/5 hover:text-foreground",
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
-
-          <div className="mt-10">
-            <div className="flex items-center justify-between">
-              <p className="text-xs uppercase tracking-[0.22em] text-ink-soft">
-                Recent threads
-              </p>
-              <Link
-                href="/app/threads"
-                className="text-xs font-semibold text-brand transition hover:text-brand-strong"
-              >
-                View all
-              </Link>
-            </div>
-
-            <Suspense
-              fallback={
-                <div className="mt-3 space-y-2">
-                  {Array.from({ length: 3 }).map((_, index) => (
-                    <Skeleton key={index} className="h-16 w-full rounded-2xl" />
-                  ))}
-                </div>
-              }
-            >
-              <SidebarThreadList promise={threadsPromise} />
-            </Suspense>
-          </div>
-
-          <div className="mt-10 rounded-[1.75rem] bg-white/5 px-4 py-4 text-sm text-ink-soft">
-            <p className="font-medium text-foreground">Signed in</p>
-            <p className="mt-1 break-all">{email}</p>
-            <SignOutButton className="mt-4" compact />
-          </div>
-        </aside>
-
-        <div className={cn("min-h-screen xl:pb-0", hideMobileNav ? "pb-0" : "pb-24")}>
-          <header className="sticky top-0 z-40 border-b border-white/8 bg-[#141010]/90 px-4 py-4 backdrop-blur xl:hidden">
-            <div className="flex items-center justify-between gap-3">
-              <Link href="/app" className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-brand text-white">
-                  <MessageCircleHeart className="h-4 w-4" />
-                </div>
-                <div>
-                  <p className="font-serif text-2xl leading-none text-foreground">Fantasia</p>
-                  <p className="mt-1 text-[11px] uppercase tracking-[0.22em] text-ink-soft">
-                    private workspace
-                  </p>
-                </div>
-              </Link>
-
-              <button
-                type="button"
-                onClick={() => setMoreOpen(true)}
-                className="inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/8 px-4 py-2 text-sm font-semibold text-foreground transition hover:border-brand hover:text-brand"
-              >
-                <Menu className="h-4 w-4" />
-                More
-              </button>
-            </div>
-          </header>
-
-          <main id="app-main" className="min-h-screen px-4 py-5 md:px-8 md:py-8">
-            {children}
-          </main>
-        </div>
-      </div>
-
-      {!hideMobileNav ? (
-        <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-white/8 bg-[#141010]/94 px-3 pb-[calc(env(safe-area-inset-bottom)+0.65rem)] pt-3 backdrop-blur xl:hidden">
-          <div className="mx-auto grid max-w-xl grid-cols-4 gap-2">
-            {mobileNavItems.map((item) => {
-              const Icon = item.icon;
-              const active = isRouteActive(pathname, item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  aria-current={active ? "page" : undefined}
-                  className={cn(
-                    "flex flex-col items-center justify-center gap-1 rounded-2xl px-3 py-2 text-[11px] font-semibold transition",
-                    active
-                      ? "bg-brand text-white"
-                      : "text-ink-soft hover:bg-white/8 hover:text-foreground",
-                  )}
-                >
-                  <Icon className="h-4 w-4" />
-                  {item.label}
-                </Link>
-              );
-            })}
-
-            <button
-              type="button"
-              onClick={() => setMoreOpen(true)}
-              className="flex flex-col items-center justify-center gap-1 rounded-2xl px-3 py-2 text-[11px] font-semibold text-ink-soft transition hover:bg-white/8 hover:text-foreground"
-            >
-              <Settings2 className="h-4 w-4" />
-              More
-            </button>
-          </div>
-        </nav>
-      ) : null}
-
-      {moreOpen ? (
-        <div className="fixed inset-0 z-50 xl:hidden">
+    <div className="min-h-dvh bg-background-base">
+      {/* ── Top bar (mobile + desktop) ── */}
+      {!hideShell && (
+        <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b border-border-subtle bg-surface/95 px-4 backdrop-blur-sm">
           <button
             type="button"
-            aria-label="Close more menu"
-            onClick={() => setMoreOpen(false)}
-            className="absolute inset-0 bg-black/50"
+            onClick={() => setDrawerOpen(true)}
+            aria-label="Open navigation menu"
+            className="flex h-9 w-9 items-center justify-center rounded text-on-surface-variant"
+          >
+            <Menu className="h-5 w-5" />
+          </button>
+
+          <Link href="/app" className="flex items-center gap-2">
+            <span className="font-display text-lg font-bold text-on-surface">
+              Fantasia
+            </span>
+          </Link>
+        </header>
+      )}
+
+      {/* ── Main content ── */}
+      <main
+        id="app-main"
+        className={cn(
+          "min-h-dvh",
+          !hideShell && "px-4 py-4 sm:px-6 md:px-8 md:py-6 lg:mx-auto lg:max-w-[1200px]",
+        )}
+      >
+        {children}
+      </main>
+
+      {/* ── Drawer overlay ── */}
+      {drawerOpen && (
+        <div className="fixed inset-0 z-50">
+          {/* Backdrop */}
+          <button
+            type="button"
+            aria-label="Close navigation menu"
+            onClick={closeDrawer}
+            className="absolute inset-0 bg-black/60"
           />
-          <div className="absolute inset-x-3 bottom-24 rounded-[2rem] border border-white/10 bg-[#1a1412] p-5 shadow-[0_30px_80px_rgba(0,0,0,0.4)]">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs uppercase tracking-[0.2em] text-ink-soft">More</p>
-                <p className="mt-2 font-serif text-3xl text-foreground">Workspace controls</p>
-              </div>
+
+          {/* Drawer panel */}
+          <nav
+            className="absolute inset-y-0 left-0 flex w-72 flex-col bg-surface-container-low border-r border-border-subtle"
+            role="navigation"
+            aria-label="Main navigation"
+          >
+            {/* Drawer header */}
+            <div className="flex h-14 items-center justify-between px-4">
+              <span className="font-display text-lg font-bold text-on-surface">
+                Fantasia
+              </span>
               <button
                 type="button"
-                onClick={() => setMoreOpen(false)}
-                className="rounded-full border border-white/12 p-2 text-foreground transition hover:border-brand hover:text-brand"
+                onClick={closeDrawer}
+                aria-label="Close menu"
+                className="flex h-8 w-8 items-center justify-center rounded text-on-surface-variant"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            <div className="mt-5 grid gap-2">
-              {desktopNavItems.slice(3).map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setMoreOpen(false)}
-                    className="flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-medium text-foreground transition hover:border-brand hover:text-brand"
-                  >
-                    <span className="flex items-center gap-3">
-                      <Icon className="h-4 w-4" />
+            {/* Nav links */}
+            <div className="flex-1 overflow-y-auto px-3 py-2">
+              <div className="space-y-1">
+                {navItems.map((item) => {
+                  const Icon = item.icon;
+                  const active = isRouteActive(pathname, item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      aria-current={active ? "page" : undefined}
+                      className={cn(
+                        "flex items-center gap-3 rounded px-3 py-2.5 text-sm font-medium",
+                        active
+                          ? "bg-primary-container text-on-primary-container"
+                          : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface",
+                      )}
+                    >
+                      <Icon className="h-4 w-4 shrink-0" />
                       {item.label}
-                    </span>
-                    <span className="text-xs uppercase tracking-[0.18em] text-ink-soft">
-                      open
-                    </span>
+                    </Link>
+                  );
+                })}
+              </div>
+
+              {/* Recent threads */}
+              <div className="mt-6">
+                <div className="flex items-center justify-between px-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+                    Recent threads
+                  </p>
+                  <Link
+                    href="/app/threads"
+                    className="text-xs font-semibold text-primary-container hover:text-primary"
+                  >
+                    All
                   </Link>
-                );
-              })}
+                </div>
+                <Suspense
+                  fallback={
+                    <div className="mt-2 space-y-1 px-3">
+                      {Array.from({ length: 3 }).map((_, i) => (
+                        <div
+                          key={i}
+                          className="h-10 rounded bg-surface-container animate-pulse"
+                        />
+                      ))}
+                    </div>
+                  }
+                >
+                  <DrawerThreadList promise={threadsPromise} />
+                </Suspense>
+              </div>
             </div>
 
-            <div className="mt-5 rounded-[1.5rem] bg-white/5 px-4 py-4 text-sm text-ink-soft">
-              <p className="font-medium text-foreground">Signed in</p>
-              <p className="mt-1 break-all">{email}</p>
-              <SignOutButton className="mt-4" compact />
+            {/* User footer */}
+            <div className="border-t border-border-subtle px-4 py-3">
+              <p className="text-xs font-medium text-on-surface">Signed in</p>
+              <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                {email}
+              </p>
+              <SignOutButton className="mt-2" compact />
             </div>
-          </div>
+          </nav>
         </div>
-      ) : null}
+      )}
     </div>
   );
 }
 
-function SidebarThreadList({ promise }: { promise: Promise<ThreadListItem[]> }) {
+function DrawerThreadList({
+  promise,
+}: {
+  promise: Promise<ThreadListItem[]>;
+}) {
   const threads = use(promise);
   const pathname = usePathname();
 
+  if (!threads.length) {
+    return (
+      <p className="mt-2 px-3 text-xs text-muted-foreground">
+        No threads yet.
+      </p>
+    );
+  }
+
   return (
-    <div className="mt-3 space-y-2">
-      {threads.length ? (
-        threads.map((thread) => {
-          const active = pathname === `/app/chats/${thread.id}`;
-          return (
-            <Link
-              key={thread.id}
-              href={`/app/chats/${thread.id}`}
-              className={cn(
-                "block rounded-2xl px-4 py-3 text-sm transition",
-                active
-                  ? "bg-brand/20 text-foreground"
-                  : "bg-white/5 text-foreground hover:bg-white/8",
-              )}
-            >
-              <div className="flex items-center gap-2">
-                <p className="truncate font-medium">{thread.title}</p>
-                {thread.pinned_at ? (
-                  <span className="rounded-full bg-brand/15 px-2 py-0.5 text-[10px] uppercase tracking-[0.16em] text-brand">
-                    pinned
-                  </span>
-                ) : null}
-              </div>
-              <p className={cn("mt-1 truncate text-xs", active ? "text-foreground/70" : "text-ink-soft")}>
-                {thread.character_name ?? "Unknown character"}
-                {thread.persona_name ? ` • ${thread.persona_name}` : ""}
-              </p>
-            </Link>
-          );
-        })
-      ) : (
-        <p className="rounded-2xl bg-white/5 px-4 py-3 text-sm leading-7 text-ink-soft">
-          Threads you touch most often will stay within easy reach here.
-        </p>
-      )}
+    <div className="mt-2 space-y-1">
+      {threads.slice(0, 5).map((thread) => {
+        const active = pathname === `/app/chats/${thread.id}`;
+        return (
+          <Link
+            key={thread.id}
+            href={`/app/chats/${thread.id}`}
+            className={cn(
+              "block rounded px-3 py-2 text-sm",
+              active
+                ? "bg-primary/10 text-primary"
+                : "text-on-surface-variant hover:bg-surface-container-high hover:text-on-surface",
+            )}
+          >
+            <p className="truncate font-medium text-xs">{thread.title}</p>
+            <p className="mt-0.5 truncate text-xs text-muted-foreground">
+              {thread.character_name ?? "Unknown"}
+            </p>
+          </Link>
+        );
+      })}
     </div>
   );
 }

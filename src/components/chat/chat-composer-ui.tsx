@@ -39,22 +39,20 @@ export function EmptyStateGuide({
     : starterScaffolds.map((item) => item.text);
 
   return (
-    <div className="mt-5 rounded-[1.75rem] border border-border bg-white/5 p-5">
-      <div className="flex flex-wrap items-center gap-2 text-xs uppercase tracking-[0.22em] text-ink-soft">
-        <WandSparkles className="h-4 w-4 text-brand" />
-        First turn guidance
+    <div className="mt-3 rounded-lg border border-border-subtle bg-surface-container-low p-4">
+      <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+        <WandSparkles className="h-3.5 w-3.5 text-primary-container" />
+        First turn
       </div>
-      <h3 className="mt-3 font-serif text-3xl text-foreground">
+      <p className="mt-1 text-sm font-medium text-on-surface">
         {suggestedStarters.length
-          ? "Let the character open from one of the seeded beats."
-          : "This character has no starters yet, so type your own opening turn."}
-      </h3>
-      <p className="mt-3 max-w-2xl text-sm leading-7 text-ink-soft">
-        Pick a card and Fantasia will generate the character&apos;s first visible message from
-        that seed. You reply after the opening lands. The active model and branch still control
-        how that first beat is generated.
+          ? "Pick a starter or type your own."
+          : "No starters set — type your opening."}
       </p>
-      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <p className="mt-1 text-xs leading-4 text-muted-foreground">
+        Pick a card and the character generates the opening message from that seed.
+      </p>
+      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
         {starters.map((starter, index) => {
           const title = suggestedStarters[index]
             ? `Starter ${index + 1}`
@@ -66,14 +64,14 @@ export function EmptyStateGuide({
               disabled={disabled}
               onClick={() => onSelectStarter(starter)}
               className={cn(
-                "rounded-[1.5rem] border border-border bg-paper px-4 py-4 text-left transition",
+                "rounded border border-border-subtle bg-surface-container px-3 py-3 text-left",
                 disabled
-                  ? "cursor-not-allowed opacity-60"
-                  : "hover:border-brand hover:bg-white/10",
+                  ? "cursor-not-allowed opacity-50"
+                  : "hover:border-primary-container",
               )}
             >
-              <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">{title}</p>
-              <p className="mt-3 text-sm leading-7 text-foreground">{starter}</p>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">{title}</p>
+              <p className="mt-1 text-xs leading-4 text-on-surface">{starter}</p>
             </button>
           );
         })}
@@ -96,36 +94,36 @@ export function ModelPicker({
   onSelectModel: (connectionId: string, modelId: string) => Promise<void>;
 }) {
   return (
-    <div className="mt-5 rounded-[1.6rem] border border-border bg-white/5 p-4">
-      <div className="flex items-center justify-between gap-3">
+    <div className="mt-3 rounded-lg border border-border-subtle bg-surface-container-low p-3">
+      <div className="flex items-center justify-between gap-2">
         <div>
-          <p className="text-xs uppercase tracking-[0.22em] text-ink-soft">
+          <p className="text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
             Model switcher
           </p>
-          <p className="mt-2 text-sm leading-7 text-ink-soft">
-            Choose the exact lane you want next. Nothing changes automatically.
+          <p className="mt-0.5 text-[11px] text-muted-foreground">
+            Choose the lane for next generation.
           </p>
         </div>
         <button
           type="button"
           onClick={onClose}
-          className="rounded-full border border-border bg-paper/8 px-3 py-1.5 font-semibold text-foreground transition hover:border-brand hover:text-brand disabled:opacity-60"
+          className="rounded bg-surface-container-high px-2 py-1 text-[11px] font-semibold text-on-surface"
         >
           Close
         </button>
       </div>
-      <div className="mt-4 space-y-4">
+      <div className="mt-2 space-y-2">
         {modelChoices.length ? (
           modelChoices.map((group) => (
             <div
               key={group.connectionId}
-              className="rounded-[1.4rem] border border-border bg-paper px-4 py-4"
+              className="rounded border border-border-subtle bg-surface-container px-3 py-2"
             >
-              <p className="text-sm font-semibold text-foreground">{group.label}</p>
-              <p className="mt-1 text-xs uppercase tracking-[0.18em] text-ink-soft">
+              <p className="text-xs font-semibold text-on-surface">{group.label}</p>
+              <p className="text-[10px] uppercase tracking-[0.05em] text-muted-foreground">
                 {group.provider}
               </p>
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="mt-1.5 flex flex-wrap gap-1">
                 {group.models.map((model) => (
                   <button
                     key={`${group.connectionId}-${model.id}`}
@@ -133,10 +131,10 @@ export function ModelPicker({
                     disabled={switchPending}
                     onClick={() => void onSelectModel(group.connectionId, model.id)}
                     className={cn(
-                      "rounded-full border px-3 py-2 text-xs transition",
+                      "rounded px-2 py-1 text-[11px] font-medium",
                       model.id === currentModel
-                        ? "border-brand bg-brand text-white"
-                        : "border-border bg-white/8 text-foreground hover:border-brand hover:text-brand",
+                        ? "bg-primary-container text-on-primary-container"
+                        : "bg-surface-container-high text-on-surface-variant",
                     )}
                   >
                     {model.name}
@@ -146,8 +144,8 @@ export function ModelPicker({
             </div>
           ))
         ) : (
-          <p className="rounded-[1.4rem] border border-dashed border-border px-4 py-4 text-sm leading-7 text-ink-soft">
-            No refreshed model lanes are available yet. Test a provider connection and refresh its models first.
+          <p className="rounded border border-dashed border-border-subtle px-3 py-3 text-xs text-muted-foreground">
+            No models available. Refresh a provider connection first.
           </p>
         )}
       </div>
@@ -180,31 +178,31 @@ export function ErrorBanner({
   return (
     <div
       aria-live="polite"
-      className="mt-4 rounded-[1.6rem] border border-brand/18 bg-brand/8 p-4 text-sm text-brand-strong"
+      className="mt-2 rounded border border-status-warning/30 bg-status-warning/10 p-3 text-xs text-status-warning"
     >
-      <div className="flex items-center gap-2 font-semibold">
-        <AlertTriangle className="h-4 w-4" />
+      <div className="flex items-center gap-1.5 font-semibold">
+        <AlertTriangle className="h-3.5 w-3.5" />
         Response interrupted
       </div>
-      <p className="mt-2 leading-7">{activeError}</p>
-      <p className="mt-2 text-xs uppercase tracking-[0.18em] text-brand">
-        Your draft is preserved until a send completes successfully.
+      <p className="mt-1 leading-4">{activeError}</p>
+      <p className="mt-1 text-[10px] uppercase tracking-[0.05em]">
+        Draft preserved until send succeeds.
       </p>
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-2 flex flex-wrap gap-1">
         {failedDraft ? (
           <>
             <button
               type="button"
               disabled={composerBusy}
               onClick={() => onRetry(failedDraft)}
-              className="rounded-full bg-brand px-4 py-2 text-xs font-semibold text-white transition hover:bg-brand-strong disabled:opacity-60"
+              className="rounded bg-primary-container px-2 py-1 text-[11px] font-semibold text-on-primary-container disabled:opacity-50"
             >
-              Retry send
+              Retry
             </button>
             <button
               type="button"
               onClick={() => onEditDraft(failedDraft)}
-              className="rounded-full border border-brand/25 bg-white/8 px-4 py-2 text-xs font-semibold text-brand transition hover:border-brand"
+              className="rounded bg-surface-container-high px-2 py-1 text-[11px] font-semibold text-on-surface"
             >
               Edit draft
             </button>
@@ -213,18 +211,18 @@ export function ErrorBanner({
         <button
           type="button"
           onClick={onShowModelPicker}
-          className="rounded-full border border-brand/25 bg-white/8 px-4 py-2 text-xs font-semibold text-brand transition hover:border-brand"
+          className="rounded bg-surface-container-high px-2 py-1 text-[11px] font-semibold text-on-surface"
         >
           Switch model
         </button>
       </div>
 
       {alternativeModels.length ? (
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="mt-2 flex flex-wrap gap-1">
           {alternativeModels.map((option) => (
             <span
               key={`${option.connectionId}-${option.model.id}`}
-              className="rounded-full border border-brand/18 bg-white/8 px-3 py-1 text-xs"
+              className="rounded border border-border-subtle bg-surface-container px-2 py-0.5 text-[10px]"
             >
               {option.label}: {option.model.name}
             </span>
@@ -248,21 +246,16 @@ export function ContinuityBanner({
     <div
       aria-live="polite"
       className={cn(
-        "mt-4 rounded-[1.6rem] border p-4 text-sm",
+        "mt-2 rounded border p-3 text-xs",
         status.tone === "error"
-          ? "border-red-900/40 bg-red-950/35 text-red-100"
-          : "border-brand/20 bg-brand/8 text-brand-strong",
+          ? "border-status-critical/30 bg-status-critical/10 text-status-critical"
+          : "border-status-warning/30 bg-status-warning/10 text-status-warning",
       )}
     >
-      <p
-        className={cn(
-          "text-xs font-semibold uppercase tracking-[0.18em]",
-          status.tone === "error" ? "text-red-300" : "text-brand",
-        )}
-      >
+      <p className="font-semibold uppercase tracking-[0.05em]">
         {status.title}
       </p>
-      <p className="mt-2 leading-7">{status.detail}</p>
+      <p className="mt-1 leading-4">{status.detail}</p>
     </div>
   );
 }
@@ -291,10 +284,10 @@ export function ChatComposer({
   return (
     <form
       className={cn(
-        "flex flex-col gap-3 md:flex-row",
+        "flex gap-2",
         focusMode
-          ? "mx-auto w-full max-w-3xl shrink-0 px-1 pt-3 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]"
-          : "mt-5",
+          ? "mx-auto w-full max-w-3xl shrink-0 px-2 pt-2 pb-[calc(env(safe-area-inset-bottom)+0.25rem)]"
+          : "mt-3",
       )}
       data-testid="chat-composer"
       onSubmit={async (event) => {
@@ -315,18 +308,18 @@ export function ChatComposer({
           maxLength={MAX_CHAT_TURN_TEXT}
           aria-invalid={overLimit}
           onChange={(event) => onDraftChange(event.target.value)}
-          placeholder="Enter the next beat, confession, interruption, or scene turn..."
+          placeholder="Next beat, confession, or scene turn..."
           data-testid="chat-composer-input"
-          className="w-full rounded-[1.75rem] border border-border bg-white/5 px-5 py-4 text-sm leading-7 outline-none transition focus:border-brand"
+          className="w-full rounded border-b-2 border-border-subtle bg-surface-container px-3 py-2 text-sm leading-6 text-on-surface outline-none focus:border-primary-container"
         />
         <div
           className={cn(
-            "mt-2 flex items-center justify-between px-1 text-[11px] uppercase tracking-[0.14em] text-ink-soft",
-            (nearLimit || overLimit) && "text-brand",
-            overLimit && "text-red-300",
+            "mt-0.5 flex items-center justify-between px-1 text-[10px] text-muted-foreground",
+            (nearLimit || overLimit) && "text-status-warning",
+            overLimit && "text-status-critical",
           )}
         >
-          <span>{MAX_CHAT_TURN_TEXT.toLocaleString()} character limit</span>
+          <span>{MAX_CHAT_TURN_TEXT.toLocaleString()} limit</span>
           <span>
             {characterCount.toLocaleString()}/{MAX_CHAT_TURN_TEXT.toLocaleString()}
           </span>
@@ -336,10 +329,10 @@ export function ChatComposer({
         type="submit"
         disabled={composerBusy}
         data-testid="chat-send-button"
-        className="inline-flex h-fit items-center justify-center gap-2 rounded-full bg-brand px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-strong disabled:opacity-60"
+        className="inline-flex h-fit items-center justify-center gap-1 self-end rounded bg-primary-container px-3 py-2 text-xs font-semibold text-on-primary-container disabled:opacity-50"
       >
-        <Send className="h-4 w-4" />
-        {status === "streaming" || status === "submitted" ? "Sending..." : "Send"}
+        <Send className="h-3.5 w-3.5" />
+        {status === "streaming" || status === "submitted" ? "..." : "Send"}
       </button>
     </form>
   );

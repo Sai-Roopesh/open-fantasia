@@ -194,10 +194,10 @@ export function PretextTranscript({
       <div
         ref={scrollRef}
         className={cn(
-          "relative overflow-y-auto bg-[#141010]/75 px-3 py-4",
+          "relative overflow-y-auto bg-background-base px-3 py-4",
           focusMode
-            ? "h-full rounded-xl border border-white/6"
-            : "h-[68vh] min-h-[28rem] rounded-[2rem] border border-white/8",
+            ? "h-full rounded-lg border border-border-subtle"
+            : "h-[68vh] min-h-[28rem] rounded-lg border border-border-subtle",
         )}
       >
         <div className={cn("mx-auto flex flex-col gap-5 py-1", focusMode ? "max-w-[65ch]" : "max-w-4xl")}>
@@ -224,13 +224,13 @@ export function PretextTranscript({
               <div key={message.id} className={cn("flex flex-col gap-3", isUser && "items-end")}>
                 <article
                   className={cn(
-                    "w-full rounded-[1.8rem] px-5 py-4 shadow-[0_14px_40px_rgba(35,23,16,0.08)]",
+                    "w-full rounded-lg px-4 py-3",
                     isUser
-                      ? "max-w-[min(54ch,92%)] bg-[#2a1f18] text-[#f0e0cf]"
-                      : "max-w-[min(72ch,100%)] bg-[#0f0c0a] text-[#e8ddd2]",
+                      ? "max-w-[min(54ch,92%)] bg-surface-container-high text-on-surface"
+                      : "max-w-[min(72ch,100%)] bg-surface-container text-on-surface-variant",
                   )}
                 >
-                  <div className="mb-3 flex flex-wrap items-center gap-2 text-[11px] uppercase tracking-[0.24em] opacity-65">
+                  <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[10px] uppercase tracking-[0.05em] opacity-60">
                     <span>{messageLabel}</span>
                     {createdAt ? <span>{createdAt}</span> : null}
                     {!isUser && metadata?.provider ? <span>{metadata.provider}</span> : null}
@@ -255,7 +255,7 @@ export function PretextTranscript({
                       isUser && "items-end text-right",
                     )}
                   >
-                    <div className={cn("flex flex-wrap gap-2", isUser && "justify-end")}>
+                    <div className={cn("flex flex-wrap gap-1", isUser && "justify-end")}>
                       {controls?.canEdit ? (
                         <ActionButton
                           disabled={pendingAction !== null || rewriteBlocked}
@@ -324,11 +324,11 @@ export function PretextTranscript({
                     {controls?.canRate ? (
                       <div
                         className={cn(
-                          "flex flex-wrap items-center gap-2 text-xs text-foreground/70",
+                          "flex flex-wrap items-center gap-1.5 text-[10px] text-on-surface-variant/60",
                           isUser && "justify-end",
                         )}
                       >
-                        <span className="uppercase tracking-[0.18em]">Rate this turn</span>
+                        <span className="uppercase tracking-[0.05em]">Rate</span>
                         {[1, 2, 3, 4].map((rating) => (
                           <button
                             key={`${controls.turnId}-rating-${rating}`}
@@ -336,10 +336,10 @@ export function PretextTranscript({
                             disabled={pendingAction !== null}
                             onClick={() => onRateCheckpoint(controls.turnId, rating)}
                             className={cn(
-                              "rounded-full border border-border bg-white/8 px-3 py-1.5 font-semibold text-foreground transition disabled:opacity-60",
+                              "rounded border border-border-subtle bg-surface-container-high px-2 py-1 text-xs font-semibold text-on-surface disabled:opacity-50",
                               controls.feedbackRating === rating
-                                ? "border-brand bg-brand/8 text-brand"
-                                : "hover:border-brand hover:text-brand",
+                                ? "border-primary-container bg-primary-container/10 text-primary-container"
+                                : "",
                             )}
                           >
                             <span className="inline-flex items-center gap-1">
@@ -369,7 +369,7 @@ export function PretextTranscript({
               behavior: "smooth",
             });
           }}
-          className="absolute bottom-4 right-4 inline-flex items-center gap-2 rounded-full border border-white/12 bg-[#1a1412] px-4 py-2 text-sm font-semibold text-foreground shadow-lg transition hover:border-brand hover:text-brand"
+          className="absolute bottom-3 right-3 inline-flex items-center gap-1 rounded bg-surface-container-high border border-border-subtle px-3 py-1.5 text-xs font-semibold text-on-surface"
         >
           <ArrowDown className="h-4 w-4" />
           Jump to latest

@@ -49,10 +49,13 @@ export async function switchThreadModelAction(input: {
   await insertTimelineEvent(supabase, {
     thread_id: parsed.threadId,
     branch_id: view.activeBranch.id,
-    turn_id: view.activeBranch.head_turn_id ?? "",
+    turn_id: view.activeBranch.head_turn_id ?? null,
     title: "Model switched",
     detail: `Switched to ${connection.label} using ${parsed.modelId}.`,
     importance: 2,
+    event_type: "beat",
+    affected_entity_ids: [],
+    affected_relationship_ids: [],
   });
 
   revalidatePath(`/app/chats/${parsed.threadId}`);
@@ -79,10 +82,13 @@ export async function switchThreadPersonaAction(input: {
   await insertTimelineEvent(supabase, {
     thread_id: parsed.threadId,
     branch_id: view.activeBranch.id,
-    turn_id: view.activeBranch.head_turn_id ?? "",
+    turn_id: view.activeBranch.head_turn_id ?? null,
     title: "Persona switched",
     detail: `Switched the active persona to ${persona.name}.`,
     importance: 2,
+    event_type: "beat",
+    affected_entity_ids: [],
+    affected_relationship_ids: [],
   });
 
   revalidatePath(`/app/chats/${parsed.threadId}`);

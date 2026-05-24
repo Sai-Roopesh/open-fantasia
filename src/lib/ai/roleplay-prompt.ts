@@ -1,9 +1,7 @@
 import type { CharacterBundle } from "@/lib/data/characters";
-import { getTextFromMessage } from "@/lib/ai/message-text";
 import type {
   ChatPinRecord,
-  FantasiaUIMessage,
-  ThreadStateSnapshot,
+  DurableMemorySnapshot,
   TimelineEventRecord,
   UserPersonaRecord,
 } from "@/lib/types";
@@ -15,40 +13,14 @@ function compactLabeledLines(items: Array<[label: string, value: string | null |
   });
 }
 
-function bulletList(items: string[], emptyLine: string) {
-  return items.length ? items.map((item) => `- ${item}`).join("\n") : emptyLine;
-}
-
 function formatSection(tag: string, lines: string[]) {
   return [`<${tag}>`, ...lines, `</${tag}>`].join("\n");
-}
-
-function formatSnapshotForReconciliation(snapshot: ThreadStateSnapshot | null) {
-  if (!snapshot) {
-    return "None";
-  }
-
-  return JSON.stringify(
-    {
-      storySummary: snapshot.story_summary,
-      sceneSummary: snapshot.scene_summary,
-      lastTurnBeat: snapshot.last_turn_beat,
-      relationshipState: snapshot.relationship_state,
-      userFacts: snapshot.user_facts,
-      activeThreads: snapshot.active_threads,
-      resolvedThreads: snapshot.resolved_threads,
-      nextTurnPressure: snapshot.next_turn_pressure,
-      sceneGoals: snapshot.scene_goals,
-    },
-    null,
-    2,
-  );
 }
 
 export function buildRoleplaySystemPrompt(args: {
   character: CharacterBundle;
   persona: UserPersonaRecord;
-  snapshot: ThreadStateSnapshot | null;
+  snapshot: DurableMemorySnapshot | null;
   pins: ChatPinRecord[];
   timeline: TimelineEventRecord[];
 }) {
@@ -119,35 +91,32 @@ export function buildRoleplaySystemPrompt(args: {
       ? characterLines
       : ["No character guidance has been filled in yet."]),
     formatSection("user_persona", personaLines),
-    formatSection("durable_memory", [
-      `Story summary: ${snapshot?.story_summary || "No durable story summary yet."}`,
-      `Relationship state: ${snapshot?.relationship_state || "No relationship state has been locked in yet."}`,
-      `User facts: ${snapshot?.user_facts.join("; ") || "None saved yet."}`,
-      "Resolved threads:",
-      bulletList(
-        snapshot?.resolved_threads ?? [],
-        "- Nothing has been explicitly resolved yet.",
-      ),
-    ]),
-    formatSection("current_scene", [
-      `Scene summary: ${snapshot?.scene_summary || "No current-scene summary yet."}`,
-      `Last beat: ${snapshot?.last_turn_beat || "No latest beat has been written yet."}`,
-      "Active threads:",
-      bulletList(
-        snapshot?.active_threads ?? [],
-        "- No active threads are currently tracked.",
-      ),
-      "",
-      "Next-turn pressure:",
-      bulletList(
-        snapshot?.next_turn_pressure ?? [],
-        "- No immediate pressure is currently tracked.",
-      ),
-      "",
-      "Scene goals:",
-      bulletList(snapshot?.scene_goals ?? [], "- No scene goals are currently tracked."),
+  );
+
+  sections.push(
+    formatSection("core_directives", [
+      "- You are a high-fidelity simulation engine executing a narrative reality.",
+      "- You are bound absolutely by the constraints in <durable_state>.",
+      "- COGNITIVE BOUNDARY: Under no circumstances may an entity act upon, reference, or hint at information absent from their specific knowledge_boundary in the state JSON.",
+      "- AFFECTIVE OVERRIDE: Do not allow genre tropes to override the emotional parameters in the state. The JSON state is absolute truth.",
+      "- SPATIAL ENFORCEMENT: Characters can only interact with entities at their current location. Characters can only move to adjacent locations.",
+      "- Treat every field in <durable_state> as hard programmatic constraints, not fluid prose suggestions.",
     ]),
   );
+
+  if (snapshot) {
+    sections.push(
+      formatSection("durable_state", [
+        JSON.stringify(snapshot, null, 2),
+      ]),
+    );
+  } else {
+    sections.push(
+      formatSection("durable_state", [
+        "No world state has been materialized yet. This is the beginning of the story.",
+      ]),
+    );
+  }
 
   if (pinText || timelineText) {
     const lines: string[] = [];
@@ -181,61 +150,4 @@ export function buildRoleplaySystemPrompt(args: {
   );
 
   return sections.join("\n\n");
-}
-
-export function buildReconciliationMessages(args: {
-  character: CharacterBundle;
-  snapshot: ThreadStateSnapshot | null;
-  recentMessages: FantasiaUIMessage[];
-}) {
-  const transcript = args.recentMessages
-    .map((message) => {
-      return `${message.role.toUpperCase()}: ${getTextFromMessage(message)}`;
-    })
-    .join("\n\n");
-
-  return [
-    {
-      role: "system" as const,
-      content: [
-        "You are the continuity materializer for a private roleplay branch.",
-        "Return ONLY JSON that matches the requested schema.",
-        "",
-        "Update the branch state using the previous snapshot as durable memory and the recent transcript as the newest evidence.",
-        "Preserve older facts from the previous snapshot unless the transcript clearly changes or resolves them.",
-        "",
-        "Field requirements:",
-        "- storySummary: 8-12 sentences summarizing the whole branch so far.",
-        "- sceneSummary: 3-5 sentences describing only the current scene and immediate situation.",
-        "- lastTurnBeat: 1-2 sentences on how the newest exchange changed the scene.",
-        "- relationshipState: 1-3 concise sentences on the current emotional/social dynamic.",
-        "- userFacts: at most 8 stable facts about the user that still matter.",
-        "- activeThreads: at most 5 unresolved threads that are genuinely still alive.",
-        "- resolvedThreads: at most 5 threads that are clearly closed and worth remembering as resolved.",
-        "- nextTurnPressure: at most 3 concrete pressures, choices, risks, temptations, or opportunities that should pull the next assistant turn forward.",
-        "- sceneGoals: at most 5 near-term goals grounded in the current scene.",
-        "",
-        "Behavior rules:",
-        "- Drop stale or repetitive threads instead of carrying them forward forever.",
-        "- If a question was answered, a reveal landed, a promise was accepted, or the scene moved on, do not keep that item active.",
-        "- Keep activeThreads and nextTurnPressure concrete, not abstract.",
-        "- Do not invent facts unsupported by the previous snapshot or transcript.",
-        "- Only include a timelineEvent if the newest turn created a notable beat worth surfacing in the inspector.",
-        "",
-        `Character name: ${args.character.character.name}`,
-      ].join("\n"),
-    },
-    {
-      role: "user" as const,
-      content: [
-        "<previous_snapshot>",
-        formatSnapshotForReconciliation(args.snapshot),
-        "</previous_snapshot>",
-        "",
-        "<recent_transcript>",
-        transcript || "No recent transcript available.",
-        "</recent_transcript>",
-      ].join("\n"),
-    },
-  ];
 }

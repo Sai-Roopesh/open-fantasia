@@ -261,19 +261,19 @@ export function JsonPortabilityPanel(props: JsonPortabilityPanelProps) {
   }
 
   return (
-    <section className="rounded-[1.8rem] border border-border bg-white/5 p-5">
+    <section className="rounded-lg border border-border-subtle bg-surface-container-low p-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="text-xs uppercase tracking-[0.22em] text-ink-soft">Import and export</p>
-          <h3 className="mt-2 font-serif text-3xl text-foreground">
+          <p className="text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">Import / Export</p>
+          <h3 className="mt-1 text-sm font-semibold text-on-surface">
             Build with external models, save with strict JSON
           </h3>
-          <p className="mt-3 max-w-3xl text-sm leading-7 text-ink-soft">
+          <p className="mt-1 text-xs leading-4 text-muted-foreground">
             Export a blank template or your current draft, hand it to Claude, Gemini, or any
             other model, then import the validated Open-Fantasia JSON back into this editor.
           </p>
         </div>
-        <div className="rounded-[1.3rem] border border-border bg-paper px-4 py-3 text-xs leading-6 text-ink-soft">
+        <div className="rounded border border-border-subtle bg-surface-container px-3 py-2 text-[11px] leading-4 text-muted-foreground">
           Strict contract only.
           <br />
           Extra keys and malformed shapes are rejected.
@@ -283,19 +283,19 @@ export function JsonPortabilityPanel(props: JsonPortabilityPanelProps) {
       <div
         aria-live="polite"
         className={cn(
-          "mt-5 rounded-[1.4rem] border px-4 py-3 text-sm leading-7",
-          notice.tone === "success" && "border-emerald-800/40 bg-emerald-950/40 text-emerald-400",
-          notice.tone === "error" && "border-rose-800/40 bg-rose-950/40 text-rose-400",
-          notice.tone === "neutral" && "border-border bg-paper text-foreground",
+          "mt-3 rounded border px-3 py-2 text-xs leading-4",
+          notice.tone === "success" && "border-status-success/30 bg-status-success/10 text-status-success",
+          notice.tone === "error" && "border-status-critical/30 bg-status-critical/10 text-status-critical",
+          notice.tone === "neutral" && "border-border-subtle bg-surface-container text-on-surface",
         )}
       >
         {notice.message}
       </div>
 
-      <div className="mt-5 grid gap-3 lg:grid-cols-2">
-        <div className="rounded-[1.5rem] border border-border bg-paper p-4">
-          <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">JSON artifacts</p>
-          <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-3 grid gap-2 lg:grid-cols-2">
+        <div className="rounded border border-border-subtle bg-surface-container p-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">JSON artifacts</p>
+          <div className="mt-2 flex flex-wrap gap-1">
             <PanelActionButton
               icon={Download}
               onClick={() =>
@@ -335,9 +335,9 @@ export function JsonPortabilityPanel(props: JsonPortabilityPanelProps) {
           </div>
         </div>
 
-        <div className="rounded-[1.5rem] border border-border bg-paper p-4">
-          <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">Prompt packs</p>
-          <div className="mt-4 flex flex-wrap gap-2">
+        <div className="rounded border border-border-subtle bg-surface-container p-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">Prompt packs</p>
+          <div className="mt-2 flex flex-wrap gap-1">
             {(["generic", "claude", "gemini"] as const).map((target) => (
               <PanelActionButton
                 key={`${props.kind}-${target}`}
@@ -360,19 +360,19 @@ export function JsonPortabilityPanel(props: JsonPortabilityPanelProps) {
         </div>
       </div>
 
-      <div className="mt-5 rounded-[1.5rem] border border-border bg-paper p-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <div className="mt-3 rounded border border-border-subtle bg-surface-container p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">Import JSON</p>
-            <p className="mt-2 text-sm leading-7 text-ink-soft">
-              Paste raw JSON or upload a file. Markdown code fences are okay; extra keys are not.
+            <p className="text-[10px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">Import JSON</p>
+            <p className="mt-1 text-xs leading-4 text-muted-foreground">
+              Paste raw JSON or upload a file.
             </p>
           </div>
           <label
             htmlFor={inputId}
-            className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-border bg-white/8 px-4 py-2 text-sm font-semibold text-foreground transition hover:border-brand hover:text-brand"
+            className="inline-flex cursor-pointer items-center gap-1 rounded bg-surface-container-high px-2 py-1 text-[11px] font-semibold text-on-surface"
           >
-            <Upload className="h-4 w-4" />
+            <Upload className="h-3 w-3" />
             Upload file
           </label>
           <input
@@ -397,10 +397,10 @@ export function JsonPortabilityPanel(props: JsonPortabilityPanelProps) {
           value={rawImport}
           onChange={(event) => syncImportText(event.target.value)}
           placeholder={`Paste openfantasia.${props.kind} JSON here...`}
-          className="mt-4 w-full rounded-[1.5rem] border border-border bg-white/5 px-4 py-4 text-sm leading-7 outline-none transition focus:border-brand"
+          className="mt-2 w-full rounded border-b-2 border-border-subtle bg-surface-container px-3 py-2 text-sm leading-6 text-on-surface outline-none focus:border-primary-container"
         />
 
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="mt-2 flex flex-wrap gap-1">
           <PanelActionButton
             icon={FileUp}
             disabled={!hasImportValue}
@@ -413,10 +413,10 @@ export function JsonPortabilityPanel(props: JsonPortabilityPanelProps) {
             disabled={!hasImportValue}
             onClick={loadCurrentImport}
             className={cn(
-              "rounded-full px-4 py-2 text-sm font-semibold transition",
+              "rounded px-3 py-1 text-xs font-semibold",
               hasImportValue
-                ? "bg-brand text-white hover:bg-brand-strong"
-                : "cursor-not-allowed bg-white/5 text-ink-soft",
+                ? "bg-primary-container text-on-primary-container"
+                : "cursor-not-allowed bg-surface-container text-muted-foreground",
             )}
           >
             Load into draft
@@ -426,10 +426,10 @@ export function JsonPortabilityPanel(props: JsonPortabilityPanelProps) {
             disabled={!hasImportValue}
             onClick={clearImportPanel}
             className={cn(
-              "rounded-full border px-4 py-2 text-sm font-semibold transition",
+              "rounded px-3 py-1 text-xs font-semibold",
               hasImportValue
-                ? "border-border bg-white/8 text-foreground hover:border-brand hover:text-brand"
-                : "cursor-not-allowed border-border bg-white/3 text-ink-soft",
+                ? "bg-surface-container-high text-on-surface"
+                : "cursor-not-allowed bg-surface-container text-muted-foreground",
             )}
           >
             Clear pasted JSON
@@ -439,9 +439,9 @@ export function JsonPortabilityPanel(props: JsonPortabilityPanelProps) {
         <ImportFeedbackCard feedback={importFeedback} />
 
         {previewData ? (
-          <div className="mt-5 rounded-[1.4rem] border border-border bg-white/5 px-4 py-4">
-            <p className="text-xs uppercase tracking-[0.18em] text-ink-soft">Import preview</p>
-            <div className="mt-3 space-y-2 text-sm leading-7 text-foreground">
+          <div className="mt-3 rounded border border-border-subtle bg-surface-container-low px-3 py-3">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">Import preview</p>
+            <div className="mt-2 space-y-1 text-xs leading-5 text-on-surface">
               {props.kind === "character" ? (
                 <>
                   <p>
@@ -498,13 +498,13 @@ function PanelActionButton({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-semibold transition",
+        "inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-semibold",
         disabled
-          ? "cursor-not-allowed border-border bg-white/3 text-ink-soft"
-          : "border-border bg-white/8 text-foreground hover:border-brand hover:text-brand",
+          ? "cursor-not-allowed bg-surface-container text-muted-foreground"
+          : "bg-surface-container-high text-on-surface",
       )}
     >
-      <Icon className="h-4 w-4" />
+      <Icon className="h-3 w-3" />
       {children}
     </button>
   );
@@ -519,17 +519,17 @@ function ImportFeedbackCard({
     <div
       aria-live="polite"
       className={cn(
-        "mt-4 rounded-[1.4rem] border px-4 py-3",
-        feedback.tone === "success" && "border-emerald-800/40 bg-emerald-950/40 text-emerald-400",
-        feedback.tone === "error" && "border-rose-800/40 bg-rose-950/40 text-rose-400",
-        feedback.tone === "neutral" && "border-border bg-[#1a1412] text-foreground",
+        "mt-2 rounded border px-3 py-2",
+        feedback.tone === "success" && "border-status-success/30 bg-status-success/10 text-status-success",
+        feedback.tone === "error" && "border-status-critical/30 bg-status-critical/10 text-status-critical",
+        feedback.tone === "neutral" && "border-border-subtle bg-surface-container text-on-surface",
       )}
     >
       <div className="flex items-start gap-3">
         <ImportFeedbackIcon tone={feedback.tone} />
         <div className="min-w-0">
-          <p className="text-sm font-semibold">{feedback.title}</p>
-          <p className="mt-1 text-sm leading-7 whitespace-pre-wrap">{feedback.message}</p>
+          <p className="text-xs font-semibold">{feedback.title}</p>
+          <p className="mt-0.5 text-xs leading-4 whitespace-pre-wrap">{feedback.message}</p>
         </div>
       </div>
     </div>

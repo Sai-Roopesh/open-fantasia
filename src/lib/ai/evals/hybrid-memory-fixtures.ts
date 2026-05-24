@@ -1,7 +1,7 @@
 import type { CharacterBundle } from "@/lib/data/characters";
 import type {
   ChatTurnRecord,
-  ThreadStateSnapshot,
+  DurableMemorySnapshot,
   UserPersonaRecord,
 } from "@/lib/types";
 
@@ -11,7 +11,7 @@ export type HybridMemoryEvalCase = {
   focus: string;
   character: CharacterBundle;
   persona: UserPersonaRecord;
-  snapshot: ThreadStateSnapshot;
+  snapshot: DurableMemorySnapshot;
   turns: ChatTurnRecord[];
   nextUserText: string;
   expectations: string[];
@@ -105,6 +105,38 @@ function makeTurn(args: {
   } satisfies ChatTurnRecord;
 }
 
+function makeSnapshot(overrides: {
+  story_summary: string;
+  scene_summary: string;
+  last_turn_beat: string;
+  relational_state?: DurableMemorySnapshot["relational_state"];
+  entity_state?: DurableMemorySnapshot["entity_state"];
+  narrative_state?: Partial<DurableMemorySnapshot["narrative_state"]>;
+}): DurableMemorySnapshot {
+  return {
+    metadata: {
+      current_turn_id: "turn-4",
+      narrative_timestamp: "",
+      transition_type: "continuation",
+      version: 4,
+    },
+    spatial_state: {
+      current_location: null,
+      adjacent_locations: [],
+      entity_placements: [],
+    },
+    entity_state: overrides.entity_state ?? [],
+    relational_state: overrides.relational_state ?? [],
+    narrative_state: {
+      story_summary: overrides.story_summary,
+      scene_summary: overrides.scene_summary,
+      last_turn_beat: overrides.last_turn_beat,
+      active_threads: overrides.narrative_state?.active_threads ?? [],
+      resolved_threads: overrides.narrative_state?.resolved_threads ?? [],
+    },
+  };
+}
+
 export const hybridMemoryEvalFixtures: HybridMemoryEvalCase[] = [
   {
     id: "answered-question",
@@ -112,56 +144,53 @@ export const hybridMemoryEvalFixtures: HybridMemoryEvalCase[] = [
     focus: "Repeated question trap after a key reveal has already landed.",
     character: sharedCharacter,
     persona: sharedPersona,
-    snapshot: {
-      turn_id: "turn-4",
-      thread_id: "thread-eval",
-      branch_id: "branch-eval",
-      based_on_turn_id: "turn-3",
+    snapshot: makeSnapshot({
       story_summary:
         "Ash smuggled Mara through the drowned market and learned the regime's hunters were tracking a stolen map key. Mara suspected Ash knew who betrayed the safehouse, and the suspicion sharpened their partnership. In the latest exchange, Ash finally admitted that their brother sold the route to the crown, which is why the hunters arrived early.",
       scene_summary:
         "They are sheltering in an abandoned clocktower while rain hammers the broken glass and bootsteps echo below. Ash has just confessed who sold them out, and Mara is deciding whether to trust that confession.",
       last_turn_beat:
         "Ash revealed that their own brother betrayed the route to the crown, changing Mara's understanding of the danger.",
-      relationship_state:
-        "Wounded but newly honest. Mara is still wary, yet the confession has shifted them toward reluctant trust.",
-      user_facts: ["Ash is a smuggler.", "Ash's brother sold the route to the crown."],
-      active_threads: ["Escape the clocktower before the hunters reach the upper stair."],
-      resolved_threads: ["Who betrayed the route."],
-      next_turn_pressure: ["Mara must decide whether to trust Ash's confession and move now."],
-      scene_goals: ["Leave the clocktower alive."],
-      version: 4,
-      updated_at: "2026-04-23T00:00:00.000Z",
-    },
+      relational_state: [
+        {
+          relationship_id: "rel_1",
+          source_entity_id: "e1",
+          source_entity_name: "Ash",
+          target_entity_id: "e2",
+          target_entity_name: "Mara",
+          relationship_type: "social",
+          dynamic_status: "Wounded but newly honest. Mara is still wary, yet the confession has shifted them toward reluctant trust.",
+          valid_from_turn_id: "turn-1",
+        },
+      ],
+      entity_state: [
+        {
+          entity_id: "e1",
+          canonical_name: "Ash",
+          entity_type: "character",
+          is_present: true,
+          primary_emotion: "guilt",
+          emotion_intensity: 7,
+          emotion_catalyst: "confessing about brother",
+          aliases: [],
+          knowledge_boundary: ["Ash's brother sold the route to the crown."],
+          traits: ["smuggler"],
+          goals: [],
+          secrets: [],
+          abilities: [],
+          possessions: [],
+        },
+      ],
+      narrative_state: {
+        active_threads: [{ id: "nt_1", objective: "Escape the clocktower before the hunters reach the upper stair.", status: "open", dependencies: [] }],
+        resolved_threads: ["Who betrayed the route."],
+      },
+    }),
     turns: [
-      makeTurn({
-        id: "turn-1",
-        parentTurnId: null,
-        user: "You keep looking at the stairwell. What aren't you telling me?",
-        assistant:
-          "Mara's jaw tightens. 'That whoever sold your route knows how to count windows and watch changes. Which means they're close.'",
-      }),
-      makeTurn({
-        id: "turn-2",
-        parentTurnId: "turn-1",
-        user: "Was it one of mine?",
-        assistant:
-          "She studies your face instead of answering. 'You tell me. Who knew the river gate timing besides your crew?'",
-      }),
-      makeTurn({
-        id: "turn-3",
-        parentTurnId: "turn-2",
-        user: "My brother. He had the route, but I didn't think he'd sell it.",
-        assistant:
-          "Mara goes very still. Rain spits through the cracked glass behind her. 'Then stop treating that like a rumor. It's the shape of the knife already in us.'",
-      }),
-      makeTurn({
-        id: "turn-4",
-        parentTurnId: "turn-3",
-        user: "I just told you it was my brother. Are you still with me or not?",
-        assistant:
-          "Her expression hardens into a decision instead of another question. 'I'm with you. But the hunters are already on the stair, Ash, so if we move, we move now.'",
-      }),
+      makeTurn({ id: "turn-1", parentTurnId: null, user: "You keep looking at the stairwell. What aren't you telling me?", assistant: "Mara's jaw tightens. 'That whoever sold your route knows how to count windows and watch changes. Which means they're close.'" }),
+      makeTurn({ id: "turn-2", parentTurnId: "turn-1", user: "Was it one of mine?", assistant: "She studies your face instead of answering. 'You tell me. Who knew the river gate timing besides your crew?'" }),
+      makeTurn({ id: "turn-3", parentTurnId: "turn-2", user: "My brother. He had the route, but I didn't think he'd sell it.", assistant: "Mara goes very still. Rain spits through the cracked glass behind her. 'Then stop treating that like a rumor. It's the shape of the knife already in us.'" }),
+      makeTurn({ id: "turn-4", parentTurnId: "turn-3", user: "I just told you it was my brother. Are you still with me or not?", assistant: "Her expression hardens into a decision instead of another question. 'I'm with you. But the hunters are already on the stair, Ash, so if we move, we move now.'" }),
     ],
     nextUserText: "Then stop looking at me like a suspect and tell me where we run.",
     expectations: [
@@ -176,56 +205,35 @@ export const hybridMemoryEvalFixtures: HybridMemoryEvalCase[] = [
     focus: "Repeated vulnerable back-and-forth should turn into a new move, not the same beat again.",
     character: sharedCharacter,
     persona: sharedPersona,
-    snapshot: {
-      turn_id: "turn-4",
-      thread_id: "thread-eval",
-      branch_id: "branch-eval",
-      based_on_turn_id: "turn-3",
+    snapshot: makeSnapshot({
       story_summary:
-        "Ash and Mara barricaded themselves in an apothecary after a failed handoff on the river. Both have spent several turns circling the cost of trust without changing their position. The room is tense, intimate, and static, and the story needs a fresh turn rather than another round of the same confession.",
+        "Ash and Mara barricaded themselves in an apothecary after a failed handoff on the river. Both have spent several turns circling the cost of trust without changing their position.",
       scene_summary:
-        "They are alone in the shuttered apothecary with a storm outside and a single lantern burning low. The air is thick with unfinished feeling, but nothing concrete has changed yet.",
+        "They are alone in the shuttered apothecary with a storm outside and a single lantern burning low.",
       last_turn_beat:
         "Ash demanded honesty without leaving the emotional stalemate.",
-      relationship_state:
-        "Charged, vulnerable, and stuck in place. They want honesty, but the conversation keeps circling the same hurt.",
-      user_facts: ["Ash wants blunt honesty from Mara."],
-      active_threads: ["Break the emotional stalemate."],
-      resolved_threads: [],
-      next_turn_pressure: ["Someone has to change the rhythm before the scene stalls completely."],
-      scene_goals: ["Force the conversation into a real decision or action."],
-      version: 4,
-      updated_at: "2026-04-23T00:00:00.000Z",
-    },
+      relational_state: [
+        {
+          relationship_id: "rel_2",
+          source_entity_id: "e1",
+          source_entity_name: "Ash",
+          target_entity_id: "e2",
+          target_entity_name: "Mara",
+          relationship_type: "romantic",
+          dynamic_status: "Charged, vulnerable, and stuck in place.",
+          valid_from_turn_id: "turn-1",
+        },
+      ],
+      narrative_state: {
+        active_threads: [{ id: "nt_2", objective: "Break the emotional stalemate.", status: "open", dependencies: [] }],
+        resolved_threads: [],
+      },
+    }),
     turns: [
-      makeTurn({
-        id: "turn-1",
-        parentTurnId: null,
-        user: "You keep saying you're fine, but you look like you're bracing for a blow.",
-        assistant:
-          "Mara laughs once without humor and looks away. 'Maybe I am. Maybe that's the only posture that's ever paid.'",
-      }),
-      makeTurn({
-        id: "turn-2",
-        parentTurnId: "turn-1",
-        user: "I am not your enemy.",
-        assistant:
-          "Her shoulders loosen a fraction, then tighten again. 'No. But that doesn't mean I know how to stop expecting the knife.'",
-      }),
-      makeTurn({
-        id: "turn-3",
-        parentTurnId: "turn-2",
-        user: "Then say what you actually want from me.",
-        assistant:
-          "The lantern throws gold across her face. 'I want one night where loyalty doesn't sound like a dare.'",
-      }),
-      makeTurn({
-        id: "turn-4",
-        parentTurnId: "turn-3",
-        user: "I'm still here. What else do you need?",
-        assistant:
-          "Mara's mouth parts, closes, then parts again. 'I need to believe you won't vanish when this gets uglier.'",
-      }),
+      makeTurn({ id: "turn-1", parentTurnId: null, user: "You keep saying you're fine, but you look like you're bracing for a blow.", assistant: "Mara laughs once without humor and looks away. 'Maybe I am. Maybe that's the only posture that's ever paid.'" }),
+      makeTurn({ id: "turn-2", parentTurnId: "turn-1", user: "I am not your enemy.", assistant: "Her shoulders loosen a fraction, then tighten again. 'No. But that doesn't mean I know how to stop expecting the knife.'" }),
+      makeTurn({ id: "turn-3", parentTurnId: "turn-2", user: "Then say what you actually want from me.", assistant: "The lantern throws gold across her face. 'I want one night where loyalty doesn't sound like a dare.'" }),
+      makeTurn({ id: "turn-4", parentTurnId: "turn-3", user: "I'm still here. What else do you need?", assistant: "Mara's mouth parts, closes, then parts again. 'I need to believe you won't vanish when this gets uglier.'" }),
     ],
     nextUserText: "I'm not leaving this room until you say what you actually want.",
     expectations: [
@@ -240,59 +248,35 @@ export const hybridMemoryEvalFixtures: HybridMemoryEvalCase[] = [
     focus: "The next reply should convert scene pressure into decisive movement.",
     character: sharedCharacter,
     persona: sharedPersona,
-    snapshot: {
-      turn_id: "turn-4",
-      thread_id: "thread-eval",
-      branch_id: "branch-eval",
-      based_on_turn_id: "turn-3",
+    snapshot: makeSnapshot({
       story_summary:
-        "Ash and Mara secured the map key but triggered the palace wardens. They escaped into the flood tunnels beneath the east quay, where the tunnels split toward the gatehouse and the drowned archives. The regime is minutes behind them, and the scene now needs tactical movement more than reflection.",
+        "Ash and Mara secured the map key but triggered the palace wardens. They escaped into the flood tunnels beneath the east quay.",
       scene_summary:
-        "They are knee-deep in black water at a junction in the flood tunnels while torchlight flares somewhere behind them. One route leads to the gatehouse, the other to the drowned archives.",
+        "They are knee-deep in black water at a junction in the flood tunnels while torchlight flares somewhere behind them.",
       last_turn_beat:
         "Ash chose to follow Mara into the tunnels, committing to flight over surrender.",
-      relationship_state:
-        "Focused and allied under pressure. There is trust enough to move, but no time for softness.",
-      user_facts: ["Ash committed to running with Mara."],
-      active_threads: ["Choose the tunnel route before the wardens catch up."],
-      resolved_threads: ["Whether to flee together."],
-      next_turn_pressure: [
-        "Pick the route immediately.",
-        "Avoid the torchlight closing in from behind.",
+      relational_state: [
+        {
+          relationship_id: "rel_3",
+          source_entity_id: "e1",
+          source_entity_name: "Ash",
+          target_entity_id: "e2",
+          target_entity_name: "Mara",
+          relationship_type: "alliance",
+          dynamic_status: "Focused and allied under pressure.",
+          valid_from_turn_id: "turn-1",
+        },
       ],
-      scene_goals: ["Get out of the flood tunnels alive."],
-      version: 4,
-      updated_at: "2026-04-23T00:00:00.000Z",
-    },
+      narrative_state: {
+        active_threads: [{ id: "nt_3", objective: "Choose the tunnel route before the wardens catch up.", status: "open", dependencies: [] }],
+        resolved_threads: ["Whether to flee together."],
+      },
+    }),
     turns: [
-      makeTurn({
-        id: "turn-1",
-        parentTurnId: null,
-        user: "If we head for the quay, they'll cut us off in the open.",
-        assistant:
-          "Mara shoves the map key into her sleeve and points toward the sluice tunnel. 'Then we stay below their sightline and make them choose the wrong mouth.'",
-      }),
-      makeTurn({
-        id: "turn-2",
-        parentTurnId: "turn-1",
-        user: "That archive route could collapse.",
-        assistant:
-          "She glances at the trembling brick overhead, then back at the black channel ahead. 'So could the gatehouse route. One gets us records, one gets us a wall to climb.'",
-      }),
-      makeTurn({
-        id: "turn-3",
-        parentTurnId: "turn-2",
-        user: "You're still thinking about the archives at a time like this?",
-        assistant:
-          "Mara smiles with all the wrong edges. 'At a time like this is exactly when buried leverage matters.'",
-      }),
-      makeTurn({
-        id: "turn-4",
-        parentTurnId: "turn-3",
-        user: "Fine. I'm with you. Just pick a direction.",
-        assistant:
-          "Torchlight licks the tunnel bend behind you. Mara grabs your wrist and listens once, sharply, to the water. 'Then don't argue when I choose.'",
-      }),
+      makeTurn({ id: "turn-1", parentTurnId: null, user: "If we head for the quay, they'll cut us off in the open.", assistant: "Mara shoves the map key into her sleeve and points toward the sluice tunnel. 'Then we stay below their sightline and make them choose the wrong mouth.'" }),
+      makeTurn({ id: "turn-2", parentTurnId: "turn-1", user: "That archive route could collapse.", assistant: "She glances at the trembling brick overhead, then back at the black channel ahead. 'So could the gatehouse route. One gets us records, one gets us a wall to climb.'" }),
+      makeTurn({ id: "turn-3", parentTurnId: "turn-2", user: "You're still thinking about the archives at a time like this?", assistant: "Mara smiles with all the wrong edges. 'At a time like this is exactly when buried leverage matters.'" }),
+      makeTurn({ id: "turn-4", parentTurnId: "turn-3", user: "Fine. I'm with you. Just pick a direction.", assistant: "Torchlight licks the tunnel bend behind you. Mara grabs your wrist and listens once, sharply, to the water. 'Then don't argue when I choose.'" }),
     ],
     nextUserText: "Then choose, Mara. They're almost on us.",
     expectations: [

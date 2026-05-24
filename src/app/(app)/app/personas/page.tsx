@@ -14,12 +14,8 @@ import { ConfirmSubmitButton } from "@/components/forms/confirm-submit-button";
 import { PersonaStudioForm } from "@/components/personas/persona-studio-form";
 
 function reasonCopy(reason: string) {
-  if (reason === "name") {
-    return "Give the persona a name so it is recognizable when you attach it to a thread.";
-  }
-  if (reason === "default") {
-    return "Create at least one persona before starting a new thread. If you do not set a default, thread launch will require you to choose the persona explicitly.";
-  }
+  if (reason === "name") return "Give the persona a name before saving.";
+  if (reason === "default") return "Create at least one persona before starting threads.";
   return reason;
 }
 
@@ -39,149 +35,133 @@ export default async function PersonasPage({
   const reason = typeof params.reason === "string" ? params.reason : null;
 
   return (
-    <div className="space-y-8">
-      <section className="paper-panel rounded-[2rem] p-8">
-        <p className="text-xs uppercase tracking-[0.24em] text-ink-soft">Persona library</p>
-        <h1 className="mt-3 font-serif text-5xl leading-tight text-foreground">
-          Define who the user is before the story asks for a choice.
-        </h1>
-        <p className="mt-4 max-w-3xl text-sm leading-7 text-ink-soft">
-          Personas are reusable self-profiles for roleplay. Keep one default for new threads, and
-          duplicate intentionally when the same character needs a distinctly different version of you.
-        </p>
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="font-display text-xl font-bold text-on-surface">Personas</h1>
+        {editing && (
+          <Link href="/app/personas" className="text-xs font-semibold text-primary-container">
+            + New
+          </Link>
+        )}
+      </div>
 
-        {reason ? (
-          <div className="mt-5 rounded-2xl bg-amber-950/40 px-4 py-3 text-sm text-amber-400">
-            {reasonCopy(reason)}
-          </div>
-        ) : null}
-        {params.saved === "1" ? (
-          <div className="mt-5 rounded-2xl bg-emerald-950/40 px-4 py-3 text-sm text-emerald-400">
-            Persona saved. New threads can use it immediately.
-          </div>
-        ) : null}
-        {params.defaulted === "1" ? (
-          <div className="mt-5 rounded-2xl bg-emerald-950/40 px-4 py-3 text-sm text-emerald-400">
-            Default persona updated.
-          </div>
-        ) : null}
-        {params.duplicated === "1" ? (
-          <div className="mt-5 rounded-2xl bg-emerald-950/40 px-4 py-3 text-sm text-emerald-400">
-            Persona duplicated. Adjust it and save when the new version feels distinct.
-          </div>
-        ) : null}
-        {params.deleted === "1" ? (
-          <div className="mt-5 rounded-2xl bg-emerald-950/40 px-4 py-3 text-sm text-emerald-400">
-            Persona removed from the library.
-          </div>
-        ) : null}
+      {/* Banners */}
+      {reason && (
+        <div className="rounded border border-status-warning/30 bg-status-warning/10 px-3 py-2 text-xs font-medium text-status-warning">
+          {reasonCopy(reason)}
+        </div>
+      )}
+      {params.saved === "1" && (
+        <div className="rounded border border-status-success/30 bg-status-success/10 px-3 py-2 text-xs font-medium text-status-success">
+          Persona saved.
+        </div>
+      )}
+      {params.defaulted === "1" && (
+        <div className="rounded border border-status-success/30 bg-status-success/10 px-3 py-2 text-xs font-medium text-status-success">
+          Default persona updated.
+        </div>
+      )}
+      {params.duplicated === "1" && (
+        <div className="rounded border border-status-success/30 bg-status-success/10 px-3 py-2 text-xs font-medium text-status-success">
+          Persona duplicated.
+        </div>
+      )}
+      {params.deleted === "1" && (
+        <div className="rounded border border-status-success/30 bg-status-success/10 px-3 py-2 text-xs font-medium text-status-success">
+          Persona removed.
+        </div>
+      )}
+
+      {/* Builder form */}
+      <section className="rounded-lg border border-border-subtle bg-background-front p-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+          {editing ? `Editing ${editing.name}` : "New persona"}
+        </p>
+        <PersonaStudioForm
+          editing={editing}
+          personaCount={personas.length}
+          action={savePersonaAction}
+          saved={params.saved === "1"}
+        />
       </section>
 
-      <div className="grid gap-8 xl:grid-cols-[1.05fr_0.95fr]">
-        <section className="paper-panel rounded-[2rem] p-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-ink-soft">Builder</p>
-              <h2 className="mt-2 font-serif text-3xl text-foreground">
-                {editing ? `Editing ${editing.name}` : "Create a persona"}
-              </h2>
-            </div>
-            {editing ? (
-              <Link
-                href="/app/personas"
-                className="rounded-full border border-border px-4 py-2 text-xs font-semibold text-foreground transition hover:border-brand hover:text-brand"
+      {/* Persona cards */}
+      <section className="space-y-2">
+        {personas.length ? (
+          personas.map((persona) => {
+            const summary = usage.find((entry) => entry.personaId === persona.id);
+            return (
+              <article
+                key={persona.id}
+                className="rounded-lg border border-border-subtle bg-background-front p-4"
               >
-                New persona
-              </Link>
-            ) : null}
-          </div>
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-semibold text-on-surface">{persona.name}</p>
+                  {persona.is_default && (
+                    <span className="rounded border border-primary-container/30 bg-primary-container/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.05em] text-primary-container">
+                      default
+                    </span>
+                  )}
+                </div>
+                <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                  {persona.identity || persona.voice_style || persona.goals || "No profile notes yet."}
+                </p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {summary?.totalThreads ?? 0} thread{summary?.totalThreads === 1 ? "" : "s"}
+                  {summary?.activeThreads ? ` · ${summary.activeThreads} active` : ""}
+                </p>
 
-          <PersonaStudioForm
-            editing={editing}
-            personaCount={personas.length}
-            action={savePersonaAction}
-            saved={params.saved === "1"}
-          />
-        </section>
+                {/* Actions */}
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <Link
+                    href={`/app/personas?edit=${persona.id}`}
+                    className="rounded bg-surface-container-high px-2 py-1 text-xs font-semibold text-on-surface"
+                  >
+                    Edit
+                  </Link>
 
-        <section className="space-y-4">
-          {personas.length ? (
-            personas.map((persona) => {
-              const summary = usage.find((entry) => entry.personaId === persona.id);
-
-              return (
-                <article key={persona.id} className="paper-panel rounded-[2rem] p-6">
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-3">
-                        <h3 className="font-serif text-3xl text-foreground">{persona.name}</h3>
-                        {persona.is_default ? (
-                          <span className="rounded-full bg-brand/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-brand">
-                            default
-                          </span>
-                        ) : null}
-                      </div>
-                      <p className="mt-4 line-clamp-4 text-sm leading-7 text-ink-soft">
-                        {persona.identity || persona.voice_style || persona.goals || "No profile notes yet."}
-                      </p>
-                      <p className="mt-3 text-xs uppercase tracking-[0.18em] text-ink-soft">
-                        {summary?.totalThreads ?? 0} thread{summary?.totalThreads === 1 ? "" : "s"} using this persona
-                        {summary?.activeThreads ? ` • ${summary.activeThreads} active` : ""}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 flex flex-wrap gap-3">
-                    <Link
-                      href={`/app/personas?edit=${persona.id}`}
-                      className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-foreground transition hover:border-brand hover:text-brand"
-                    >
-                      Edit persona
-                    </Link>
-
-                    {!persona.is_default ? (
-                      <form action={setDefaultPersonaAction}>
-                        <input type="hidden" name="personaId" value={persona.id} />
-                        <button
-                          type="submit"
-                          className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-foreground transition hover:border-brand hover:text-brand"
-                        >
-                          Make default
-                        </button>
-                      </form>
-                    ) : null}
-
-                    <form action={duplicatePersonaAction}>
+                  {!persona.is_default && (
+                    <form action={setDefaultPersonaAction}>
                       <input type="hidden" name="personaId" value={persona.id} />
                       <button
                         type="submit"
-                        className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-foreground transition hover:border-brand hover:text-brand"
+                        className="rounded bg-surface-container-high px-2 py-1 text-xs font-semibold text-on-surface"
                       >
-                        Duplicate
+                        Make default
                       </button>
                     </form>
+                  )}
 
-                    <form action={deletePersonaAction}>
-                      <input type="hidden" name="personaId" value={persona.id} />
-                      <ConfirmSubmitButton
-                        confirmMessage="Delete this persona? Threads using it will be reassigned if another persona exists."
-                        className="border border-red-900/40 bg-red-950/40 px-4 py-2 text-sm text-red-400 hover:bg-red-900/50"
-                      >
-                        Delete
-                      </ConfirmSubmitButton>
-                    </form>
-                  </div>
-                </article>
-              );
-            })
-          ) : (
-            <div className="paper-panel rounded-[2rem] p-8 text-sm leading-7 text-ink-soft">
-              No personas yet. Create one default self-profile so threads know who the user is
-              inside the scene before the first message lands.
-            </div>
-          )}
-        </section>
-      </div>
+                  <form action={duplicatePersonaAction}>
+                    <input type="hidden" name="personaId" value={persona.id} />
+                    <button
+                      type="submit"
+                      className="rounded bg-surface-container-high px-2 py-1 text-xs font-semibold text-on-surface"
+                    >
+                      Duplicate
+                    </button>
+                  </form>
+
+                  <form action={deletePersonaAction}>
+                    <input type="hidden" name="personaId" value={persona.id} />
+                    <ConfirmSubmitButton
+                      confirmMessage="Delete this persona? Threads using it will be reassigned if another persona exists."
+                      className="rounded bg-status-critical/10 border border-status-critical/30 px-2 py-1 text-xs font-semibold text-status-critical"
+                    >
+                      Delete
+                    </ConfirmSubmitButton>
+                  </form>
+                </div>
+              </article>
+            );
+          })
+        ) : (
+          <div className="rounded-lg border border-dashed border-border-subtle bg-surface-container-low p-6 text-center text-sm text-muted-foreground">
+            No personas yet. Create one above.
+          </div>
+        )}
+      </section>
     </div>
   );
 }

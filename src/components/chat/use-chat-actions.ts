@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import * as actions from "@/lib/api/chat-actions";
 import { humanizeChatError } from "@/components/chat/chat-workspace-helpers";
-import { useNavTransition } from "@/components/transition-provider";
 import type { EditableTurnTarget } from "@/lib/types";
 
 export function useChatActions(args: {
@@ -9,7 +9,7 @@ export function useChatActions(args: {
   branchId: string;
   headTurnId: string | null;
 }) {
-  const { refreshWithTransition } = useNavTransition();
+  const router = useRouter();
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [surfaceError, setSurfaceError] = useState<string | null>(null);
 
@@ -26,7 +26,7 @@ export function useChatActions(args: {
         if (onSuccess) {
           onSuccess();
         }
-        refreshWithTransition();
+        router.refresh();
       } catch (nextError) {
         setSurfaceError(
           nextError instanceof Error
@@ -37,7 +37,7 @@ export function useChatActions(args: {
         setPendingAction(null);
       }
     },
-    [refreshWithTransition],
+    [router],
   );
 
   return {

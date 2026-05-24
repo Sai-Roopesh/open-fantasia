@@ -1,19 +1,22 @@
-import { Fraunces, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
+import { Hanken_Grotesk, Inter, IBM_Plex_Mono } from "next/font/google";
 
-export const brandSerif = Fraunces({
+export const displayFont = Hanken_Grotesk({
   subsets: ["latin"],
-  variable: "--font-brand-serif",
-  weight: ["500", "600", "700"],
+  variable: "--font-display",
+  weight: ["600", "700"],
+  display: "swap",
 });
 
-export const chatSans = IBM_Plex_Sans({
+export const bodyFont = Inter({
   subsets: ["latin"],
-  variable: "--font-chat-sans",
-  weight: ["400", "500", "600", "700"],
+  variable: "--font-body",
+  weight: ["400", "500", "600"],
+  display: "swap",
 });
 
 export const codeMono = IBM_Plex_Mono({
   subsets: ["latin"],
   variable: "--font-code-mono",
   weight: ["400", "500"],
+  display: "swap",
 });

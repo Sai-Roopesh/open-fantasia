@@ -42,15 +42,15 @@ function TextField({
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-sm font-medium text-foreground">{label}</span>
+      <span className="mb-1 block text-xs font-medium text-on-surface">{label}</span>
       <textarea
         name={name}
         rows={rows}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="min-h-[6.5rem] w-full rounded-3xl border border-border bg-white/5 px-4 py-3 text-sm leading-7 outline-none transition focus:border-brand"
+        className="min-h-[5rem] w-full rounded border-b-2 border-border-subtle bg-surface-container px-3 py-2 text-sm leading-6 text-on-surface outline-none focus:border-primary-container"
       />
-      {helper ? <span className="mt-2 block text-xs leading-6 text-ink-soft">{helper}</span> : null}
+      {helper ? <span className="mt-1 block text-[11px] leading-4 text-muted-foreground">{helper}</span> : null}
     </label>
   );
 }
@@ -137,37 +137,37 @@ export function CharacterStudioForm({
   }
 
   return (
-    <form action={action} className="mt-8 space-y-6">
+    <form action={action} className="mt-4 space-y-4">
       <input type="hidden" name="id" value={editing?.character.id ?? ""} />
 
       {hasStoredDraft ? (
-        <div className="rounded-[1.6rem] border border-accent/25 bg-accent/10 px-5 py-4 text-sm text-accent">
-          <p className="font-semibold">Local draft found on this device.</p>
-          <p className="mt-2 leading-7">
-            You left unsaved character work here earlier. Restore it or discard it before you keep editing.
+        <div className="rounded border border-primary-container/30 bg-primary-container/10 px-3 py-3 text-xs text-primary-container">
+          <p className="font-semibold">Local draft found.</p>
+          <p className="mt-1 leading-4">
+            Restore or discard before editing.
           </p>
-          <div className="mt-4 flex flex-wrap gap-3">
+          <div className="mt-2 flex flex-wrap gap-2">
             <button
               type="button"
               onClick={restoreDraft}
-              className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+              className="rounded bg-primary-container px-3 py-1 text-xs font-semibold text-on-primary-container"
             >
-              Restore local draft
+              Restore
             </button>
             <button
               type="button"
               onClick={discardDraft}
-              className="rounded-full border border-accent/30 px-4 py-2 text-sm font-semibold transition hover:border-accent"
+              className="rounded border border-primary-container/30 px-3 py-1 text-xs font-semibold"
             >
-              Discard it
+              Discard
             </button>
           </div>
         </div>
       ) : null}
 
       {restoredFromDraft ? (
-        <div aria-live="polite" className="rounded-[1.6rem] bg-emerald-950/40 px-5 py-4 text-sm text-emerald-400">
-          Your locally restored draft is back in the editor. Save when you are ready.
+        <div aria-live="polite" className="rounded border border-status-success/30 bg-status-success/10 px-3 py-2 text-xs text-status-success">
+          Draft restored. Save when ready.
         </div>
       ) : null}
 
@@ -178,49 +178,49 @@ export function CharacterStudioForm({
         onImport={importCharacterData}
       />
 
-      <div className="rounded-[1.8rem] border border-border bg-white/5 p-3">
-        <div className="flex flex-wrap gap-2">
+      <div className="rounded-lg border border-border-subtle bg-surface-container-low p-2">
+        <div className="flex flex-wrap gap-1">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               type="button"
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                "rounded-full px-4 py-2 text-sm font-semibold transition",
+                "rounded px-3 py-1.5 text-xs font-semibold",
                 activeTab === tab.id
-                  ? "bg-brand text-white"
-                  : "text-ink-soft hover:bg-paper hover:text-foreground",
+                  ? "bg-primary-container text-on-primary-container"
+                  : "text-muted-foreground hover:bg-surface-container-high hover:text-on-surface",
               )}
             >
               {tab.label}
               {sectionProgress[tab.id] ? (
-                <span className="ml-2 text-[10px] uppercase tracking-[0.16em] opacity-75">
-                  ready
+                <span className="ml-1 text-[9px] uppercase tracking-[0.05em] opacity-75">
+                  ✓
                 </span>
               ) : null}
             </button>
           ))}
         </div>
-        <div className="mt-3 flex items-center justify-between gap-4 rounded-[1.4rem] bg-paper px-4 py-3 text-xs uppercase tracking-[0.18em] text-ink-soft">
-          <span>{completedSections}/4 sections carrying real signal</span>
-          <span>{isDirty ? "unsaved changes" : "all changes saved to server"}</span>
+        <div className="mt-2 flex items-center justify-between rounded bg-surface-container px-3 py-2 text-[10px] uppercase tracking-[0.05em] text-muted-foreground">
+          <span>{completedSections}/4 sections</span>
+          <span>{isDirty ? "unsaved" : "saved"}</span>
         </div>
       </div>
 
       {/* ── Tab 1: Story ── */}
-      <div className={cn(activeTab !== "story" && "hidden", "space-y-5")}>
+      <div className={cn(activeTab !== "story" && "hidden", "space-y-3")}>
         <label className="block">
-          <span className="mb-2 block text-sm font-medium text-foreground">Name</span>
+          <span className="mb-1 block text-xs font-medium text-on-surface">Name</span>
           <input
             name="name"
             required
             value={draft.name}
             onChange={(event) => update("name", event.target.value)}
-            className="w-full rounded-full border border-border bg-white/5 px-4 py-3 outline-none transition focus:border-brand"
+            className="w-full rounded border-b-2 border-border-subtle bg-surface-container px-3 py-2 text-sm text-on-surface outline-none focus:border-primary-container"
             placeholder="Captain Mirelle"
           />
-          <span className="mt-2 block text-xs leading-6 text-ink-soft">
-            The name the model will use in every response. Make it distinct.
+          <span className="mt-1 block text-[11px] leading-4 text-muted-foreground">
+            The name used in every response.
           </span>
         </label>
 
@@ -229,7 +229,7 @@ export function CharacterStudioForm({
           name="story"
           value={draft.story}
           rows={8}
-          helper="The complete story setup: the world, the setting, what's happening right now, and the character's relationship to the user. This is the most important field — it tells the AI what kind of scene to play."
+          helper="World, setting, current situation, and the character's relationship to the user."
           onChange={(value) => update("story", value)}
         />
 
@@ -238,7 +238,7 @@ export function CharacterStudioForm({
           name="core_persona"
           value={draft.core_persona}
           rows={5}
-          helper="Who they are underneath — values, contradictions, fears, humor, warmth. The emotional texture the model should sustain."
+          helper="Values, contradictions, fears, humor — the emotional texture to sustain."
           onChange={(value) => update("core_persona", value)}
         />
 
@@ -247,7 +247,7 @@ export function CharacterStudioForm({
           name="greeting"
           value={draft.greeting}
           rows={4}
-          helper="The opening line that sets the scene. This is the very first impression."
+          helper="The opening line that sets the scene."
           onChange={(value) => update("greeting", value)}
         />
 
@@ -256,31 +256,31 @@ export function CharacterStudioForm({
           name="appearance"
           value={draft.appearance}
           rows={4}
-          helper="Describe the character's look for portrait generation: face, hair, build, clothing, accessories. Not sent to the AI."
+          helper="Face, hair, build, clothing for portrait generation. Not sent to the AI."
           onChange={(value) => update("appearance", value)}
         />
 
-        <section className="rounded-[1.6rem] border border-border bg-white/5 p-5">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <section className="rounded-lg border border-border-subtle bg-surface-container-low p-4">
+          <div className="flex flex-col gap-3">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-ink-soft">Portrait</p>
-              <h3 className="mt-2 font-serif text-2xl text-foreground">{portraitStatusLabel}</h3>
-              <p className="mt-2 max-w-2xl text-sm leading-7 text-ink-soft">
+              <p className="text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">Portrait</p>
+              <p className="mt-1 text-sm font-medium text-on-surface">{portraitStatusLabel}</p>
+              <p className="mt-1 text-xs leading-4 text-muted-foreground">
                 {!draftAppearance
-                  ? "Add an appearance description and save the character to queue a portrait for focus mode."
+                  ? "Add an appearance description and save to queue a portrait."
                   : !editing
-                    ? "Save this character first to queue portrait generation."
+                    ? "Save first to queue portrait generation."
                     : portraitStatus === "pending"
-                      ? "A portrait is being generated. Refresh the page to check progress."
+                      ? "Generating... Refresh to check."
                       : portraitStatus === "ready"
-                        ? "Your character portrait is ready and will appear in focus mode."
+                        ? "Portrait ready."
                         : portraitStatus === "failed"
-                          ? "Portrait generation failed. You can try regenerating below."
-                          : "Save any changes to appearance or personality to generate a new portrait."}
+                          ? "Generation failed. Try regenerating."
+                          : "Save changes to generate a portrait."}
               </p>
               {hasUnsavedPortraitInputs ? (
-                <p className="mt-2 text-xs leading-6 text-amber-300">
-                  Unsaved name, appearance, or personality changes will not affect the portrait until you save.
+                <p className="mt-1 text-[11px] text-status-warning">
+                  Unsaved changes won&apos;t affect the portrait until saved.
                 </p>
               ) : null}
             </div>
@@ -290,14 +290,14 @@ export function CharacterStudioForm({
                 type="submit"
                 formAction={regeneratePortraitAction}
                 disabled={!savedAppearance}
-                className="inline-flex shrink-0 items-center justify-center rounded-full border border-border bg-white/8 px-4 py-2 text-sm font-semibold text-foreground transition hover:border-brand hover:text-brand disabled:cursor-not-allowed disabled:opacity-50"
+                className="self-start rounded bg-surface-container-high px-3 py-1 text-xs font-semibold text-on-surface disabled:opacity-50"
               >
                 Regenerate portrait
               </button>
             ) : null}
           </div>
 
-          <div className="mt-5 overflow-hidden rounded-[1.5rem] border border-border bg-[#14100e]">
+          <div className="mt-3 overflow-hidden rounded-lg border border-border-subtle bg-background-base">
             {portraitPreviewUrl && portraitStatus === "ready" ? (
               <Image
                 src={portraitPreviewUrl}
@@ -308,13 +308,13 @@ export function CharacterStudioForm({
                 unoptimized
               />
             ) : (
-              <div className="flex aspect-square items-center justify-center px-8 text-center text-sm leading-7 text-ink-soft">
+              <div className="flex aspect-square items-center justify-center px-4 text-center text-xs text-muted-foreground">
                 {!draftAppearance
                   ? "No appearance prompt yet."
                   : portraitStatus === "pending"
-                    ? "Generating a portrait for focus mode..."
+                    ? "Generating..."
                     : portraitStatus === "failed"
-                      ? "Last generation attempt failed."
+                      ? "Last attempt failed."
                       : "Portrait will generate after save."}
               </div>
             )}
@@ -323,13 +323,13 @@ export function CharacterStudioForm({
       </div>
 
       {/* ── Tab 2: Voice ── */}
-      <div className={cn(activeTab !== "voice" && "hidden", "space-y-5")}>
+      <div className={cn(activeTab !== "voice" && "hidden", "space-y-3")}>
         <TextField
           label="Writing style"
           name="style_rules"
           value={draft.style_rules}
           rows={5}
-          helper="Prose cadence, formatting habits, humor, restraint, or any repeated voice rule the model should follow."
+          helper="Prose cadence, formatting, humor, restraint — voice rules the model should follow."
           onChange={(value) => update("style_rules", value)}
         />
         <TextField
@@ -337,7 +337,7 @@ export function CharacterStudioForm({
           name="definition"
           value={draft.definition}
           rows={8}
-          helper="Hard behavioral constraints that should survive long chats: priorities, habits, reactions that never change."
+          helper="Hard constraints that survive long chats: priorities, habits, immutable reactions."
           onChange={(value) => update("definition", value)}
         />
         <TextField
@@ -345,18 +345,18 @@ export function CharacterStudioForm({
           name="negative_guidance"
           value={draft.negative_guidance}
           rows={5}
-          helper="What the character must never do, say, or collapse into. Hard limits the model should respect."
+          helper="What the character must never do, say, or become."
           onChange={(value) => update("negative_guidance", value)}
         />
       </div>
 
       {/* ── Tab 3: Starters ── */}
-      <div className={cn(activeTab !== "starters" && "hidden", "space-y-4")}>
-        <p className="text-sm leading-7 text-ink-soft">
-          One-tap starters should feel like scene-openers, not generic greetings. Give the user a specific emotional or narrative move to make.
+      <div className={cn(activeTab !== "starters" && "hidden", "space-y-3")}>
+        <p className="text-xs text-muted-foreground">
+          Scene-openers, not generic greetings.
         </p>
         {draft.starters.map((starter, index) => (
-          <div key={`starter-${index}`} className="flex gap-3">
+          <div key={`starter-${index}`} className="flex gap-2">
             <input
               name="starter_text"
               value={starter}
@@ -368,7 +368,7 @@ export function CharacterStudioForm({
                   ),
                 )
               }
-              className="flex-1 rounded-full border border-border bg-white/5 px-4 py-3 text-sm outline-none transition focus:border-brand"
+              className="min-w-0 flex-1 rounded border-b-2 border-border-subtle bg-surface-container px-3 py-2 text-sm text-on-surface outline-none focus:border-primary-container"
               placeholder="Walk into the storm with me."
             />
             <button
@@ -381,7 +381,7 @@ export function CharacterStudioForm({
                     : draft.starters.filter((_, currentIndex) => currentIndex !== index),
                 )
               }
-              className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-ink-soft transition hover:border-brand hover:text-brand"
+              className="rounded bg-surface-container-high px-2 py-1 text-xs font-semibold text-muted-foreground"
             >
               Remove
             </button>
@@ -390,25 +390,25 @@ export function CharacterStudioForm({
         <button
           type="button"
           onClick={() => update("starters", [...draft.starters, ""])}
-          className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-foreground transition hover:border-brand hover:text-brand"
+          className="rounded bg-surface-container-high px-3 py-1 text-xs font-semibold text-on-surface"
         >
           Add starter
         </button>
       </div>
 
       {/* ── Tab 4: Examples ── */}
-      <div className={cn(activeTab !== "examples" && "hidden", "space-y-4")}>
-        <p className="text-sm leading-7 text-ink-soft">
-          Example dialogue teaches cadence better than summary text. Use short, high-signal exchanges that reveal rhythm, warmth, and tension.
+      <div className={cn(activeTab !== "examples" && "hidden", "space-y-3")}>
+        <p className="text-xs text-muted-foreground">
+          Short exchanges that teach rhythm and tone.
         </p>
         {draft.examples.map((example, index) => (
-          <div key={`example-${index}`} className="rounded-[1.5rem] border border-border bg-white/5 p-4">
-            <div className="grid gap-4 md:grid-cols-2">
+          <div key={`example-${index}`} className="rounded-lg border border-border-subtle bg-surface-container-low p-3">
+            <div className="grid gap-3 md:grid-cols-2">
               <TextField
                 label="User line"
                 name="example_user_line"
                 value={example.user}
-                rows={4}
+                rows={3}
                 onChange={(value) =>
                   update(
                     "examples",
@@ -422,7 +422,7 @@ export function CharacterStudioForm({
                 label="Character line"
                 name="example_character_line"
                 value={example.character}
-                rows={4}
+                rows={3}
                 onChange={(value) =>
                   update(
                     "examples",
@@ -443,7 +443,7 @@ export function CharacterStudioForm({
                     : draft.examples.filter((_, currentIndex) => currentIndex !== index),
                 )
               }
-              className="mt-3 rounded-full border border-border px-4 py-2 text-sm font-semibold text-ink-soft transition hover:border-brand hover:text-brand"
+              className="mt-2 rounded bg-surface-container-high px-2 py-1 text-xs font-semibold text-muted-foreground"
             >
               Remove example
             </button>
@@ -454,25 +454,23 @@ export function CharacterStudioForm({
           onClick={() =>
             update("examples", [...draft.examples, { user: "", character: "" }])
           }
-          className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-foreground transition hover:border-brand hover:text-brand"
+          className="rounded bg-surface-container-high px-3 py-1 text-xs font-semibold text-on-surface"
         >
           Add example pair
         </button>
       </div>
 
-      <div className="sticky bottom-24 z-20 rounded-[1.8rem] border border-white/10 bg-[#1a1412]/96 px-5 py-4 shadow-[0_18px_40px_rgba(0,0,0,0.3)] backdrop-blur">
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <div className="sticky bottom-4 z-20 rounded-lg border border-border-subtle bg-surface-container-low/95 px-4 py-3 backdrop-blur-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-semibold text-foreground">
-              {isDirty ? "Draft changes are only local until you save." : "Server copy is in sync with this editor."}
+            <p className="text-xs font-semibold text-on-surface">
+              {isDirty ? "Unsaved changes." : "In sync."}
             </p>
-            <p className="mt-1 text-xs leading-6 text-ink-soft">
-              {editing
-                ? "This editor protects against accidental tab closes and restores local work after interruptions."
-                : "You can leave and come back later on this device without losing the current draft."}
+            <p className="text-[11px] text-muted-foreground">
+              {editing ? "Local draft protection enabled." : "Draft persists on this device."}
             </p>
           </div>
-          <SubmitButton className="shrink-0 px-6 py-3">
+          <SubmitButton className="shrink-0 rounded bg-primary-container px-4 py-2 text-sm font-semibold text-on-primary-container">
             {editing ? "Save character" : "Create character"}
           </SubmitButton>
         </div>

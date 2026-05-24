@@ -14,9 +14,9 @@ import {
 } from "@/lib/threads/read-model";
 import type {
   ConnectionRecord,
+  DurableMemorySnapshot,
   FantasiaUIMessage,
   ThreadGenerationSettings,
-  ThreadStateSnapshot,
   TimelineEventRecord,
   UserPersonaRecord,
 } from "@/lib/types";
@@ -63,7 +63,7 @@ export function buildGenerationMessages(args: {
 
 export function buildGenerationSystemPrompt(args: {
   runtime: ThreadGenerationRuntime;
-  snapshot: ThreadStateSnapshot | null;
+  snapshot: DurableMemorySnapshot | null;
   pins?: ThreadGraphView["pins"];
   timeline?: TimelineEventRecord[];
 }) {
@@ -111,7 +111,7 @@ export async function loadThreadGenerationRuntime(args: {
       turnId: latestTurn.id,
       connection,
       modelId: threadView.thread.model_id,
-      character: threadView.characterBundle,
+      character: threadView.characterBundle!.character,
     });
     threadView.headSnapshotPending = false;
     threadView.headSnapshotFailed = false;
@@ -197,7 +197,7 @@ export function toThreadGenerationErrorResponse(error: unknown) {
 export async function generateAssistantReply(args: {
   runtime: ThreadGenerationRuntime;
   messages: FantasiaUIMessage[];
-  snapshot: ThreadStateSnapshot | null;
+  snapshot: DurableMemorySnapshot | null;
   pins?: ThreadGraphView["pins"];
   timeline?: TimelineEventRecord[];
   assistantMessageId?: string;

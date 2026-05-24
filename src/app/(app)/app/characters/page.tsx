@@ -1,6 +1,6 @@
 import Link from "next/link";
 import Image from "next/image";
-import { Plus, WandSparkles } from "lucide-react";
+import { Plus } from "lucide-react";
 import { requireAllowedUser } from "@/lib/auth";
 import { resolveCharacterPortraitUrl } from "@/lib/characters/portraits";
 import { CharacterStudioForm } from "@/components/characters/character-studio-form";
@@ -34,38 +34,27 @@ function buildThreadSetupSteps(options: {
   const steps: ThreadSetupStep[] = [
     {
       id: "persona",
-      label: "Persona library",
-      ctaLabel: options.personaCount > 0 ? "Persona ready" : "Create persona",
+      label: "Persona",
+      ctaLabel: options.personaCount > 0 ? "Ready" : "Create persona",
       href: "/app/personas?reason=default",
       ready: options.personaCount > 0,
-      detail:
-        options.personaCount > 0
-          ? options.hasDefaultPersona
-            ? "A default persona is ready, and you can still override it per thread."
-            : "At least one persona exists. You will need to choose it deliberately when the thread starts."
-          : "Create at least one persona before you open a new scene.",
+      detail: options.personaCount > 0
+        ? options.hasDefaultPersona ? "Default persona set." : "Choose one when starting a thread."
+        : "Create at least one persona.",
     },
     {
       id: "provider",
-      label: "Provider lane",
-      ctaLabel:
-        options.hasUsableConnection || options.connectionsCount > 0
-          ? "Refresh models"
-          : "Configure provider",
+      label: "Provider",
+      ctaLabel: options.hasUsableConnection || options.connectionsCount > 0 ? "Refresh models" : "Configure provider",
       href: "/app/settings/providers?reason=connection",
       ready: options.hasUsableConnection,
       detail: options.hasUsableConnection
-        ? "A tested model is ready for thread creation."
-        : options.connectionsCount > 0
-          ? "The lane exists, but it still needs a successful test and model refresh."
-          : "Add a provider, test it, then refresh the available models.",
+        ? "A tested model is ready."
+        : options.connectionsCount > 0 ? "Needs test and model refresh." : "Add a provider first.",
     },
   ];
 
-  return {
-    steps,
-    missing: steps.filter((step) => !step.ready),
-  };
+  return { steps, missing: steps.filter((step) => !step.ready) };
 }
 
 export default async function CharactersPage({
@@ -106,235 +95,180 @@ export default async function CharactersPage({
   );
 
   return (
-    <div className="space-y-8" data-testid="characters-page">
-      <section className="paper-panel rounded-[2rem] p-8">
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-          <div className="max-w-2xl">
-            <p className="text-xs uppercase tracking-[0.24em] text-ink-soft">
-              Character studio
-            </p>
-            <h1 className="mt-3 font-serif text-5xl leading-tight text-foreground">
-              Build the voice before you ask it to improvise.
-            </h1>
-            <p className="mt-4 text-sm leading-7 text-ink-soft">
-              Characters now carry a real profile, deeper definition rules, suggested starters,
-              and structured example conversations for stronger roleplay consistency.
-            </p>
-          </div>
+    <div className="space-y-4" data-testid="characters-page">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h1 className="font-display text-xl font-bold text-on-surface">Characters</h1>
+        {editing && (
+          <Link href="/app/characters" className="text-xs font-semibold text-primary-container">
+            + New
+          </Link>
+        )}
+      </div>
 
-          {!canStartThread ? (
-            <div className="w-full max-w-md rounded-[1.6rem] border border-border bg-white/5 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-xs uppercase tracking-[0.2em] text-ink-soft">
-                    Thread launch checklist
-                  </p>
-                  <p className="mt-2 text-sm leading-6 text-foreground">
-                    Finish these two prerequisites once, then every saved character can start a thread.
-                  </p>
-                </div>
-                {primarySetupStep ? (
-                  <Link
-                    href={primarySetupStep.href}
-                    className="inline-flex items-center gap-2 rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
-                  >
-                    {threadSetup.missing.length > 1 ? "Finish setup" : primarySetupStep.ctaLabel}
-                    <WandSparkles className="h-4 w-4" />
-                  </Link>
-                ) : null}
-              </div>
-              <div className="mt-4 grid gap-2">
-                {threadSetup.steps.map((step) => (
-                  <Link
-                    key={step.id}
-                    href={step.href}
-                    className="flex items-start justify-between gap-4 rounded-[1.1rem] border border-border bg-paper px-4 py-3 transition hover:border-brand"
-                  >
-                    <div>
-                      <p className="text-sm font-semibold text-foreground">{step.label}</p>
-                      <p className="mt-1 text-xs leading-6 text-ink-soft">{step.detail}</p>
-                    </div>
-                    <span
-                      className={
-                        step.ready
-                          ? "rounded-full bg-emerald-950/40 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-emerald-400"
-                          : "rounded-full bg-amber-950/40 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-amber-400"
-                      }
-                    >
-                      {step.ready ? "ready" : "needed"}
-                    </span>
-                  </Link>
-                ))}
-              </div>
-            </div>
-          ) : null}
+      {/* Banners */}
+      {reason && (
+        <div className="rounded border border-status-warning/30 bg-status-warning/10 px-3 py-2 text-xs font-medium text-status-warning">
+          {reason === "name" ? "Every character needs a name before saving." : reason}
         </div>
+      )}
+      {params.saved === "1" && (
+        <div className="rounded border border-status-success/30 bg-status-success/10 px-3 py-2 text-xs font-medium text-status-success">
+          Character saved.
+        </div>
+      )}
+      {params.deleted === "1" && (
+        <div className="rounded border border-status-success/30 bg-status-success/10 px-3 py-2 text-xs font-medium text-status-success">
+          Character removed.
+        </div>
+      )}
 
-        {reason ? (
-          <div className="mt-5 rounded-2xl bg-amber-950/40 px-4 py-3 text-sm text-amber-400">
-            {reason === "name"
-              ? "Every character sheet needs a name before it can be saved or reused inside threads."
-              : reason}
+      {/* Thread launch prerequisites */}
+      {!canStartThread && (
+        <div className="rounded-lg border border-border-subtle bg-background-front p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+            Thread launch checklist
+          </p>
+          <div className="mt-2 space-y-2">
+            {threadSetup.steps.map((step) => (
+              <Link
+                key={step.id}
+                href={step.href}
+                className="flex items-center justify-between rounded border border-border-subtle bg-surface-container-low px-3 py-2 hover:border-primary-container/40"
+              >
+                <div>
+                  <p className="text-sm font-medium text-on-surface">{step.label}</p>
+                  <p className="text-xs text-muted-foreground">{step.detail}</p>
+                </div>
+                <span
+                  className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.05em] ${
+                    step.ready
+                      ? "border-status-success/30 bg-status-success/10 text-status-success"
+                      : "border-status-warning/30 bg-status-warning/10 text-status-warning"
+                  }`}
+                >
+                  {step.ready ? "ready" : "needed"}
+                </span>
+              </Link>
+            ))}
           </div>
-        ) : null}
-        {params.saved === "1" ? (
-          <div className="mt-5 rounded-2xl bg-emerald-950/40 px-4 py-3 text-sm text-emerald-400">
-            Character saved. You can start a thread now or keep shaping the voice.
-          </div>
-        ) : null}
-        {params.deleted === "1" ? (
-          <div className="mt-5 rounded-2xl bg-emerald-950/40 px-4 py-3 text-sm text-emerald-400">
-            Character removed from the studio.
-          </div>
-        ) : null}
+        </div>
+      )}
+
+      {/* Character builder form */}
+      <section className="rounded-lg border border-border-subtle bg-background-front p-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+          {editing ? `Editing ${editing.character.name}` : "New character"}
+        </p>
+        <CharacterStudioForm
+          editing={editing}
+          action={saveCharacterAction}
+          portraitPreviewUrl={editingPortraitUrl}
+          regeneratePortraitAction={regenerateCharacterPortraitAction}
+          saved={params.saved === "1"}
+        />
       </section>
 
-      <div className="grid gap-8 xl:grid-cols-[1.1fr_0.9fr]">
-        <section className="paper-panel rounded-[2rem] p-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.24em] text-ink-soft">
-                Builder
-              </p>
-              <h2 className="mt-2 font-serif text-3xl text-foreground">
-                {editing ? `Editing ${editing.character.name}` : "Create a new character"}
-              </h2>
-            </div>
-            {editing ? (
-              <Link
-                href="/app/characters"
-                className="rounded-full border border-border px-4 py-2 text-xs font-semibold text-foreground transition hover:border-brand hover:text-brand"
-              >
-                New sheet
-              </Link>
-            ) : null}
-          </div>
-
-          <CharacterStudioForm
-            editing={editing}
-            action={saveCharacterAction}
-            portraitPreviewUrl={editingPortraitUrl}
-            regeneratePortraitAction={regenerateCharacterPortraitAction}
-            saved={params.saved === "1"}
-          />
-        </section>
-
-        <section className="space-y-4">
-          {characterCards.length ? (
-            characterCards.map((character) => (
-              <article key={character.id} className="paper-panel rounded-[2rem] p-6">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs uppercase tracking-[0.22em] text-ink-soft">
-                      Character
-                    </p>
-                    <h3 className="mt-2 font-serif text-3xl text-foreground">
-                      {character.name}
-                    </h3>
-                    {character.core_persona ? (
-                      <p className="mt-2 text-sm font-semibold text-brand">{character.core_persona.slice(0, 80)}</p>
-                    ) : null}
-                    <p className="mt-4 line-clamp-4 text-sm leading-7 text-ink-soft">
-                      {character.story ||
-                        character.core_persona ||
-                        character.greeting}
-                    </p>
+      {/* Character cards */}
+      <section className="space-y-2">
+        {characterCards.length ? (
+          characterCards.map((character) => (
+            <article
+              key={character.id}
+              className="rounded-lg border border-border-subtle bg-background-front p-4"
+            >
+              <div className="flex items-start gap-3">
+                {/* Portrait */}
+                {character.portraitUrl ? (
+                  <Image
+                    src={character.portraitUrl}
+                    alt={`${character.name} portrait`}
+                    width={48}
+                    height={48}
+                    className="h-12 w-12 shrink-0 rounded-lg border border-border-subtle object-cover"
+                    unoptimized
+                  />
+                ) : (
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-dashed border-border-subtle bg-surface-container">
+                    <Plus className="h-4 w-4 text-primary-container" />
                   </div>
-                  {character.portraitUrl ? (
-                    <Image
-                      src={character.portraitUrl}
-                      alt={`${character.name} portrait`}
-                      width={80}
-                      height={80}
-                      className="h-20 w-20 shrink-0 rounded-[1.4rem] border border-border object-cover"
-                      unoptimized
-                    />
-                  ) : (
-                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-[1.4rem] border border-dashed border-border bg-white/5">
-                      <Plus className="h-5 w-5 text-brand" />
-                    </div>
+                )}
+
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-semibold text-on-surface">{character.name}</p>
+                  {character.core_persona && (
+                    <p className="truncate text-xs font-medium text-primary-container">
+                      {character.core_persona.slice(0, 80)}
+                    </p>
                   )}
+                  <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">
+                    {character.story || character.core_persona || character.greeting}
+                  </p>
                 </div>
+              </div>
 
-                <div className="mt-6 flex flex-wrap gap-3">
-                  <Link
-                    href={`/app/characters?edit=${character.id}`}
-                    className="rounded-full border border-border px-4 py-2 text-sm font-semibold text-foreground transition hover:border-brand hover:text-brand"
-                  >
-                    Edit sheet
-                  </Link>
+              {/* Actions */}
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Link
+                  href={`/app/characters?edit=${character.id}`}
+                  className="rounded bg-surface-container-high px-2 py-1 text-xs font-semibold text-on-surface"
+                >
+                  Edit
+                </Link>
 
-                  {canStartThread ? (
-                    <form action={startThreadAction} className="flex flex-wrap items-center gap-3">
-                      <input type="hidden" name="characterId" value={character.id} />
-                      <label className="min-w-[13rem] flex-1">
-                        <span className="sr-only">Persona for this thread</span>
-                        <select
-                          name="personaId"
-                          defaultValue={defaultPersona?.id ?? ""}
-                          required
-                          className="w-full rounded-full border border-border bg-white/5 px-4 py-2 text-sm text-foreground outline-none transition focus:border-brand"
-                        >
-                          {!defaultPersona ? (
-                            <option value="" disabled>
-                              Choose a persona
-                            </option>
-                          ) : null}
-                          {personas.map((persona) => (
-                            <option key={persona.id} value={persona.id}>
-                              {persona.name}
-                              {persona.is_default ? " (default)" : ""}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                      <SubmitButton className="px-4 py-2 text-sm">
-                        Start thread
-                      </SubmitButton>
-                    </form>
-                  ) : primarySetupStep ? (
-                    <Link
-                      href={primarySetupStep.href}
-                      className="inline-flex items-center justify-center rounded-full bg-brand px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-strong"
-                    >
-                      {threadSetup.missing.length > 1 ? "Finish setup" : primarySetupStep.ctaLabel}
-                    </Link>
-                  ) : null}
-
-                  <form action={deleteCharacterAction}>
+                {canStartThread ? (
+                  <form action={startThreadAction} className="flex items-center gap-2">
                     <input type="hidden" name="characterId" value={character.id} />
-                    <ConfirmSubmitButton
-                      confirmMessage="Delete this character and every thread attached to it?"
-                      className="border border-[#7f4a2e] bg-[#241d16] px-4 py-2 text-sm text-[#e8bda2] hover:bg-[#2d231b]"
-                    >
-                      Delete character
-                    </ConfirmSubmitButton>
-                  </form>
-                </div>
-
-                {!canStartThread ? (
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {threadSetup.missing.map((step) => (
-                      <Link
-                        key={`${character.id}-${step.id}`}
-                        href={step.href}
-                        className="rounded-full border border-border bg-paper px-3 py-1 text-xs font-semibold uppercase tracking-[0.16em] text-ink-soft transition hover:border-brand hover:text-brand"
+                    <label>
+                      <span className="sr-only">Persona for this thread</span>
+                      <select
+                        name="personaId"
+                        defaultValue={defaultPersona?.id ?? ""}
+                        required
+                        className="rounded border border-border-subtle bg-surface-container px-2 py-1 text-xs text-on-surface outline-none focus:border-primary-container"
                       >
-                        {step.ctaLabel}
-                      </Link>
-                    ))}
-                  </div>
+                        {!defaultPersona && (
+                          <option value="" disabled>Choose persona</option>
+                        )}
+                        {personas.map((persona) => (
+                          <option key={persona.id} value={persona.id}>
+                            {persona.name}
+                            {persona.is_default ? " (default)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <SubmitButton className="rounded bg-primary-container px-2 py-1 text-xs font-semibold text-on-primary-container">
+                      Start thread
+                    </SubmitButton>
+                  </form>
+                ) : primarySetupStep ? (
+                  <Link
+                    href={primarySetupStep.href}
+                    className="rounded bg-primary-container/10 px-2 py-1 text-xs font-semibold text-primary-container"
+                  >
+                    {threadSetup.missing.length > 1 ? "Finish setup" : primarySetupStep.ctaLabel}
+                  </Link>
                 ) : null}
-              </article>
-            ))
-          ) : (
-            <div className="paper-panel rounded-[2rem] p-8 text-sm leading-7 text-ink-soft">
-              No characters yet. Start with one clear persona, one situation, and
-              one way of speaking. Fantasia will take it from there.
-            </div>
-          )}
-        </section>
-      </div>
+
+                <form action={deleteCharacterAction}>
+                  <input type="hidden" name="characterId" value={character.id} />
+                  <ConfirmSubmitButton
+                    confirmMessage="Delete this character and every thread attached to it?"
+                    className="rounded bg-status-critical/10 border border-status-critical/30 px-2 py-1 text-xs font-semibold text-status-critical"
+                  >
+                    Delete
+                  </ConfirmSubmitButton>
+                </form>
+              </div>
+            </article>
+          ))
+        ) : (
+          <div className="rounded-lg border border-dashed border-border-subtle bg-surface-container-low p-6 text-center text-sm text-muted-foreground">
+            No characters yet. Build one above.
+          </div>
+        )}
+      </section>
     </div>
   );
 }
