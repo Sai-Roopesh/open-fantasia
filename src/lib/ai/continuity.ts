@@ -1,5 +1,10 @@
 import type { DatabaseClient } from "@/lib/data/shared";
-import { getWorldSnapshot, saveWorldSnapshot } from "@/lib/data/world-state";
+import {
+  getWorldSnapshot,
+  saveWorldSnapshot,
+  getActiveEntities,
+  getActiveLocations,
+} from "@/lib/data/world-state";
 import {
   insertEntity,
   insertEntityFact,
@@ -52,6 +57,19 @@ import type {
   RelationshipType,
 } from "@/lib/types";
 
+/**
+ * Serialize unknown errors (including Supabase plain objects) into readable strings.
+ * Supabase client errors are `{ code, details, hint, message }` — not Error instances —
+ * so `String(error)` would produce the useless `[object Object]`.
+ */
+function serializeError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "object" && error !== null && "message" in error) {
+    return String((error as { message: unknown }).message);
+  }
+  return JSON.stringify(error);
+}
+
 const RECENT_EXTRACTION_TURN_WINDOW = 15;
 const DEFRAG_INTERVAL = 10;
 
@@ -96,21 +114,52 @@ async function applyMutationsToDb(
   const newEntityIds = new Map<string, string>();
   const newLocationIds = new Map<string, string>();
 
+  // Pre-fetch existing active entities and locations for deduplication.
+  // Without this, when the snapshot chain is broken the LLM sees empty state
+  // and emits "add" for every entity/location, creating duplicates.
+  const existingEntities = await getActiveEntities(supabase, threadId, branchId);
+  const entityByName = new Map(
+    existingEntities.map((e) => [e.canonical_name.toLowerCase(), e]),
+  );
+  const existingLocations = await getActiveLocations(supabase, threadId, branchId);
+  const locationByName = new Map(
+    existingLocations.map((l) => [l.canonical_name.toLowerCase(), l]),
+  );
+
   for (const m of extraction.entity_mutations) {
     if (m.op === "add") {
-      const result = await insertEntity(supabase, {
-        thread_id: threadId,
-        branch_id: branchId,
-        canonical_name: m.canonical_name!,
-        entity_type: m.entity_type as EntityType,
-        aliases: m.aliases ?? [],
-        is_present: m.is_present ?? true,
-        primary_emotion: m.primary_emotion ?? "neutral",
-        emotion_intensity: m.emotion_intensity ?? 5,
-        emotion_catalyst: m.emotion_catalyst ?? "",
-        valid_from_turn_id: turnId,
-      });
-      newEntityIds.set(`NEW:${m.canonical_name}`, result.id);
+      const normalizedName = m.canonical_name!.toLowerCase();
+      const existing = entityByName.get(normalizedName);
+
+      if (existing) {
+        // Map the NEW: ref to the existing entity instead of creating a duplicate
+        newEntityIds.set(`NEW:${m.canonical_name}`, existing.id);
+        // Apply any changed fields as an update
+        const changes: Record<string, unknown> = {};
+        if (m.is_present !== undefined) changes.is_present = m.is_present;
+        if (m.primary_emotion) changes.primary_emotion = m.primary_emotion;
+        if (m.emotion_intensity !== undefined) changes.emotion_intensity = m.emotion_intensity;
+        if (m.emotion_catalyst) changes.emotion_catalyst = m.emotion_catalyst;
+        if (Object.keys(changes).length > 0) {
+          await updateEntity(supabase, existing.id, changes);
+        }
+      } else {
+        const result = await insertEntity(supabase, {
+          thread_id: threadId,
+          branch_id: branchId,
+          canonical_name: m.canonical_name!,
+          entity_type: m.entity_type as EntityType,
+          aliases: m.aliases ?? [],
+          is_present: m.is_present ?? true,
+          primary_emotion: m.primary_emotion ?? "neutral",
+          emotion_intensity: m.emotion_intensity ?? 5,
+          emotion_catalyst: m.emotion_catalyst ?? "",
+          valid_from_turn_id: turnId,
+        });
+        newEntityIds.set(`NEW:${m.canonical_name}`, result.id);
+        // Track newly created entity so subsequent adds in this batch are deduped too
+        entityByName.set(normalizedName, { id: result.id, canonical_name: m.canonical_name! } as typeof existingEntities[number]);
+      }
     } else if (m.op === "update") {
       await updateEntity(supabase, m.entity_id!, m.changes!);
     } else if (m.op === "invalidate") {
@@ -156,15 +205,31 @@ async function applyMutationsToDb(
 
   for (const m of extraction.location_mutations) {
     if (m.op === "add") {
-      const result = await insertLocation(supabase, {
-        thread_id: threadId,
-        branch_id: branchId,
-        canonical_name: m.canonical_name!,
-        description: m.description ?? "",
-        environmental_modifiers: m.environmental_modifiers ?? [],
-        valid_from_turn_id: turnId,
-      });
-      newLocationIds.set(`NEW:${m.canonical_name}`, result.id);
+      const normalizedLocName = m.canonical_name!.toLowerCase();
+      const existingLoc = locationByName.get(normalizedLocName);
+
+      if (existingLoc) {
+        // Map the NEW: ref to the existing location instead of creating a duplicate
+        newLocationIds.set(`NEW:${m.canonical_name}`, existingLoc.id);
+        // Apply any changed fields as an update
+        const changes: Record<string, unknown> = {};
+        if (m.description) changes.description = m.description;
+        if (m.environmental_modifiers) changes.environmental_modifiers = m.environmental_modifiers;
+        if (Object.keys(changes).length > 0) {
+          await updateLocation(supabase, existingLoc.id, changes);
+        }
+      } else {
+        const result = await insertLocation(supabase, {
+          thread_id: threadId,
+          branch_id: branchId,
+          canonical_name: m.canonical_name!,
+          description: m.description ?? "",
+          environmental_modifiers: m.environmental_modifiers ?? [],
+          valid_from_turn_id: turnId,
+        });
+        newLocationIds.set(`NEW:${m.canonical_name}`, result.id);
+        locationByName.set(normalizedLocName, { id: result.id, canonical_name: m.canonical_name! } as typeof existingLocations[number]);
+      }
     } else if (m.op === "update") {
       await updateLocation(supabase, m.location_id!, m.changes!);
     }
@@ -291,16 +356,23 @@ export async function materializeSnapshotForTurn(args: {
     return materializeDurableSnapshot(supabase, threadId, branchId, turnId, existingSnapshot);
   }
 
+  // Walk backwards through the turn path to find the nearest ancestor snapshot.
+  // Previously only the immediate parent was checked — if it didn't have a snapshot,
+  // the entire chain cascaded into empty-state fallback forever.
+  const turnPath = buildTurnPath(turns, turnId);
   let previousSnapshotRecord: WorldSnapshotRecord | null = null;
-  if (turn.parent_turn_id) {
-    previousSnapshotRecord = await getWorldSnapshot(supabase, turn.parent_turn_id);
+  for (let i = turnPath.length - 2; i >= 0; i--) {
+    const ancestorSnapshot = await getWorldSnapshot(supabase, turnPath[i].id);
+    if (ancestorSnapshot) {
+      previousSnapshotRecord = ancestorSnapshot;
+      break;
+    }
   }
 
   const currentSnapshot = previousSnapshotRecord
     ? await materializeDurableSnapshot(supabase, threadId, branchId, turnId, previousSnapshotRecord)
     : buildEmptyDurableSnapshot(turnId);
 
-  const turnPath = buildTurnPath(turns, turnId);
   const committedTurns = turnPath.filter((t) => t.generation_status === "committed");
 
   const isDefrag = shouldDefrag(committedTurns.length);
@@ -393,7 +465,7 @@ export async function materializeSnapshotForTurn(args: {
     console.error("[HCE] State extraction failed completely. Saving deterministic fallback.", {
       turnId,
       threadId,
-      error: error instanceof Error ? error.message : String(error),
+      error: serializeError(error),
     });
 
     const fallbackRecord: WorldSnapshotRecord = {
@@ -418,7 +490,7 @@ export async function materializeSnapshotForTurn(args: {
       console.error("[HCE] Failed to persist fallback snapshot.", {
         turnId,
         threadId,
-        error: persistError instanceof Error ? persistError.message : String(persistError),
+        error: serializeError(persistError),
       });
     }
 

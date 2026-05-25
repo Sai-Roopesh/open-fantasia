@@ -44,6 +44,7 @@ export async function reflectOnFailedExtraction(args: {
     ...validationResult.factErrors,
     ...validationResult.relationshipErrors,
     ...validationResult.spatialErrors,
+    ...validationResult.locationEdgeErrors,
     ...validationResult.narrativeThreadErrors,
   ];
 

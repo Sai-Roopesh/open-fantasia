@@ -13,6 +13,7 @@ function validateLocationId(locationId: string, snapshot: DurableMemorySnapshot)
   const currentLoc = snapshot.spatial_state.current_location;
   if (currentLoc && currentLoc.id === locationId) return true;
   if (snapshot.spatial_state.adjacent_locations.some((l) => l.id === locationId)) return true;
+  if (snapshot.spatial_state.known_locations.some((l) => l.id === locationId)) return true;
   if (snapshot.spatial_state.entity_placements.some((p) => p.location_id === locationId)) return true;
   return false;
 }

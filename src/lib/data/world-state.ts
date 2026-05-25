@@ -337,13 +337,14 @@ export async function insertEntityPlacement(
 
 export async function invalidateEntityPlacement(
   supabase: DatabaseClient,
-  placementId: string,
+  entityId: string,
   turnId: string,
 ) {
   const { error } = await supabase
     .from("world_entity_placements")
     .update({ invalidated_at_turn_id: turnId, t_expired: new Date().toISOString() })
-    .eq("id", placementId);
+    .eq("entity_id", entityId)
+    .is("invalidated_at_turn_id", null);
 
   if (error) throw error;
 }
