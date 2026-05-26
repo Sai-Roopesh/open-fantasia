@@ -37,6 +37,13 @@ export const providerCatalog: Record<ProviderId, ProviderCatalog> = {
     requiresKey: false,
     defaultBaseUrl: "https://ollama.com/api",
   },
+  deepseek: {
+    id: "deepseek",
+    name: "DeepSeek",
+    description: "DeepSeek V4 models for creative writing with automatic prompt caching.",
+    setupUrl: "https://platform.deepseek.com/api_keys",
+    requiresKey: true,
+  },
 };
 
 export function connectionNeedsApiKey(provider: ProviderId, baseUrl?: string | null) {
@@ -72,6 +79,8 @@ export function validateConnectionInput(args: {
       return apiKey.length >= 20 ? null : "Mistral API keys look incomplete.";
     case "ollama":
       return null;
+    case "deepseek":
+      return apiKey.startsWith("sk-") ? null : "DeepSeek keys usually start with sk-.";
     default:
       return null;
   }

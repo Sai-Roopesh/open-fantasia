@@ -8,6 +8,7 @@ export const providerIds = [
   "mistral",
   "openrouter",
   "ollama",
+  "deepseek",
 ] as const;
 
 export type ProviderId = (typeof providerIds)[number];

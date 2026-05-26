@@ -6,6 +6,7 @@ export function useOptimisticSwitches(args: {
   threadId: string;
   setSurfaceError: (val: string | null) => void;
   switchModelAction: (input: { threadId: string; connectionId: string; modelId: string; }) => Promise<void>;
+  switchBrainModelAction: (input: { threadId: string; connectionId: string | null; modelId: string | null; }) => Promise<void>;
   switchBranchAction: (input: { threadId: string; branchId: string; }) => Promise<void>;
   switchPersonaAction: (input: { threadId: string; personaId: string; }) => Promise<void>;
 }) {
@@ -14,6 +15,7 @@ export function useOptimisticSwitches(args: {
   const [optimisticBranchId, setOptimisticBranchId] = useState<string | null>(null);
   const [optimisticPersonaId, setOptimisticPersonaId] = useState<string | null>(null);
   const [optimisticModel, setOptimisticModel] = useState<{ modelId: string; label: string } | null>(null);
+  const [optimisticBrainModel, setOptimisticBrainModel] = useState<{ connectionId: string | null; modelId: string | null } | null>(null);
 
   // Reset optimistic state when server props arrive (switchPending goes false)
   useEffect(() => {
@@ -21,6 +23,7 @@ export function useOptimisticSwitches(args: {
       setOptimisticBranchId(null);
       setOptimisticPersonaId(null);
       setOptimisticModel(null);
+      setOptimisticBrainModel(null);
     }
   }, [switchPending]);
 
@@ -66,13 +69,29 @@ export function useOptimisticSwitches(args: {
     }
   }, [args, router]);
 
+  const onBrainModelSwitch = useCallback(async (connectionId: string | null, modelId: string | null) => {
+    setOptimisticBrainModel({ connectionId, modelId });
+    setSwitchPending(true);
+    try {
+      await args.switchBrainModelAction({ threadId: args.threadId, connectionId, modelId });
+      router.refresh();
+    } catch (error) {
+      setOptimisticBrainModel(null);
+      args.setSurfaceError(error instanceof Error ? humanizeChatError(error.message) : "Brain model switch failed.");
+    } finally {
+      setSwitchPending(false);
+    }
+  }, [args, router]);
+
   return {
     switchPending,
     optimisticBranchId,
     optimisticPersonaId,
     optimisticModel,
+    optimisticBrainModel,
     onBranchSwitch,
     onPersonaSwitch,
     onModelSwitch,
+    onBrainModelSwitch,
   };
 }

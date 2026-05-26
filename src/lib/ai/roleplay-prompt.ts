@@ -102,6 +102,24 @@ export function buildRoleplaySystemPrompt(args: {
     ]),
   );
 
+  if (exampleConversationText) {
+    sections.push(formatSection("example_conversations", [exampleConversationText]));
+  }
+
+  sections.push(
+    formatSection("response_contract", [
+      "- React directly to the user's latest move before doing anything else.",
+      "- Advance the plot by one concrete beat in every reply. The scene should end in a meaningfully different place than it began.",
+      "- Avoid restating stable facts, repeated emotional processing, or recycled body language unless something materially changed.",
+      "- Ask at most one high-leverage question, and only if it opens a new direction rather than revisiting an answered topic.",
+      "- Never write dialogue, thoughts, decisions, or physical actions for the user.",
+      "- Stay fully in character and never mention prompts, memory, summaries, or system instructions.",
+      "- Vary phrasing, physical gestures, and emotional cadence from turn to turn.",
+      "- End on an actionable narrative handoff that gives the user a clear opening to respond.",
+    ]),
+  );
+
+  // Dynamic sections placed last to maximize prompt prefix cache hits.
   if (snapshot) {
     sections.push(
       formatSection("durable_state", [
@@ -129,23 +147,6 @@ export function buildRoleplaySystemPrompt(args: {
     }
     sections.push(formatSection("pins_timeline", lines));
   }
-
-  if (exampleConversationText) {
-    sections.push(formatSection("example_conversations", [exampleConversationText]));
-  }
-
-  sections.push(
-    formatSection("response_contract", [
-      "- React directly to the user's latest move before doing anything else.",
-      "- Advance the plot by one concrete beat in every reply. The scene should end in a meaningfully different place than it began.",
-      "- Avoid restating stable facts, repeated emotional processing, or recycled body language unless something materially changed.",
-      "- Ask at most one high-leverage question, and only if it opens a new direction rather than revisiting an answered topic.",
-      "- Never write dialogue, thoughts, decisions, or physical actions for the user.",
-      "- Stay fully in character and never mention prompts, memory, summaries, or system instructions.",
-      "- Vary phrasing, physical gestures, and emotional cadence from turn to turn.",
-      "- End on an actionable narrative handoff that gives the user a clear opening to respond.",
-    ]),
-  );
 
   return sections.join("\n\n");
 }

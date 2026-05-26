@@ -11,12 +11,14 @@ import {
   switchActiveBranch,
   updateThreadModel,
   updateThreadPersona,
+  updateThreadBrainModel,
 } from "@/lib/data/threads";
 import { insertTimelineEvent } from "@/lib/data/timeline";
 import { getThreadGraphView } from "@/lib/threads/read-model";
 import {
   switchThreadBranchSchema,
   switchThreadModelSchema,
+  switchThreadBrainModelSchema,
   switchThreadPersonaSchema,
   threadDeleteCommandSchema,
 } from "@/lib/validation";
@@ -52,6 +54,58 @@ export async function switchThreadModelAction(input: {
     turn_id: view.activeBranch.head_turn_id ?? null,
     title: "Model switched",
     detail: `Switched to ${connection.label} using ${parsed.modelId}.`,
+    importance: 2,
+    event_type: "beat",
+    affected_entity_ids: [],
+    affected_relationship_ids: [],
+  });
+
+  revalidatePath(`/app/chats/${parsed.threadId}`);
+  revalidatePath("/app");
+}
+
+export async function switchThreadBrainModelAction(input: {
+  threadId: string;
+  connectionId: string | null;
+  modelId: string | null;
+}) {
+  const parsed = switchThreadBrainModelSchema.parse(input);
+  const { supabase, user } = await requireAllowedUser();
+  const view = await getThreadGraphView(supabase, user.id, parsed.threadId);
+  if (!view) {
+    throw new Error("Thread not found.");
+  }
+
+  let connectionLabel = "Default Chat Provider";
+  if (parsed.connectionId) {
+    const connection = await getConnection(supabase, user.id, parsed.connectionId);
+    if (!connection) {
+      throw new Error("Connection not found.");
+    }
+    if (parsed.modelId) {
+      const supportsModel = connection.model_cache.some(
+        (model) => model.id === parsed.modelId,
+      );
+      if (!supportsModel) {
+        throw new Error("The selected model is not cached on that connection.");
+      }
+    }
+    connectionLabel = connection.label;
+  }
+
+  await updateThreadBrainModel(supabase, user.id, {
+    threadId: parsed.threadId,
+    brainConnectionId: parsed.connectionId,
+    brainModelId: parsed.modelId,
+  });
+  await insertTimelineEvent(supabase, {
+    thread_id: parsed.threadId,
+    branch_id: view.activeBranch.id,
+    turn_id: view.activeBranch.head_turn_id ?? null,
+    title: "Brain model switched",
+    detail: parsed.connectionId
+      ? `Switched HCE brain to ${connectionLabel} using ${parsed.modelId}.`
+      : "Reset HCE brain to inherit default chat model.",
     importance: 2,
     event_type: "beat",
     affected_entity_ids: [],

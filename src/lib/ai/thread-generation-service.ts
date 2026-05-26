@@ -39,6 +39,8 @@ export type ThreadGenerationRuntime = {
   connection: ConnectionRecord;
   persona: UserPersonaRecord;
   generationSettings: ThreadGenerationSettings;
+  brainConnection: ConnectionRecord;
+  brainModelId: string;
 };
 
 const MIN_PROMPT_TIMELINE_IMPORTANCE = 3;
@@ -102,6 +104,20 @@ export async function loadThreadGenerationRuntime(args: {
     throw new ThreadGenerationServiceError(400, "Missing thread context.");
   }
 
+  let brainConnection = connection;
+  const brainModelId = threadView.thread.brain_model_id || threadView.thread.model_id;
+
+  if (threadView.thread.brain_connection_id) {
+    const loadedBrainConn = await getConnection(
+      args.supabase,
+      args.userId,
+      threadView.thread.brain_connection_id
+    );
+    if (loadedBrainConn) {
+      brainConnection = loadedBrainConn;
+    }
+  }
+
   const latestTurn = threadView.latestTurn;
   if (latestTurn && latestTurn.generation_status === "committed" && !threadView.headSnapshot) {
     threadView.headSnapshot = await materializeSnapshotForTurn({
@@ -109,8 +125,8 @@ export async function loadThreadGenerationRuntime(args: {
       userId: args.userId,
       threadId: args.threadId,
       turnId: latestTurn.id,
-      connection,
-      modelId: threadView.thread.model_id,
+      connection: brainConnection,
+      modelId: brainModelId,
       character: threadView.characterBundle!.character,
     });
     threadView.headSnapshotPending = false;
@@ -129,6 +145,8 @@ export async function loadThreadGenerationRuntime(args: {
       character: threadView.characterBundle.character,
       thread: threadView.thread,
     }),
+    brainConnection,
+    brainModelId,
   } satisfies ThreadGenerationRuntime;
 }
 

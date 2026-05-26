@@ -157,12 +157,20 @@ export const startThreadCommandSchema = z.object({
   personaId: z.string().uuid().optional(),
   connectionId: z.string().uuid().optional(),
   modelId: z.string().trim().min(1).optional(),
+  brainConnectionId: z.string().uuid().nullable().optional(),
+  brainModelId: z.string().trim().min(1).nullable().optional(),
 });
 
 export const switchThreadModelSchema = z.object({
   threadId: z.string().uuid(),
   connectionId: z.string().uuid(),
   modelId: z.string().trim().min(1),
+});
+
+export const switchThreadBrainModelSchema = z.object({
+  threadId: z.string().uuid(),
+  connectionId: z.string().uuid().nullable(),
+  modelId: z.string().trim().min(1).nullable(),
 });
 
 export const switchThreadPersonaSchema = z.object({

@@ -180,9 +180,33 @@ export async function regenerateCharacterPortraitAction(formData: FormData) {
 
 export async function startThreadAction(formData: FormData) {
   const { supabase, user } = await requireAllowedUser();
+
+  const modelSelect = String(formData.get("modelSelect") ?? "");
+  const brainModelSelect = String(formData.get("brainModelSelect") ?? "");
+
+  let connectionId: string | undefined;
+  let modelId: string | undefined;
+  if (modelSelect.includes(":")) {
+    const parts = modelSelect.split(":");
+    connectionId = parts[0];
+    modelId = parts.slice(1).join(":");
+  }
+
+  let brainConnectionId: string | null = null;
+  let brainModelId: string | null = null;
+  if (brainModelSelect.includes(":")) {
+    const parts = brainModelSelect.split(":");
+    brainConnectionId = parts[0];
+    brainModelId = parts.slice(1).join(":");
+  }
+
   const parsed = startThreadCommandSchema.safeParse({
     characterId: String(formData.get("characterId") ?? ""),
     personaId: String(formData.get("personaId") ?? "").trim() || undefined,
+    connectionId: connectionId || undefined,
+    modelId: modelId || undefined,
+    brainConnectionId: brainConnectionId || null,
+    brainModelId: brainModelId || null,
   });
   if (!parsed.success) {
     redirect("/app/characters?reason=character");
@@ -220,21 +244,40 @@ export async function startThreadAction(formData: FormData) {
     redirect("/app/settings/providers?reason=connection");
   }
 
-  const modelId =
+  const resolvedModelId =
     parsed.data.modelId ??
     usableConnection.default_model_id;
   if (
-    !modelId ||
-    !usableConnection.model_cache.some((model) => model.id === modelId)
+    !resolvedModelId ||
+    !usableConnection.model_cache.some((model) => model.id === resolvedModelId)
   ) {
     redirect("/app/settings/providers?reason=model");
+  }
+
+  let finalBrainConnectionId = parsed.data.brainConnectionId;
+  let finalBrainModelId = parsed.data.brainModelId;
+  if (finalBrainConnectionId) {
+    const brainConn = await getConnection(supabase, user.id, finalBrainConnectionId);
+    if (!brainConn) {
+      finalBrainConnectionId = null;
+      finalBrainModelId = null;
+    } else if (finalBrainModelId) {
+      const supportsBrainModel = brainConn.model_cache.some((m) => m.id === finalBrainModelId);
+      if (!supportsBrainModel) {
+        finalBrainModelId = brainConn.default_model_id;
+      }
+    } else {
+      finalBrainModelId = brainConn.default_model_id;
+    }
   }
 
   const thread = await createThread(supabase, user.id, {
     characterId: parsed.data.characterId,
     connection: usableConnection,
-    modelId,
+    modelId: resolvedModelId,
     personaId: persona.id,
+    brainConnectionId: finalBrainConnectionId,
+    brainModelId: finalBrainModelId,
     title: `Scene with ${character.name}`,
   });
 
