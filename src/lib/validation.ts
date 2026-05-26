@@ -120,7 +120,7 @@ export const saveCharacterCommandSchema = z.object({
   negative_guidance: z.string().default(""),
   temperature: z.coerce.number().min(0).max(2).default(0.92),
   top_p: z.coerce.number().gt(0).lte(1).default(0.94),
-  max_output_tokens: z.coerce.number().int().positive().max(4_096).default(750),
+  max_output_tokens: z.coerce.number().int().positive().max(16_384).default(4_096),
   starters: z.array(starterSchema).max(MAX_STARTERS).default([]),
   exampleConversations: z.array(exampleSchema).max(MAX_EXAMPLES).default([]),
 });

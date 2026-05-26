@@ -26,7 +26,7 @@ const mockCharacter: CharacterBundle = {
     portrait_generated_at: null,
     temperature: 0.9,
     top_p: 0.9,
-    max_output_tokens: 500,
+    max_output_tokens: 4096,
     created_at: "2024-01-01",
     updated_at: "2024-01-01",
   },
@@ -80,6 +80,7 @@ describe("buildRoleplaySystemPrompt", () => {
     expect(prompt).toContain("No world state has been materialized yet.");
     expect(prompt).toContain("<response_contract>");
     expect(prompt).toContain("Advance the plot by one concrete beat");
+    expect(prompt).toContain("COMPLETION RULE");
     expect(prompt).not.toContain("Hey there.");
   });
 

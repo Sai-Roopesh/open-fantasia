@@ -25,6 +25,15 @@ const tabs = [
   { id: "examples", label: "Examples" },
 ] as const;
 
+const PRESETS = [
+  { label: "Concise", value: 750, description: "Short, punchy replies" },
+  { label: "Normal", value: 2048, description: "Standard roleplay length" },
+  { label: "Extended", value: 4096, description: "Detailed scenes (default)" },
+  { label: "Expansive", value: 8192, description: "Long-form creative writing" },
+  { label: "Unlimited", value: 16384, description: "Maximum output budget" },
+] as const;
+
+
 function TextField({
   label,
   name,
@@ -85,6 +94,21 @@ export function CharacterStudioForm({
   });
   const [activeTab, setActiveTab] =
     useState<(typeof tabs)[number]["id"]>("story");
+
+  const closestPresetIndex = useMemo(() => {
+    const currentTokens = draft.max_output_tokens ?? 4096;
+    let closestIdx = 2;
+    let minDiff = Infinity;
+    for (let i = 0; i < PRESETS.length; i++) {
+      const diff = Math.abs(PRESETS[i].value - currentTokens);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestIdx = i;
+      }
+    }
+    return closestIdx;
+  }, [draft.max_output_tokens]);
+
 
   const { confirmRequest, clearConfirm } = useUnsavedChangesGuard(
     isDirty,
@@ -348,6 +372,35 @@ export function CharacterStudioForm({
           helper="What the character must never do, say, or become."
           onChange={(value) => update("negative_guidance", value)}
         />
+        <div className="block">
+          <span className="mb-1 block text-xs font-medium text-on-surface">Response length</span>
+          <div className="space-y-2 rounded border-b-2 border-border-subtle bg-surface-container px-3 py-3">
+            <div className="flex justify-between items-center">
+              <span className="text-sm font-semibold text-on-surface">
+                {PRESETS[closestPresetIndex].label}
+              </span>
+              <span className="text-xs text-muted-foreground font-mono">
+                {draft.max_output_tokens} tokens
+              </span>
+            </div>
+            <input
+              type="range"
+              min="0"
+              max={PRESETS.length - 1}
+              step="1"
+              value={closestPresetIndex}
+              onChange={(e) => {
+                const index = parseInt(e.target.value, 10);
+                update("max_output_tokens", PRESETS[index].value);
+              }}
+              className="w-full accent-primary-container cursor-pointer"
+            />
+            <p className="text-[11px] leading-4 text-muted-foreground">
+              {PRESETS[closestPresetIndex].description}
+            </p>
+          </div>
+          <input type="hidden" name="max_output_tokens" value={draft.max_output_tokens} />
+        </div>
       </div>
 
       {/* ── Tab 3: Starters ── */}

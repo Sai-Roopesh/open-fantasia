@@ -62,7 +62,7 @@ export async function saveCharacterAction(formData: FormData) {
     negative_guidance: String(formData.get("negative_guidance") ?? ""),
     temperature: String(formData.get("temperature") ?? "0.92"),
     top_p: String(formData.get("top_p") ?? "0.94"),
-    max_output_tokens: String(formData.get("max_output_tokens") ?? "750"),
+    max_output_tokens: String(formData.get("max_output_tokens") ?? "4096"),
     starters: formData
       .getAll("starter_text")
       .map((value) => String(value).trim())

@@ -116,6 +116,7 @@ export function buildRoleplaySystemPrompt(args: {
       "- Stay fully in character and never mention prompts, memory, summaries, or system instructions.",
       "- Vary phrasing, physical gestures, and emotional cadence from turn to turn.",
       "- End on an actionable narrative handoff that gives the user a clear opening to respond.",
+      "- COMPLETION RULE: Always finish your response with a complete sentence and a natural stopping point. If you sense you are running long, wrap up the current beat gracefully rather than starting a new one. Never stop mid-sentence, mid-paragraph, or mid-thought.",
     ]),
   );
 

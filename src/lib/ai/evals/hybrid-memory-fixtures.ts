@@ -46,7 +46,7 @@ const sharedCharacter: CharacterBundle = {
     portrait_generated_at: null,
     temperature: 0.92,
     top_p: 0.94,
-    max_output_tokens: 650,
+    max_output_tokens: 4096,
     created_at: "2026-04-23T00:00:00.000Z",
     updated_at: "2026-04-23T00:00:00.000Z",
   },

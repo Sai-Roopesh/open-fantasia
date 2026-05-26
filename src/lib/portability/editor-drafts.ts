@@ -18,6 +18,7 @@ export type CharacterDraft = {
   style_rules: string;
   definition: string;
   negative_guidance: string;
+  max_output_tokens: number;
   starters: string[];
   examples: Array<{ user: string; character: string }>;
 };
@@ -48,6 +49,7 @@ export function createCharacterDraft(editing: CharacterBundle | null): Character
           negative_guidance: editing.character.negative_guidance,
         }
       : {}),
+    max_output_tokens: editing?.character.max_output_tokens ?? 4096,
     starters: editing?.starters.length
       ? editing.starters.map((starter) => starter.text)
       : [""],
@@ -97,6 +99,7 @@ export function portableCharacterDataToDraft(
       user: example.user_line,
       character: example.character_line,
     })),
+    max_output_tokens: 4096,
   };
 }
 
