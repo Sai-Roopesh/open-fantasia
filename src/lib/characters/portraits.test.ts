@@ -71,7 +71,6 @@ describe("character portraits", () => {
         portrait_generated_at: new Date().toISOString(),
         temperature: 0.92,
         top_p: 0.94,
-        max_output_tokens: 4096,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       },

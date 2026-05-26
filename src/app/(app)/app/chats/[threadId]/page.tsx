@@ -11,6 +11,7 @@ import {
   switchThreadModelAction,
   switchThreadPersonaAction,
   switchThreadBrainModelAction,
+  switchThreadTokensAction,
 } from "@/app/(app)/app/chats/[threadId]/actions";
 
 export default async function ChatThreadPage({
@@ -219,6 +220,8 @@ export default async function ChatThreadPage({
       currentBrainConnectionId={view.thread.brain_connection_id}
       currentBrainModelId={view.thread.brain_model_id}
       switchBrainModelAction={switchThreadBrainModelAction}
+      maxOutputTokens={view.thread.max_output_tokens}
+      switchTokensAction={switchThreadTokensAction}
     />
   );
 }

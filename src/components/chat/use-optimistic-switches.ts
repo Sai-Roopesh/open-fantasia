@@ -9,6 +9,7 @@ export function useOptimisticSwitches(args: {
   switchBrainModelAction: (input: { threadId: string; connectionId: string | null; modelId: string | null; }) => Promise<void>;
   switchBranchAction: (input: { threadId: string; branchId: string; }) => Promise<void>;
   switchPersonaAction: (input: { threadId: string; personaId: string; }) => Promise<void>;
+  switchTokensAction: (input: { threadId: string; maxOutputTokens: number; }) => Promise<void>;
 }) {
   const router = useRouter();
   const [switchPending, setSwitchPending] = useState(false);
@@ -16,6 +17,7 @@ export function useOptimisticSwitches(args: {
   const [optimisticPersonaId, setOptimisticPersonaId] = useState<string | null>(null);
   const [optimisticModel, setOptimisticModel] = useState<{ modelId: string; label: string } | null>(null);
   const [optimisticBrainModel, setOptimisticBrainModel] = useState<{ connectionId: string | null; modelId: string | null } | null>(null);
+  const [optimisticTokens, setOptimisticTokens] = useState<number | null>(null);
 
   // Reset optimistic state when server props arrive (switchPending goes false)
   useEffect(() => {
@@ -24,6 +26,7 @@ export function useOptimisticSwitches(args: {
       setOptimisticPersonaId(null);
       setOptimisticModel(null);
       setOptimisticBrainModel(null);
+      setOptimisticTokens(null);
     }
   }, [switchPending]);
 
@@ -83,15 +86,31 @@ export function useOptimisticSwitches(args: {
     }
   }, [args, router]);
 
+  const onTokensSwitch = useCallback(async (nextTokens: number) => {
+    setOptimisticTokens(nextTokens);
+    setSwitchPending(true);
+    try {
+      await args.switchTokensAction({ threadId: args.threadId, maxOutputTokens: nextTokens });
+      router.refresh();
+    } catch (error) {
+      setOptimisticTokens(null);
+      args.setSurfaceError(error instanceof Error ? humanizeChatError(error.message) : "Tokens limit update failed.");
+    } finally {
+      setSwitchPending(false);
+    }
+  }, [args, router]);
+
   return {
     switchPending,
     optimisticBranchId,
     optimisticPersonaId,
     optimisticModel,
     optimisticBrainModel,
+    optimisticTokens,
     onBranchSwitch,
     onPersonaSwitch,
     onModelSwitch,
     onBrainModelSwitch,
+    onTokensSwitch,
   };
 }

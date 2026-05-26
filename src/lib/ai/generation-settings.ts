@@ -7,6 +7,6 @@ export function resolveThreadGenerationSettings(args: {
   return {
     temperature: args.character.temperature,
     topP: args.character.top_p,
-    maxOutputTokens: args.character.max_output_tokens,
+    maxOutputTokens: args.thread.max_output_tokens,
   };
 }
