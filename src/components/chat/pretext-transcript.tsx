@@ -246,6 +246,15 @@ export function PretextTranscript({
                       />
                     ))}
                   </div>
+
+                  {!isUser && metadata?.finishReason === "length" ? (
+                    <div className="mt-3 flex items-start gap-1.5 rounded border border-status-warning/30 bg-status-warning/10 p-2.5 text-xs text-status-warning">
+                      <span className="shrink-0 mt-0.5">⚠️</span>
+                      <p className="leading-5">
+                        Response was truncated — the model hit the output limit. Try increasing &quot;Response length&quot; in the character&apos;s Voice settings, or regenerate.
+                      </p>
+                    </div>
+                  ) : null}
                 </article>
 
                 {hasActionBar ? (

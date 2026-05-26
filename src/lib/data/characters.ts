@@ -169,7 +169,7 @@ export async function upsertCharacterBundle(
     portrait_generated_at: payload.portrait_generated_at ?? null,
     temperature: payload.temperature ?? 0.92,
     top_p: payload.top_p ?? 0.94,
-    max_output_tokens: payload.max_output_tokens ?? 750,
+    max_output_tokens: payload.max_output_tokens ?? 4096,
   };
 
   const query = payload.id
