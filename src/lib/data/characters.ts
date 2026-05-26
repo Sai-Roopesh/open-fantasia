@@ -38,7 +38,6 @@ const characterRecordSchema = z.object({
   portrait_generated_at: z.string().nullable(),
   temperature: z.number(),
   top_p: z.number(),
-  max_output_tokens: z.number().int(),
   created_at: z.string(),
   updated_at: z.string(),
 });
@@ -65,7 +64,6 @@ const characterSelect = [
   "portrait_generated_at",
   "temperature",
   "top_p",
-  "max_output_tokens",
   "created_at",
   "updated_at",
 ].join(", ");
@@ -169,7 +167,6 @@ export async function upsertCharacterBundle(
     portrait_generated_at: payload.portrait_generated_at ?? null,
     temperature: payload.temperature ?? 0.92,
     top_p: payload.top_p ?? 0.94,
-    max_output_tokens: payload.max_output_tokens ?? 4096,
   };
 
   const query = payload.id

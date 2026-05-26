@@ -120,7 +120,6 @@ export const saveCharacterCommandSchema = z.object({
   negative_guidance: z.string().default(""),
   temperature: z.coerce.number().min(0).max(2).default(0.92),
   top_p: z.coerce.number().gt(0).lte(1).default(0.94),
-  max_output_tokens: z.coerce.number().int().positive().max(16_384).default(4_096),
   starters: z.array(starterSchema).max(MAX_STARTERS).default([]),
   exampleConversations: z.array(exampleSchema).max(MAX_EXAMPLES).default([]),
 });
@@ -159,6 +158,7 @@ export const startThreadCommandSchema = z.object({
   modelId: z.string().trim().min(1).optional(),
   brainConnectionId: z.string().uuid().nullable().optional(),
   brainModelId: z.string().trim().min(1).nullable().optional(),
+  maxOutputTokens: z.coerce.number().int().positive().max(16_384).default(4_096).optional(),
 });
 
 export const switchThreadModelSchema = z.object({
@@ -171,6 +171,11 @@ export const switchThreadBrainModelSchema = z.object({
   threadId: z.string().uuid(),
   connectionId: z.string().uuid().nullable(),
   modelId: z.string().trim().min(1).nullable(),
+});
+
+export const updateThreadTokensSchema = z.object({
+  threadId: z.string().uuid(),
+  maxOutputTokens: z.coerce.number().int().positive().max(16_384).default(4_096),
 });
 
 export const switchThreadPersonaSchema = z.object({

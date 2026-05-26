@@ -12,6 +12,7 @@ import {
   updateThreadModel,
   updateThreadPersona,
   updateThreadBrainModel,
+  updateThreadTokens,
 } from "@/lib/data/threads";
 import { insertTimelineEvent } from "@/lib/data/timeline";
 import { getThreadGraphView } from "@/lib/threads/read-model";
@@ -21,6 +22,7 @@ import {
   switchThreadBrainModelSchema,
   switchThreadPersonaSchema,
   threadDeleteCommandSchema,
+  updateThreadTokensSchema,
 } from "@/lib/validation";
 
 export async function switchThreadModelAction(input: {
@@ -106,6 +108,34 @@ export async function switchThreadBrainModelAction(input: {
     detail: parsed.connectionId
       ? `Switched HCE brain to ${connectionLabel} using ${parsed.modelId}.`
       : "Reset HCE brain to inherit default chat model.",
+    importance: 2,
+    event_type: "beat",
+    affected_entity_ids: [],
+    affected_relationship_ids: [],
+  });
+
+  revalidatePath(`/app/chats/${parsed.threadId}`);
+  revalidatePath("/app");
+}
+
+export async function switchThreadTokensAction(input: {
+  threadId: string;
+  maxOutputTokens: number;
+}) {
+  const parsed = updateThreadTokensSchema.parse(input);
+  const { supabase, user } = await requireAllowedUser();
+  const view = await getThreadGraphView(supabase, user.id, parsed.threadId);
+  if (!view) {
+    throw new Error("Thread not found.");
+  }
+
+  await updateThreadTokens(supabase, user.id, parsed);
+  await insertTimelineEvent(supabase, {
+    thread_id: parsed.threadId,
+    branch_id: view.activeBranch.id,
+    turn_id: view.activeBranch.head_turn_id ?? null,
+    title: "Response length limit updated",
+    detail: `Updated response limit to ${parsed.maxOutputTokens} tokens.`,
     importance: 2,
     event_type: "beat",
     affected_entity_ids: [],

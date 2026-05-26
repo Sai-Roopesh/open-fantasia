@@ -24,7 +24,16 @@ import {
 import { InspectorPanel } from "@/components/chat/chat-inspector-panel";
 import type { ChatBranchRecord, UserPersonaRecord } from "@/lib/types";
 import type { InspectorTab, ModelChoiceGroup } from "@/components/chat/chat-ui-types";
-import { useState } from "react";
+import { useState, useMemo } from "react";
+
+const PRESETS = [
+  { label: "Concise", value: 750, description: "Short, punchy replies" },
+  { label: "Normal", value: 2048, description: "Standard roleplay length" },
+  { label: "Extended", value: 4096, description: "Detailed scenes (default)" },
+  { label: "Expansive", value: 8192, description: "Long-form creative writing" },
+  { label: "Unlimited", value: 16384, description: "Maximum output budget" },
+] as const;
+
 
 type TranscriptProps = ComponentProps<typeof PretextTranscript>;
 type ComposerProps = ComponentProps<typeof ChatComposer>;
@@ -68,6 +77,8 @@ export function ChatLayout({
   currentBrainModelId,
   optimisticBrainModel,
   onBrainModelSwitch,
+  maxOutputTokens,
+  onTokensSwitch,
 }: {
   characterName: string;
   characterBackgroundUrl?: string | null;
@@ -114,8 +125,23 @@ export function ChatLayout({
     connectionId: string | null,
     modelId: string | null,
   ) => Promise<void>;
+  maxOutputTokens: number;
+  onTokensSwitch: (maxOutputTokens: number) => Promise<void>;
 }) {
   const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
+
+  const closestPresetIndex = useMemo(() => {
+    let closestIdx = 2;
+    let minDiff = Infinity;
+    for (let i = 0; i < PRESETS.length; i++) {
+      const diff = Math.abs(PRESETS[i].value - maxOutputTokens);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestIdx = i;
+      }
+    }
+    return closestIdx;
+  }, [maxOutputTokens]);
 
   const displayBrainConnectionId = optimisticBrainModel !== null
     ? optimisticBrainModel.connectionId
@@ -307,6 +333,39 @@ export function ChatLayout({
               <p className="mt-1 text-[11px] text-muted-foreground leading-normal">
                 Handles world-state JSON extraction. Pick a JSON-reliable model (e.g. Gemini, Mistral) if using DeepSeek for creative writing chat.
               </p>
+            </div>
+
+            {/* Response length slider */}
+            <div className="border-b border-border-subtle px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+                Response length
+              </p>
+              <div className="mt-2 space-y-2 rounded border border-border-subtle bg-surface-container px-3 py-2">
+                <div className="flex justify-between items-center">
+                  <span className="text-xs font-semibold text-on-surface">
+                    {PRESETS[closestPresetIndex].label}
+                  </span>
+                  <span className="text-[10px] text-muted-foreground font-mono">
+                    {maxOutputTokens} tokens
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max={PRESETS.length - 1}
+                  step="1"
+                  disabled={switchPending}
+                  value={closestPresetIndex}
+                  onChange={(e) => {
+                    const index = parseInt(e.target.value, 10);
+                    void onTokensSwitch(PRESETS[index].value);
+                  }}
+                  className="w-full accent-primary-container cursor-pointer disabled:opacity-50"
+                />
+                <p className="text-[10px] leading-relaxed text-muted-foreground">
+                  {PRESETS[closestPresetIndex].description}
+                </p>
+              </div>
             </div>
 
             {/* Branch picker */}

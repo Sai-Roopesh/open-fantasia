@@ -52,6 +52,8 @@ export function ChatWorkspace({
   currentBrainConnectionId,
   currentBrainModelId,
   switchBrainModelAction,
+  maxOutputTokens,
+  switchTokensAction,
 }: {
   threadId: string;
   characterName: string;
@@ -73,6 +75,8 @@ export function ChatWorkspace({
   currentBrainConnectionId?: string | null;
   currentBrainModelId?: string | null;
   switchBrainModelAction: (input: { threadId: string; connectionId: string | null; modelId: string | null; }) => Promise<void>;
+  maxOutputTokens: number;
+  switchTokensAction: (input: { threadId: string; maxOutputTokens: number; }) => Promise<void>;
 }) {
   const router = useRouter();
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -117,10 +121,12 @@ export function ChatWorkspace({
     optimisticPersonaId,
     optimisticModel,
     optimisticBrainModel,
+    optimisticTokens,
     onBranchSwitch,
     onPersonaSwitch,
     onModelSwitch,
     onBrainModelSwitch,
+    onTokensSwitch,
   } = useOptimisticSwitches({
     threadId,
     setSurfaceError,
@@ -128,12 +134,14 @@ export function ChatWorkspace({
     switchBrainModelAction,
     switchBranchAction,
     switchPersonaAction,
+    switchTokensAction,
   });
 
   const displayModel = optimisticModel?.modelId ?? currentModel;
   const displayConnectionLabel = optimisticModel?.label ?? currentConnectionLabel;
   const displayBranchId = optimisticBranchId ?? activeBranch.id;
   const displayPersonaId = optimisticPersonaId ?? (currentPersona?.id ?? "");
+  const displayTokens = optimisticTokens ?? maxOutputTokens;
 
   const { messages, sendMessage, status, error } = useChat<FantasiaUIMessage>({
     id: threadId,
@@ -360,6 +368,8 @@ export function ChatWorkspace({
         currentBrainModelId={currentBrainModelId}
         optimisticBrainModel={optimisticBrainModel}
         onBrainModelSwitch={onBrainModelSwitch}
+        maxOutputTokens={displayTokens}
+        onTokensSwitch={onTokensSwitch}
       />
 
       {sheet ? (
