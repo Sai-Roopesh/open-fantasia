@@ -70,6 +70,28 @@ export default async function CharactersPage({
     listPersonas(supabase, user.id),
     getDefaultPersona(supabase, user.id),
   ]);
+  const enabledConnections = connections.filter((c) => c.enabled && c.model_cache.length > 0);
+  const allModels = enabledConnections.flatMap((conn) =>
+    conn.model_cache.map((model) => ({
+      connectionId: conn.id,
+      modelId: model.id,
+      label: `${conn.label} — ${model.name || model.id}`,
+    }))
+  );
+  const brainModels = allModels.filter((m) => {
+    const conn = enabledConnections.find((c) => c.id === m.connectionId);
+    return conn && conn.provider !== "deepseek";
+  });
+
+  const defaultUsableConnection = enabledConnections.find(
+    (c) => c.default_model_id && c.model_cache.some((m) => m.id === c.default_model_id)
+  );
+  const defaultModelVal = defaultUsableConnection
+    ? `${defaultUsableConnection.id}:${defaultUsableConnection.default_model_id}`
+    : allModels[0]
+      ? `${allModels[0].connectionId}:${allModels[0].modelId}`
+      : "";
+
   const editId = typeof params.edit === "string" ? params.edit : null;
   const editing = editId ? await getCharacterBundle(supabase, user.id, editId) : null;
   const editingPortraitUrl = editing
@@ -217,8 +239,9 @@ export default async function CharactersPage({
                 </Link>
 
                 {canStartThread ? (
-                  <form action={startThreadAction} className="flex items-center gap-2">
+                  <form action={startThreadAction} className="flex flex-wrap items-center gap-2">
                     <input type="hidden" name="characterId" value={character.id} />
+                    
                     <label>
                       <span className="sr-only">Persona for this thread</span>
                       <select
@@ -238,6 +261,43 @@ export default async function CharactersPage({
                         ))}
                       </select>
                     </label>
+
+                    {allModels.length > 0 && (
+                      <label>
+                        <span className="sr-only">Chat Model</span>
+                        <select
+                          name="modelSelect"
+                          defaultValue={defaultModelVal}
+                          required
+                          className="rounded border border-border-subtle bg-surface-container px-2 py-1 text-xs text-on-surface outline-none focus:border-primary-container"
+                        >
+                          {allModels.map((m, idx) => (
+                            <option key={idx} value={`${m.connectionId}:${m.modelId}`}>
+                              {m.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+
+                    {brainModels.length > 0 && (
+                      <label>
+                        <span className="sr-only">Brain Model (HCE)</span>
+                        <select
+                          name="brainModelSelect"
+                          defaultValue=""
+                          className="rounded border border-border-subtle bg-surface-container px-2 py-1 text-xs text-on-surface outline-none focus:border-primary-container"
+                        >
+                          <option value="">Default (Inherit Chat Model)</option>
+                          {brainModels.map((m, idx) => (
+                            <option key={idx} value={`${m.connectionId}:${m.modelId}`}>
+                              HCE: {m.label}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+
                     <SubmitButton className="rounded bg-primary-container px-2 py-1 text-xs font-semibold text-on-primary-container">
                       Start thread
                     </SubmitButton>

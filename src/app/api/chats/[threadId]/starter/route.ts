@@ -116,8 +116,8 @@ export async function POST(
       userId: context.user.id,
       threadId,
       turnId: reservedTurn.id,
-      connection: runtime.connection,
-      modelId: runtime.threadView.thread.model_id,
+      connection: runtime.brainConnection,
+      modelId: runtime.brainModelId,
       character: runtime.character.character,
     });
 

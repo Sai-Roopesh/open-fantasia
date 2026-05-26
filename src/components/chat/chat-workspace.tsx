@@ -49,6 +49,9 @@ export function ChatWorkspace({
   switchModelAction,
   switchBranchAction,
   switchPersonaAction,
+  currentBrainConnectionId,
+  currentBrainModelId,
+  switchBrainModelAction,
 }: {
   threadId: string;
   characterName: string;
@@ -67,6 +70,9 @@ export function ChatWorkspace({
   switchModelAction: (input: { threadId: string; connectionId: string; modelId: string; }) => Promise<void>;
   switchBranchAction: (input: { threadId: string; branchId: string; }) => Promise<void>;
   switchPersonaAction: (input: { threadId: string; personaId: string; }) => Promise<void>;
+  currentBrainConnectionId?: string | null;
+  currentBrainModelId?: string | null;
+  switchBrainModelAction: (input: { threadId: string; connectionId: string | null; modelId: string | null; }) => Promise<void>;
 }) {
   const router = useRouter();
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -110,13 +116,16 @@ export function ChatWorkspace({
     optimisticBranchId,
     optimisticPersonaId,
     optimisticModel,
+    optimisticBrainModel,
     onBranchSwitch,
     onPersonaSwitch,
-    onModelSwitch
+    onModelSwitch,
+    onBrainModelSwitch,
   } = useOptimisticSwitches({
     threadId,
     setSurfaceError,
     switchModelAction,
+    switchBrainModelAction,
     switchBranchAction,
     switchPersonaAction,
   });
@@ -347,6 +356,10 @@ export function ChatWorkspace({
         removePin={removePin}
         setActiveInspectorTab={setActiveInspectorTab}
         onModelSwitch={onModelSwitch}
+        currentBrainConnectionId={currentBrainConnectionId}
+        currentBrainModelId={currentBrainModelId}
+        optimisticBrainModel={optimisticBrainModel}
+        onBrainModelSwitch={onBrainModelSwitch}
       />
 
       {sheet ? (

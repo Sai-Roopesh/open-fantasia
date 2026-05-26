@@ -64,6 +64,10 @@ export function ChatLayout({
   removePin,
   setActiveInspectorTab,
   onModelSwitch,
+  currentBrainConnectionId,
+  currentBrainModelId,
+  optimisticBrainModel,
+  onBrainModelSwitch,
 }: {
   characterName: string;
   characterBackgroundUrl?: string | null;
@@ -103,8 +107,40 @@ export function ChatLayout({
     modelId: string,
     label: string,
   ) => Promise<void>;
+  currentBrainConnectionId?: string | null;
+  currentBrainModelId?: string | null;
+  optimisticBrainModel: { connectionId: string | null; modelId: string | null } | null;
+  onBrainModelSwitch: (
+    connectionId: string | null,
+    modelId: string | null,
+  ) => Promise<void>;
 }) {
   const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
+
+  const displayBrainConnectionId = optimisticBrainModel !== null
+    ? optimisticBrainModel.connectionId
+    : (currentBrainConnectionId ?? null);
+  
+  const displayBrainModelId = optimisticBrainModel !== null
+    ? optimisticBrainModel.modelId
+    : (currentBrainModelId ?? null);
+
+  const displayBrainSelectVal = (displayBrainConnectionId && displayBrainModelId)
+    ? `${displayBrainConnectionId}:${displayBrainModelId}`
+    : "";
+
+  const brainModelChoices = modelChoices.filter((group) => group.provider !== "deepseek");
+
+  const handleBrainModelSwitch = async (val: string) => {
+    if (!val) {
+      await onBrainModelSwitch(null, null);
+    } else {
+      const parts = val.split(":");
+      const connId = parts[0];
+      const modelId = parts.slice(1).join(":");
+      await onBrainModelSwitch(connId, modelId);
+    }
+  };
 
   return (
     <div
@@ -244,6 +280,33 @@ export function ChatLayout({
                 <RefreshCcw className="h-3 w-3" />
                 Switch model
               </button>
+            </div>
+
+            {/* Brain (HCE) model picker */}
+            <div className="border-b border-border-subtle px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+                HCE Brain Model
+              </p>
+              <select
+                value={displayBrainSelectVal}
+                disabled={switchPending}
+                onChange={(e) => void handleBrainModelSwitch(e.target.value)}
+                className="mt-2 w-full rounded border border-border-subtle bg-surface-container px-2 py-1.5 text-sm text-on-surface outline-none"
+              >
+                <option value="">Default (Inherit Chat Model)</option>
+                {brainModelChoices.map((choice) => (
+                  <optgroup key={choice.connectionId} label={choice.label}>
+                    {choice.models.map((model) => (
+                      <option key={`${choice.connectionId}:${model.id}`} value={`${choice.connectionId}:${model.id}`}>
+                        {model.name || model.id}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] text-muted-foreground leading-normal">
+                Handles world-state JSON extraction. Pick a JSON-reliable model (e.g. Gemini, Mistral) if using DeepSeek for creative writing chat.
+              </p>
             </div>
 
             {/* Branch picker */}

@@ -1,6 +1,7 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createGroq } from "@ai-sdk/groq";
 import { createMistral } from "@ai-sdk/mistral";
+import { createDeepSeek } from "@ai-sdk/deepseek";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { createOllama } from "ollama-ai-provider-v2";
 import type { ConnectionRecord } from "@/lib/types";
@@ -20,6 +21,8 @@ export function createLanguageModel(
       return createGroq({ apiKey })(modelId);
     case "mistral":
       return createMistral({ apiKey })(modelId);
+    case "deepseek":
+      return createDeepSeek({ apiKey })(modelId);
     case "openrouter":
       return createOpenRouter({ apiKey })(modelId);
     case "ollama":
@@ -31,3 +34,4 @@ export function createLanguageModel(
       throw new Error(`Unsupported provider ${connection.provider}`);
   }
 }
+

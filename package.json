@@ -16,6 +16,7 @@
     "test:e2e:list": "playwright test --list"
   },
   "dependencies": {
+    "@ai-sdk/deepseek": "^2.0.35",
     "@ai-sdk/google": "^3.0.58",
     "@ai-sdk/groq": "^3.0.33",
     "@ai-sdk/mistral": "^3.0.28",

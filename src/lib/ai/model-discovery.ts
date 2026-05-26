@@ -92,6 +92,13 @@ export async function discoverModels(connection: ConnectionRecord) {
           headers: { Authorization: `Bearer ${apiKey}` },
         })) as { data?: Array<{ id?: string }> },
       );
+    case "deepseek":
+      return parseOpenAIShape(
+        "deepseek",
+        (await fetchJson("https://api.deepseek.com/models", {
+          headers: { Authorization: `Bearer ${apiKey}` },
+        })) as { data?: Array<{ id?: string }> },
+      );
     case "openrouter": {
       const data = (await fetchJson("https://openrouter.ai/api/v1/models", {
         headers: { Authorization: `Bearer ${apiKey}` },
