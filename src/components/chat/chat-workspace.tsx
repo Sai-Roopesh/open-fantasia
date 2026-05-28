@@ -3,7 +3,6 @@
 import { DefaultChatTransport } from "ai";
 import { useChat } from "@ai-sdk/react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useConfirmation } from "@/components/ui/confirmation-dialog";
 import { getTextFromMessage } from "@/lib/ai/message-text";
 import { MAX_CHAT_TURN_TEXT, buildChatTurnTrimMessage } from "@/lib/chat-limits";
@@ -79,7 +78,6 @@ export function ChatWorkspace({
   maxOutputTokens: number;
   switchTokensAction: (input: { threadId: string; maxOutputTokens: number; }) => Promise<void>;
 }) {
-  const router = useRouter();
   const { isNavigating, refreshWithTransition } = useNavTransition();
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const attemptedDraftRef = useRef<string | null>(null);

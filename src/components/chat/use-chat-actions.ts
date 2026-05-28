@@ -2,18 +2,16 @@ import { useState, useCallback } from "react";
 import * as actions from "@/lib/api/chat-actions";
 import { humanizeChatError } from "@/components/chat/chat-workspace-helpers";
 import { useNavTransition } from "@/components/transition-provider";
+import type { UseChatHelpers } from "@ai-sdk/react";
 import type { EditableTurnTarget, FantasiaUIMessage } from "@/lib/types";
 
 export function useChatActions(args: {
   threadId: string;
   branchId: string;
   headTurnId: string | null;
-  setMessages: (messages: FantasiaUIMessage[] | ((prev: FantasiaUIMessage[]) => FantasiaUIMessage[])) => void;
-  regenerate: (options?: { messageId?: string; body?: Record<string, any> }) => Promise<void>;
-  sendMessage: (
-    message: { text: string; metadata?: any },
-    options?: { body?: Record<string, any> }
-  ) => Promise<void>;
+  setMessages: UseChatHelpers<FantasiaUIMessage>["setMessages"];
+  regenerate: UseChatHelpers<FantasiaUIMessage>["regenerate"];
+  sendMessage: UseChatHelpers<FantasiaUIMessage>["sendMessage"];
 }) {
   const { refreshWithTransition } = useNavTransition();
   const [pendingAction, setPendingAction] = useState<string | null>(null);
