@@ -3,7 +3,6 @@
 import { DefaultChatTransport } from "ai";
 import { useChat } from "@ai-sdk/react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
 import { useConfirmation } from "@/components/ui/confirmation-dialog";
 import { getTextFromMessage } from "@/lib/ai/message-text";
 import { MAX_CHAT_TURN_TEXT, buildChatTurnTrimMessage } from "@/lib/chat-limits";
@@ -25,6 +24,7 @@ import { humanizeChatError } from "@/components/chat/chat-workspace-helpers";
 import { useChatActions } from "@/components/chat/use-chat-actions";
 import { useOptimisticSwitches } from "@/components/chat/use-optimistic-switches";
 import { ActionSheet } from "@/components/chat/chat-action-ui";
+import { useNavTransition } from "@/components/transition-provider";
 import type {
   ActionSheetState,
   InspectorTab,
@@ -78,7 +78,7 @@ export function ChatWorkspace({
   maxOutputTokens: number;
   switchTokensAction: (input: { threadId: string; maxOutputTokens: number; }) => Promise<void>;
 }) {
-  const router = useRouter();
+  const { isNavigating, refreshWithTransition } = useNavTransition();
   const composerRef = useRef<HTMLTextAreaElement>(null);
   const attemptedDraftRef = useRef<string | null>(null);
   const [draft, setDraft] = useState("");
@@ -97,6 +97,55 @@ export function ChatWorkspace({
     setPortraitState(characterBackgroundUrl ? "idle" : "error");
   }
 
+  const { messages, sendMessage, regenerate: triggerRegenerate, status, error, setMessages } = useChat<FantasiaUIMessage>({
+    id: threadId,
+    messages: initialMessages,
+    messageMetadataSchema,
+    transport: new DefaultChatTransport({
+      api: "/api/chat",
+      body: { threadId },
+      prepareSendMessagesRequest({ body, messages }) {
+        const latestUserMessage = [...messages]
+          .reverse()
+          .find((message) => message.role === "user");
+
+        return {
+          body: {
+            threadId: body?.threadId,
+            branchId: body?.branchId,
+            expectedHeadTurnId: body?.expectedHeadTurnId,
+            mode: body?.mode ?? "new",
+            text: latestUserMessage ? getTextFromMessage(latestUserMessage) : "",
+          },
+        };
+      },
+    }),
+    async onFinish() {
+      attemptedDraftRef.current = null;
+      setFailedDraft(null);
+      setSurfaceError(null);
+      refreshWithTransition();
+    },
+    onError(nextError) {
+      const nextMessage = humanizeChatError(nextError.message);
+      setSurfaceError(nextMessage);
+      const failed = attemptedDraftRef.current;
+      if (failed) {
+        setFailedDraft(failed);
+        setDraft((current) => (current.trim().length ? current : failed));
+        requestAnimationFrame(() => composerRef.current?.focus());
+      }
+    },
+  });
+
+  // Sync server-authoritative messages into useChat whenever the server
+  // component re-renders (via router.refresh). Guard against overwriting
+  // the live streaming state — only sync when chat is idle.
+  useEffect(() => {
+    if (status === "streaming" || status === "submitted") return;
+    setMessages(initialMessages);
+  }, [initialMessages, setMessages, status]);
+
   const {
     pendingAction,
     surfaceError,
@@ -113,6 +162,9 @@ export function ChatWorkspace({
     threadId,
     branchId: activeBranch.id,
     headTurnId: activeBranch.head_turn_id,
+    setMessages,
+    regenerate: triggerRegenerate,
+    sendMessage,
   });
 
   const {
@@ -143,46 +195,6 @@ export function ChatWorkspace({
   const displayPersonaId = optimisticPersonaId ?? (currentPersona?.id ?? "");
   const displayTokens = optimisticTokens ?? maxOutputTokens;
 
-  const { messages, sendMessage, status, error } = useChat<FantasiaUIMessage>({
-    id: threadId,
-    messages: initialMessages,
-    messageMetadataSchema,
-    transport: new DefaultChatTransport({
-      api: "/api/chat",
-      body: { threadId },
-      prepareSendMessagesRequest({ body, messages }) {
-        const latestUserMessage = [...messages]
-          .reverse()
-          .find((message) => message.role === "user");
-
-        return {
-          body: {
-            threadId: body?.threadId,
-            branchId: body?.branchId,
-            expectedHeadTurnId: body?.expectedHeadTurnId,
-            text: latestUserMessage ? getTextFromMessage(latestUserMessage) : "",
-          },
-        };
-      },
-    }),
-    async onFinish() {
-      attemptedDraftRef.current = null;
-      setFailedDraft(null);
-      setSurfaceError(null);
-      router.refresh();
-    },
-    onError(nextError) {
-      const nextMessage = humanizeChatError(nextError.message);
-      setSurfaceError(nextMessage);
-      const failed = attemptedDraftRef.current;
-      if (failed) {
-        setFailedDraft(failed);
-        setDraft((current) => (current.trim().length ? current : failed));
-        requestAnimationFrame(() => composerRef.current?.focus());
-      }
-    },
-  });
-
   const alternativeModels = useMemo(
     () =>
       modelChoices
@@ -208,18 +220,19 @@ export function ChatWorkspace({
     status === "submitted" ||
     pendingAction !== null ||
     switchPending ||
+    isNavigating ||
     composerContinuityBlocked;
 
   useEffect(() => {
     if (continuityStatus?.tone !== "pending") return;
-    if (status === "streaming" || status === "submitted" || pendingAction || switchPending) return;
+    if (status === "streaming" || status === "submitted" || pendingAction || switchPending || isNavigating) return;
 
     const timer = window.setTimeout(() => {
-      router.refresh();
+      refreshWithTransition();
     }, 4000);
 
     return () => window.clearTimeout(timer);
-  }, [continuityStatus?.tone, pendingAction, router, status, switchPending]);
+  }, [continuityStatus?.tone, pendingAction, refreshWithTransition, status, switchPending, isNavigating]);
 
   async function submitCurrentDraft(value: string) {
     const nextValue = value.trim();
