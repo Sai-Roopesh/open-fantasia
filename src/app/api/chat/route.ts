@@ -3,6 +3,8 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { createLanguageModel } from "@/lib/ai/provider-factory";
 import {
+  assertLatestTurnRewriteTarget,
+  assertThreadReadyForLatestRewrite,
   assertThreadReadyForNewTurn,
   buildGenerationMessages,
   buildGenerationSystemPrompt,
@@ -17,15 +19,44 @@ import {
   markTurnStreaming,
 } from "@/lib/data/turns";
 import { materializeSnapshotForTurn } from "@/lib/ai/continuity";
-import { createTextMessage } from "@/lib/threads/read-model";
+import { getWorldSnapshot } from "@/lib/data/world-state";
+import { materializeDurableSnapshot } from "@/lib/ai/state-materializer";
+import { buildRecentSceneMessages, createTextMessage } from "@/lib/threads/read-model";
 import { chatTurnRequestSchema, getValidationErrorMessage } from "@/lib/validation";
+import { MAX_CHAT_TURN_TEXT, buildChatTurnLimitMessage } from "@/lib/chat-limits";
 
-const chatRouteRequestSchema = z.object({
-  threadId: z.string().uuid(),
-  branchId: chatTurnRequestSchema.shape.branchId,
-  expectedHeadTurnId: chatTurnRequestSchema.shape.expectedHeadTurnId,
-  text: chatTurnRequestSchema.shape.text,
-});
+const chatRouteRequestSchema = z
+  .object({
+    threadId: z.string().uuid(),
+    branchId: chatTurnRequestSchema.shape.branchId,
+    expectedHeadTurnId: chatTurnRequestSchema.shape.expectedHeadTurnId,
+    text: z.string().trim().max(MAX_CHAT_TURN_TEXT, buildChatTurnLimitMessage()).optional(),
+    mode: z.enum(["new", "regenerate", "user"]).optional(),
+  })
+  .refine(
+    (data) => {
+      if (data.mode !== "regenerate") {
+        return typeof data.text === "string" && data.text.length > 0;
+      }
+      return true;
+    },
+    {
+      message: "Write a message before sending.",
+      path: ["text"],
+    }
+  )
+  .refine(
+    (data) => {
+      if (data.mode === "regenerate" || data.mode === "user") {
+        return typeof data.expectedHeadTurnId === "string" && data.expectedHeadTurnId.length > 0;
+      }
+      return true;
+    },
+    {
+      message: "Expected head turn ID is required for rewrites.",
+      path: ["expectedHeadTurnId"],
+    }
+  );
 
 function toRouteError(error: unknown) {
   if (error instanceof ThreadGenerationServiceError) {
@@ -53,7 +84,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { branchId, expectedHeadTurnId, text, threadId } = parsedBody.data;
+  const { branchId, expectedHeadTurnId, text, threadId, mode = "new" } = parsedBody.data;
 
   let runtime: Awaited<ReturnType<typeof loadThreadGenerationRuntime>>;
   try {
@@ -62,7 +93,11 @@ export async function POST(request: Request) {
       userId: context.user.id,
       threadId,
     });
-    assertThreadReadyForNewTurn(runtime.threadView);
+    if (mode === "new") {
+      assertThreadReadyForNewTurn(runtime.threadView);
+    } else {
+      assertThreadReadyForLatestRewrite(runtime.threadView);
+    }
   } catch (error) {
     return toThreadGenerationErrorResponse(error);
   }
@@ -75,43 +110,111 @@ export async function POST(request: Request) {
   }
 
   let reservedTurn;
+  let system;
+  let messages;
   try {
-    reservedTurn = await beginTurn(context.supabase, {
-      branchId,
-      expectedHeadTurnId,
-      text,
-    });
-    await markTurnStreaming(context.supabase, reservedTurn.thread_id, reservedTurn.id);
+    if (mode === "new") {
+      reservedTurn = await beginTurn(context.supabase, {
+        branchId,
+        expectedHeadTurnId,
+        text: text!,
+      });
+      await markTurnStreaming(context.supabase, reservedTurn.thread_id, reservedTurn.id);
+
+      const userMessage = createTextMessage({
+        id: `${reservedTurn.id}:user`,
+        role: "user",
+        text: text!,
+        metadata: {
+          createdAt: reservedTurn.created_at,
+          turnId: reservedTurn.id,
+          branchId,
+        },
+      });
+
+      system = buildGenerationSystemPrompt({
+        runtime,
+        snapshot: runtime.threadView.headSnapshot,
+      });
+
+      messages = await convertToModelMessages(
+        buildGenerationMessages({
+          recentSceneMessages: runtime.threadView.recentSceneMessages,
+          pendingMessages: [userMessage],
+        }),
+      );
+    } else {
+      const latestTurn = assertLatestTurnRewriteTarget({
+        threadView: runtime.threadView,
+        branchId,
+        expectedHeadTurnId: expectedHeadTurnId!,
+      });
+
+      const preservedUserPayload =
+        mode === "regenerate" && Array.isArray(latestTurn.user_input_payload)
+          ? latestTurn.user_input_payload
+          : undefined;
+      const userText = mode === "regenerate" ? latestTurn.user_input_text : text!;
+
+      reservedTurn = await beginTurn(context.supabase, {
+        branchId,
+        expectedHeadTurnId: expectedHeadTurnId!,
+        text: userText,
+        payload: preservedUserPayload,
+        parentTurnIdOverride: latestTurn.parent_turn_id,
+        forceParentOverride: true,
+        hiddenFromTranscript: latestTurn.user_input_hidden,
+        starterSeed: latestTurn.starter_seed,
+      });
+      await markTurnStreaming(context.supabase, reservedTurn.thread_id, reservedTurn.id);
+
+      const rewrittenUserMessage = createTextMessage({
+        id: `${reservedTurn.id}:user`,
+        role: "user",
+        text: userText,
+        metadata: {
+          createdAt: reservedTurn.created_at,
+          turnId: reservedTurn.id,
+          branchId,
+          hiddenFromTranscript: latestTurn.user_input_hidden,
+          starterSeed: latestTurn.starter_seed,
+        },
+      });
+
+      const previousSnapshotRecord = latestTurn.parent_turn_id
+        ? await getWorldSnapshot(context.supabase, latestTurn.parent_turn_id)
+        : null;
+      const previousSnapshot = previousSnapshotRecord
+        ? await materializeDurableSnapshot(
+            context.supabase,
+            threadId,
+            branchId,
+            latestTurn.parent_turn_id!,
+            previousSnapshotRecord,
+          )
+        : null;
+
+      system = buildGenerationSystemPrompt({
+        runtime,
+        snapshot: previousSnapshot,
+      });
+
+      const contextTurns = runtime.threadView.turns.slice(0, -1);
+      messages = await convertToModelMessages(
+        buildGenerationMessages({
+          recentSceneMessages: buildRecentSceneMessages(contextTurns),
+          pendingMessages: [rewrittenUserMessage],
+        }),
+      );
+    }
   } catch (error) {
     return toRouteError(error);
   }
-
-  const userMessage = createTextMessage({
-    id: `${reservedTurn.id}:user`,
-    role: "user",
-    text,
-    metadata: {
-      createdAt: reservedTurn.created_at,
-      turnId: reservedTurn.id,
-      branchId,
-    },
-  });
 
   let turnSettled = false;
   let result;
   try {
     const model = createLanguageModel(runtime.connection, runtime.threadView.thread.model_id);
-    const system = buildGenerationSystemPrompt({
-      runtime,
-      snapshot: runtime.threadView.headSnapshot,
-    });
-    const messages = await convertToModelMessages(
-      buildGenerationMessages({
-        recentSceneMessages: runtime.threadView.recentSceneMessages,
-        pendingMessages: [userMessage],
-      }),
-    );
-
     result = streamText({
       model,
       system,
@@ -179,11 +282,6 @@ export async function POST(request: Request) {
             failureMessage:
               error instanceof Error ? error.message : "Fantasia could not persist the completed turn.",
           }).catch(() => undefined);
-          // NOTE: toUIMessageStreamResponse() has already been returned to the
-          // client at this point. This rethrow propagates through the AI SDK's
-          // internal callback chain for server-side logging only — the client
-          // sees a stream that simply ends. Client code must handle incomplete
-          // streams (connection drops / unexpected end) gracefully.
           throw error;
         }
       },

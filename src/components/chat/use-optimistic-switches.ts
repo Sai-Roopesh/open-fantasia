@@ -1,8 +1,16 @@
 import { useState, useCallback, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { humanizeChatError } from "@/components/chat/chat-workspace-helpers";
+import { useNavTransition } from "@/components/transition-provider";
 
-export function useOptimisticSwitches(args: {
+export function useOptimisticSwitches({
+  threadId,
+  setSurfaceError,
+  switchModelAction,
+  switchBrainModelAction,
+  switchBranchAction,
+  switchPersonaAction,
+  switchTokensAction,
+}: {
   threadId: string;
   setSurfaceError: (val: string | null) => void;
   switchModelAction: (input: { threadId: string; connectionId: string; modelId: string; }) => Promise<void>;
@@ -11,7 +19,7 @@ export function useOptimisticSwitches(args: {
   switchPersonaAction: (input: { threadId: string; personaId: string; }) => Promise<void>;
   switchTokensAction: (input: { threadId: string; maxOutputTokens: number; }) => Promise<void>;
 }) {
-  const router = useRouter();
+  const { refreshWithTransition } = useNavTransition();
   const [switchPending, setSwitchPending] = useState(false);
   const [optimisticBranchId, setOptimisticBranchId] = useState<string | null>(null);
   const [optimisticPersonaId, setOptimisticPersonaId] = useState<string | null>(null);
@@ -34,71 +42,71 @@ export function useOptimisticSwitches(args: {
     setOptimisticBranchId(nextBranchId);
     setSwitchPending(true);
     try {
-      await args.switchBranchAction({ threadId: args.threadId, branchId: nextBranchId });
-      router.refresh();
+      await switchBranchAction({ threadId, branchId: nextBranchId });
+      refreshWithTransition();
     } catch (error) {
       setOptimisticBranchId(null);
-      args.setSurfaceError(error instanceof Error ? humanizeChatError(error.message) : "Branch switch failed.");
+      setSurfaceError(error instanceof Error ? humanizeChatError(error.message) : "Branch switch failed.");
     } finally {
       setSwitchPending(false);
     }
-  }, [args, router]);
+  }, [threadId, switchBranchAction, refreshWithTransition, setSurfaceError]);
 
   const onPersonaSwitch = useCallback(async (nextPersonaId: string) => {
     setOptimisticPersonaId(nextPersonaId);
     setSwitchPending(true);
     try {
-      await args.switchPersonaAction({ threadId: args.threadId, personaId: nextPersonaId });
-      router.refresh();
+      await switchPersonaAction({ threadId, personaId: nextPersonaId });
+      refreshWithTransition();
     } catch (error) {
       setOptimisticPersonaId(null);
-      args.setSurfaceError(error instanceof Error ? humanizeChatError(error.message) : "Persona switch failed.");
+      setSurfaceError(error instanceof Error ? humanizeChatError(error.message) : "Persona switch failed.");
     } finally {
       setSwitchPending(false);
     }
-  }, [args, router]);
+  }, [threadId, switchPersonaAction, refreshWithTransition, setSurfaceError]);
 
   const onModelSwitch = useCallback(async (connectionId: string, modelId: string, label: string) => {
     setOptimisticModel({ modelId, label });
     setSwitchPending(true);
     try {
-      await args.switchModelAction({ threadId: args.threadId, connectionId, modelId });
-      router.refresh();
+      await switchModelAction({ threadId, connectionId, modelId });
+      refreshWithTransition();
     } catch (error) {
       setOptimisticModel(null);
-      args.setSurfaceError(error instanceof Error ? humanizeChatError(error.message) : "Model switch failed.");
+      setSurfaceError(error instanceof Error ? humanizeChatError(error.message) : "Model switch failed.");
     } finally {
       setSwitchPending(false);
     }
-  }, [args, router]);
+  }, [threadId, switchModelAction, refreshWithTransition, setSurfaceError]);
 
   const onBrainModelSwitch = useCallback(async (connectionId: string | null, modelId: string | null) => {
     setOptimisticBrainModel({ connectionId, modelId });
     setSwitchPending(true);
     try {
-      await args.switchBrainModelAction({ threadId: args.threadId, connectionId, modelId });
-      router.refresh();
+      await switchBrainModelAction({ threadId, connectionId, modelId });
+      refreshWithTransition();
     } catch (error) {
       setOptimisticBrainModel(null);
-      args.setSurfaceError(error instanceof Error ? humanizeChatError(error.message) : "Brain model switch failed.");
+      setSurfaceError(error instanceof Error ? humanizeChatError(error.message) : "Brain model switch failed.");
     } finally {
       setSwitchPending(false);
     }
-  }, [args, router]);
+  }, [threadId, switchBrainModelAction, refreshWithTransition, setSurfaceError]);
 
   const onTokensSwitch = useCallback(async (nextTokens: number) => {
     setOptimisticTokens(nextTokens);
     setSwitchPending(true);
     try {
-      await args.switchTokensAction({ threadId: args.threadId, maxOutputTokens: nextTokens });
-      router.refresh();
+      await switchTokensAction({ threadId, maxOutputTokens: nextTokens });
+      refreshWithTransition();
     } catch (error) {
       setOptimisticTokens(null);
-      args.setSurfaceError(error instanceof Error ? humanizeChatError(error.message) : "Tokens limit update failed.");
+      setSurfaceError(error instanceof Error ? humanizeChatError(error.message) : "Tokens limit update failed.");
     } finally {
       setSwitchPending(false);
     }
-  }, [args, router]);
+  }, [threadId, switchTokensAction, refreshWithTransition, setSurfaceError]);
 
   return {
     switchPending,

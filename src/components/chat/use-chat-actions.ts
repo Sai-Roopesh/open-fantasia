@@ -1,15 +1,21 @@
 import { useState, useCallback } from "react";
-import { useRouter } from "next/navigation";
 import * as actions from "@/lib/api/chat-actions";
 import { humanizeChatError } from "@/components/chat/chat-workspace-helpers";
-import type { EditableTurnTarget } from "@/lib/types";
+import { useNavTransition } from "@/components/transition-provider";
+import type { EditableTurnTarget, FantasiaUIMessage } from "@/lib/types";
 
 export function useChatActions(args: {
   threadId: string;
   branchId: string;
   headTurnId: string | null;
+  setMessages: (messages: FantasiaUIMessage[] | ((prev: FantasiaUIMessage[]) => FantasiaUIMessage[])) => void;
+  regenerate: (options?: { messageId?: string; body?: Record<string, any> }) => Promise<void>;
+  sendMessage: (
+    message: { text: string; metadata?: any },
+    options?: { body?: Record<string, any> }
+  ) => Promise<void>;
 }) {
-  const router = useRouter();
+  const { refreshWithTransition } = useNavTransition();
   const [pendingAction, setPendingAction] = useState<string | null>(null);
   const [surfaceError, setSurfaceError] = useState<string | null>(null);
 
@@ -26,7 +32,7 @@ export function useChatActions(args: {
         if (onSuccess) {
           onSuccess();
         }
-        router.refresh();
+        refreshWithTransition();
       } catch (nextError) {
         setSurfaceError(
           nextError instanceof Error
@@ -37,24 +43,39 @@ export function useChatActions(args: {
         setPendingAction(null);
       }
     },
-    [router],
+    [refreshWithTransition],
   );
 
   return {
     pendingAction,
     surfaceError,
     setSurfaceError,
-    regenerate: () =>
-      runAction("regenerate", () => {
-        if (!args.headTurnId) {
-          throw new Error("There is no committed turn to regenerate.");
-        }
-        return actions.rewriteLatestTurn(args.threadId, {
-          branchId: args.branchId,
-          expectedHeadTurnId: args.headTurnId,
-          mode: "regenerate",
+    clearPendingAction: () => setPendingAction(null),
+    regenerate: async () => {
+      if (!args.headTurnId) {
+        throw new Error("There is no committed turn to regenerate.");
+      }
+      setPendingAction("regenerate");
+      setSurfaceError(null);
+      try {
+        args.setMessages((prev) => prev.slice(0, -1));
+        await args.regenerate({
+          body: {
+            branchId: args.branchId,
+            expectedHeadTurnId: args.headTurnId,
+            mode: "regenerate",
+          },
         });
-      }),
+      } catch (nextError) {
+        setSurfaceError(
+          nextError instanceof Error
+            ? humanizeChatError(nextError.message)
+            : "That action failed.",
+        );
+      } finally {
+        setPendingAction(null);
+      }
+    },
     rewind: (turnId: string, onSuccess?: () => void) =>
       runAction(
         "rewind",
@@ -63,18 +84,46 @@ export function useChatActions(args: {
       ),
     rate: (turnId: string, rating: number) =>
       runAction("rate", () => actions.rateTurn(args.threadId, turnId, rating)),
-    editMessage: (target: EditableTurnTarget, content: string) =>
-      runAction("edit", () => {
-        if (!args.headTurnId) {
-          throw new Error("There is no committed turn to edit.");
-        }
-        return actions.rewriteLatestTurn(args.threadId, {
-          branchId: args.branchId,
-          expectedHeadTurnId: args.headTurnId,
-          mode: target,
-          text: content,
+    editMessage: async (target: EditableTurnTarget, content: string) => {
+      if (!args.headTurnId) {
+        throw new Error("There is no committed turn to edit.");
+      }
+
+      if (target === "assistant") {
+        return runAction("edit", () => {
+          return actions.rewriteLatestTurn(args.threadId, {
+            branchId: args.branchId,
+            expectedHeadTurnId: args.headTurnId!,
+            mode: "assistant",
+            text: content,
+          });
         });
-      }),
+      } else {
+        setPendingAction("edit");
+        setSurfaceError(null);
+        try {
+          args.setMessages((prev) => prev.slice(0, -2));
+          await args.sendMessage(
+            { text: content },
+            {
+              body: {
+                branchId: args.branchId,
+                expectedHeadTurnId: args.headTurnId!,
+                mode: "user",
+              },
+            }
+          );
+        } catch (nextError) {
+          setSurfaceError(
+            nextError instanceof Error
+              ? humanizeChatError(nextError.message)
+              : "That action failed.",
+          );
+        } finally {
+          setPendingAction(null);
+        }
+      }
+    },
     createBranch: (opts: { sourceTurnId: string; name: string }) =>
       runAction("branch", () => actions.createBranch(args.threadId, opts)),
     createPin: (turnId: string, body: string) =>
