@@ -1,6 +1,7 @@
 import { getCurrentUser } from "@/lib/auth";
 import { createPin } from "@/lib/data/pins";
 import { getThreadGraphView } from "@/lib/threads/read-model";
+import { buildSliceResponse } from "@/lib/threads/slice-response";
 import { createPinRequestSchema } from "@/lib/validation";
 
 export async function POST(
@@ -31,7 +32,7 @@ export async function POST(
     );
   }
 
-  const pin = await createPin(context.supabase, context.user.id, {
+  await createPin(context.supabase, context.user.id, {
     thread_id: threadId,
     branch_id: threadView.activeBranch.id,
     turn_id: sourceTurn.id,
@@ -39,5 +40,5 @@ export async function POST(
     status: "active",
   });
 
-  return Response.json({ ok: true, pinId: pin.id });
+  return buildSliceResponse(context.supabase, context.user.id, threadId);
 }

@@ -1,6 +1,7 @@
 import { getCurrentUser } from "@/lib/auth";
 import { rewindBranchToTurn } from "@/lib/data/branches";
 import { getThreadGraphView } from "@/lib/threads/read-model";
+import { buildSliceResponse } from "@/lib/threads/slice-response";
 
 export async function POST(
   _request: Request,
@@ -27,5 +28,5 @@ export async function POST(
     expectedHeadTurnId: threadView.activeBranch.head_turn_id,
   });
 
-  return Response.json({ ok: true });
+  return buildSliceResponse(context.supabase, context.user.id, threadId);
 }

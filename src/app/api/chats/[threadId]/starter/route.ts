@@ -10,6 +10,7 @@ import { materializeSnapshotForTurn } from "@/lib/ai/continuity";
 import { beginTurn, commitTurn, failTurn } from "@/lib/data/turns";
 import { insertTimelineEvent } from "@/lib/data/timeline";
 import { createTextMessage } from "@/lib/threads/read-model";
+import { buildSliceResponse } from "@/lib/threads/slice-response";
 import { starterSeedRequestSchema } from "@/lib/validation";
 
 function buildStarterSeedPrompt(starter: string) {
@@ -121,7 +122,7 @@ export async function POST(
       character: runtime.character.character,
     });
 
-    return Response.json({ ok: true, turnId: reservedTurn.id });
+    return buildSliceResponse(context.supabase, context.user.id, threadId);
   } catch (error) {
     if (reservedTurn) {
       await failTurn(context.supabase, {

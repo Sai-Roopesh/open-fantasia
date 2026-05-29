@@ -13,6 +13,7 @@ import { getWorldSnapshot } from "@/lib/data/world-state";
 import { materializeDurableSnapshot } from "@/lib/ai/state-materializer";
 import { beginTurn, commitTurn, failTurn } from "@/lib/data/turns";
 import { buildRecentSceneMessages, createTextMessage } from "@/lib/threads/read-model";
+import { buildSliceResponse } from "@/lib/threads/slice-response";
 import { getValidationErrorMessage, rewriteLatestTurnRequestSchema } from "@/lib/validation";
 
 function getLatestTurnRewriteFailureMessage(mode: "user" | "assistant" | "regenerate") {
@@ -163,7 +164,7 @@ export async function POST(
       character: runtime.character.character,
     });
 
-    return Response.json({ ok: true, turnId: reservedTurn.id });
+    return buildSliceResponse(context.supabase, context.user.id, threadId);
   } catch (error) {
     if (reservedTurn) {
       await failTurn(context.supabase, {

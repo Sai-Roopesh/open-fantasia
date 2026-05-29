@@ -1,4 +1,4 @@
-import type { EditableTurnTarget } from "@/lib/types";
+import type { EditableTurnTarget, MutationResult } from "@/lib/types";
 
 export async function throwIfFailed(response: Response) {
   if (response.ok) {
@@ -13,20 +13,45 @@ export async function throwIfFailed(response: Response) {
   throw new Error("Action response was malformed.");
 }
 
-export async function rewindTurn(threadId: string, turnId: string) {
+/**
+ * Parse a mutation response into a read-your-writes {@link MutationResult}. Throws
+ * on transport/HTTP errors and on a malformed or `ok: false` body so callers can
+ * surface the error; on success it returns the authoritative slice.
+ */
+async function parseMutationResult(response: Response): Promise<MutationResult> {
+  await throwIfFailed(response);
+  const body = (await response.json().catch(() => null)) as MutationResult | null;
+  if (!body || body.ok !== true) {
+    throw new Error(
+      body && body.ok === false ? body.error : "Action response was malformed.",
+    );
+  }
+  return body;
+}
+
+export async function getSlice(threadId: string): Promise<MutationResult> {
+  const response = await fetch(`/api/chats/${threadId}/slice`, { method: "GET" });
+  return parseMutationResult(response);
+}
+
+export async function rewindTurn(threadId: string, turnId: string): Promise<MutationResult> {
   const response = await fetch(`/api/chats/${threadId}/turns/${turnId}/rewind`, {
     method: "POST",
   });
-  await throwIfFailed(response);
+  return parseMutationResult(response);
 }
 
-export async function rateTurn(threadId: string, turnId: string, rating: number) {
+export async function rateTurn(
+  threadId: string,
+  turnId: string,
+  rating: number,
+): Promise<MutationResult> {
   const response = await fetch(`/api/chats/${threadId}/turns/${turnId}/rate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ rating }),
   });
-  await throwIfFailed(response);
+  return parseMutationResult(response);
 }
 
 export async function rewriteLatestTurn(
@@ -43,19 +68,19 @@ export async function rewriteLatestTurn(
         mode: EditableTurnTarget;
         text: string;
       },
-) {
+): Promise<MutationResult> {
   const response = await fetch(`/api/chats/${threadId}/rewrite`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  await throwIfFailed(response);
+  return parseMutationResult(response);
 }
 
 export async function createBranch(
   threadId: string,
   opts: { sourceTurnId: string; name: string; makeActive?: boolean },
-) {
+): Promise<MutationResult> {
   const response = await fetch(`/api/chats/${threadId}/branches`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -65,30 +90,37 @@ export async function createBranch(
       makeActive: opts.makeActive ?? true,
     }),
   });
-  await throwIfFailed(response);
+  return parseMutationResult(response);
 }
 
-export async function createPin(threadId: string, turnId: string, body: string) {
+export async function createPin(
+  threadId: string,
+  turnId: string,
+  body: string,
+): Promise<MutationResult> {
   const response = await fetch(`/api/chats/${threadId}/pins`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ turnId, body }),
   });
-  await throwIfFailed(response);
+  return parseMutationResult(response);
 }
 
-export async function removePin(threadId: string, pinId: string) {
+export async function removePin(threadId: string, pinId: string): Promise<MutationResult> {
   const response = await fetch(`/api/chats/${threadId}/pins/${pinId}`, {
     method: "DELETE",
   });
-  await throwIfFailed(response);
+  return parseMutationResult(response);
 }
 
-export async function triggerStarter(threadId: string, starter: string) {
+export async function triggerStarter(
+  threadId: string,
+  starter: string,
+): Promise<MutationResult> {
   const response = await fetch(`/api/chats/${threadId}/starter`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ starter }),
   });
-  await throwIfFailed(response);
+  return parseMutationResult(response);
 }

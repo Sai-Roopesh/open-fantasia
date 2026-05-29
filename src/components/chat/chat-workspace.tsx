@@ -1,199 +1,157 @@
 "use client";
 
-import { DefaultChatTransport } from "ai";
-import { useChat } from "@ai-sdk/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useConfirmation } from "@/components/ui/confirmation-dialog";
-import { getTextFromMessage } from "@/lib/ai/message-text";
+import { humanizeChatError } from "@/components/chat/chat-workspace-helpers";
 import { MAX_CHAT_TURN_TEXT, buildChatTurnTrimMessage } from "@/lib/chat-limits";
 import type {
   ChatBranchRecord,
   ContinuityInspectorView,
   EditableTurnTarget,
   FantasiaUIMessage,
+  MutationResult,
+  ThreadSettingsSlice,
   TranscriptControl,
   UserPersonaRecord,
 } from "@/lib/types";
-import { messageMetadataSchema } from "@/lib/types";
 import { ChatLayout } from "@/components/chat/chat-workspace-shell";
 import {
   ContinuityBanner,
   ErrorBanner,
 } from "@/components/chat/chat-composer-ui";
-import { humanizeChatError } from "@/components/chat/chat-workspace-helpers";
-import { useChatActions } from "@/components/chat/use-chat-actions";
-import { useOptimisticSwitches } from "@/components/chat/use-optimistic-switches";
+import { ChatProvider } from "@/components/chat/chat-provider";
+import { useChatController } from "@/components/chat/use-chat-controller";
 import { ActionSheet } from "@/components/chat/chat-action-ui";
-import { useNavTransition } from "@/components/transition-provider";
 import type {
   ActionSheetState,
   InspectorTab,
   ModelChoiceGroup,
 } from "@/components/chat/chat-ui-types";
 
-export function ChatWorkspace({
-  threadId,
-  characterName,
-  characterBackgroundUrl,
-  currentModel,
-  currentConnectionLabel,
-  activeBranch,
-  branches,
-  currentPersona,
-  personas,
-  initialMessages,
-  controlsByMessageId,
-  suggestedStarters,
-  modelChoices,
-  inspectorView,
-  switchModelAction,
-  switchBranchAction,
-  switchPersonaAction,
-  currentBrainConnectionId,
-  currentBrainModelId,
-  switchBrainModelAction,
-  maxOutputTokens,
-  switchTokensAction,
-}: {
+type SwitchActions = {
+  switchModelAction: (input: { threadId: string; connectionId: string; modelId: string; }) => Promise<MutationResult>;
+  switchBranchAction: (input: { threadId: string; branchId: string; }) => Promise<MutationResult>;
+  switchPersonaAction: (input: { threadId: string; personaId: string; }) => Promise<MutationResult>;
+  switchBrainModelAction: (input: { threadId: string; connectionId: string | null; modelId: string | null; }) => Promise<MutationResult>;
+  switchTokensAction: (input: { threadId: string; maxOutputTokens: number; }) => Promise<MutationResult>;
+};
+
+type ChatWorkspaceProps = SwitchActions & {
   threadId: string;
   characterName: string;
   characterBackgroundUrl?: string | null;
-  currentModel: string;
-  currentConnectionLabel: string;
   activeBranch: ChatBranchRecord;
   branches: ChatBranchRecord[];
-  currentPersona: UserPersonaRecord | null;
   personas: UserPersonaRecord[];
   initialMessages: FantasiaUIMessage[];
   controlsByMessageId: Record<string, TranscriptControl>;
+  inspectorView: ContinuityInspectorView;
+  settings: ThreadSettingsSlice;
   suggestedStarters: string[];
   modelChoices: ModelChoiceGroup[];
-  inspectorView: ContinuityInspectorView;
-  switchModelAction: (input: { threadId: string; connectionId: string; modelId: string; }) => Promise<void>;
-  switchBranchAction: (input: { threadId: string; branchId: string; }) => Promise<void>;
-  switchPersonaAction: (input: { threadId: string; personaId: string; }) => Promise<void>;
-  currentBrainConnectionId?: string | null;
-  currentBrainModelId?: string | null;
-  switchBrainModelAction: (input: { threadId: string; connectionId: string | null; modelId: string | null; }) => Promise<void>;
-  maxOutputTokens: number;
-  switchTokensAction: (input: { threadId: string; maxOutputTokens: number; }) => Promise<void>;
-}) {
-  const { isNavigating, refreshWithTransition } = useNavTransition();
+};
+
+export function ChatWorkspace(props: ChatWorkspaceProps) {
+  return (
+    <ChatProvider
+      threadId={props.threadId}
+      initialMessages={props.initialMessages}
+      seed={{
+        controlsByMessageId: props.controlsByMessageId,
+        inspectorView: props.inspectorView,
+        activeBranch: props.activeBranch,
+        branches: props.branches,
+        settings: props.settings,
+      }}
+    >
+      <ChatWorkspaceInner {...props} />
+    </ChatProvider>
+  );
+}
+
+function ChatWorkspaceInner({
+  characterName,
+  characterBackgroundUrl,
+  personas,
+  modelChoices,
+  suggestedStarters,
+  switchModelAction,
+  switchBranchAction,
+  switchPersonaAction,
+  switchBrainModelAction,
+  switchTokensAction,
+}: ChatWorkspaceProps) {
+  const controller = useChatController({
+    switchModelAction,
+    switchPersonaAction,
+    switchBranchAction,
+    switchBrainModelAction,
+    switchTokensAction,
+  });
+
   const composerRef = useRef<HTMLTextAreaElement>(null);
-  const attemptedDraftRef = useRef<string | null>(null);
   const [draft, setDraft] = useState("");
   const [showModelPicker, setShowModelPicker] = useState(false);
-  const [failedDraft, setFailedDraft] = useState<string | null>(null);
   const [activeInspectorTab, setActiveInspectorTab] = useState<InspectorTab>("continuity");
   const [sheet, setSheet] = useState<ActionSheetState | null>(null);
   const { confirm: confirmRewind, confirmDialog: rewindConfirmDialog } = useConfirmation();
+
   const [portraitState, setPortraitState] = useState<"idle" | "ready" | "error">(
     characterBackgroundUrl ? "idle" : "error",
   );
   const [lastUrl, setLastUrl] = useState(characterBackgroundUrl);
-
   if (characterBackgroundUrl !== lastUrl) {
     setLastUrl(characterBackgroundUrl);
     setPortraitState(characterBackgroundUrl ? "idle" : "error");
   }
 
-  const { messages, sendMessage, regenerate: triggerRegenerate, status, error, setMessages } = useChat<FantasiaUIMessage>({
-    id: threadId,
-    messages: initialMessages,
-    messageMetadataSchema,
-    transport: new DefaultChatTransport({
-      api: "/api/chat",
-      body: { threadId },
-      prepareSendMessagesRequest({ body, messages }) {
-        const latestUserMessage = [...messages]
-          .reverse()
-          .find((message) => message.role === "user");
-
-        return {
-          body: {
-            threadId: body?.threadId,
-            branchId: body?.branchId,
-            expectedHeadTurnId: body?.expectedHeadTurnId,
-            mode: body?.mode ?? "new",
-            text: latestUserMessage ? getTextFromMessage(latestUserMessage) : "",
-          },
-        };
-      },
-    }),
-    async onFinish() {
-      attemptedDraftRef.current = null;
-      setFailedDraft(null);
-      setSurfaceError(null);
-      refreshWithTransition();
-    },
-    onError(nextError) {
-      const nextMessage = humanizeChatError(nextError.message);
-      setSurfaceError(nextMessage);
-      const failed = attemptedDraftRef.current;
-      if (failed) {
-        setFailedDraft(failed);
-        setDraft((current) => (current.trim().length ? current : failed));
-        requestAnimationFrame(() => composerRef.current?.focus());
-      }
-    },
-  });
-
-  // Sync server-authoritative messages into useChat whenever the server
-  // component re-renders (via router.refresh). Guard against overwriting
-  // the live streaming state — only sync when chat is idle.
-  useEffect(() => {
-    if (status === "streaming" || status === "submitted") return;
-    setMessages(initialMessages);
-  }, [initialMessages, setMessages, status]);
-
   const {
+    messages,
+    status,
+    error,
+    controlsByMessageId,
+    inspectorView,
+    branches,
+    activeBranch,
+    displaySettings,
+    displayBranchId,
     pendingAction,
-    surfaceError,
-    setSurfaceError,
-    regenerate,
-    rewind,
-    rate,
-    editMessage,
-    createBranch,
-    createPin,
-    removePin,
-    triggerStarter
-  } = useChatActions({
-    threadId,
-    branchId: activeBranch.id,
-    headTurnId: activeBranch.head_turn_id,
-    setMessages,
-    regenerate: triggerRegenerate,
-    sendMessage,
-  });
-
-  const {
     switchPending,
-    optimisticBranchId,
-    optimisticPersonaId,
-    optimisticModel,
-    optimisticBrainModel,
-    optimisticTokens,
-    onBranchSwitch,
-    onPersonaSwitch,
-    onModelSwitch,
-    onBrainModelSwitch,
-    onTokensSwitch,
-  } = useOptimisticSwitches({
-    threadId,
-    setSurfaceError,
-    switchModelAction,
-    switchBrainModelAction,
-    switchBranchAction,
-    switchPersonaAction,
-    switchTokensAction,
-  });
+    surfaceError,
+    failedDraft,
+  } = controller;
 
-  const displayModel = optimisticModel?.modelId ?? currentModel;
-  const displayConnectionLabel = optimisticModel?.label ?? currentConnectionLabel;
-  const displayBranchId = optimisticBranchId ?? activeBranch.id;
-  const displayPersonaId = optimisticPersonaId ?? (currentPersona?.id ?? "");
-  const displayTokens = optimisticTokens ?? maxOutputTokens;
+  // When a send fails, the controller preserves the failed text in the store
+  // (stream errors surface asynchronously via status, not via the submit promise).
+  // Sync that signal back into the local composer draft and refocus, only if the
+  // user hasn't already started a fresh draft. This is a legitimate
+  // "subscribe to external state -> update local UI" effect.
+  const lastFailedDraftRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (failedDraft && failedDraft !== lastFailedDraftRef.current) {
+      lastFailedDraftRef.current = failedDraft;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setDraft((current) => (current.trim().length ? current : failedDraft));
+      requestAnimationFrame(() => composerRef.current?.focus());
+    } else if (!failedDraft) {
+      lastFailedDraftRef.current = null;
+    }
+  }, [failedDraft]);
+
+  const activeError =
+    surfaceError ?? (error ? humanizeChatError(error.message) : null);
+  const continuityStatus = inspectorView.continuityStatus;
+  const rewriteBlocked = continuityStatus?.tone === "pending";
+  const composerContinuityBlocked = Boolean(continuityStatus);
+  const composerBusy =
+    status === "streaming" ||
+    status === "submitted" ||
+    pendingAction !== null ||
+    switchPending ||
+    composerContinuityBlocked;
+
+  const displayModel = displaySettings.model.modelId;
+  const displayConnectionLabel = displaySettings.model.label;
 
   const alternativeModels = useMemo(
     () =>
@@ -206,69 +164,22 @@ export function ChatWorkspace({
             model,
           })),
         )
-        .filter((option) => option.model.id !== currentModel)
+        .filter((option) => option.model.id !== displayModel)
         .slice(0, 5),
-    [currentModel, modelChoices],
+    [displayModel, modelChoices],
   );
-
-  const activeError = surfaceError || (error ? humanizeChatError(error.message) : null);
-  const continuityStatus = inspectorView.continuityStatus;
-  const composerContinuityBlocked = Boolean(continuityStatus);
-  const rewriteBlocked = continuityStatus?.tone === "pending";
-  const composerBusy =
-    status === "streaming" ||
-    status === "submitted" ||
-    pendingAction !== null ||
-    switchPending ||
-    isNavigating ||
-    composerContinuityBlocked;
-
-  useEffect(() => {
-    if (continuityStatus?.tone !== "pending") return;
-    if (status === "streaming" || status === "submitted" || pendingAction || switchPending || isNavigating) return;
-
-    const timer = window.setTimeout(() => {
-      refreshWithTransition();
-    }, 4000);
-
-    return () => window.clearTimeout(timer);
-  }, [continuityStatus?.tone, pendingAction, refreshWithTransition, status, switchPending, isNavigating]);
 
   async function submitCurrentDraft(value: string) {
     const nextValue = value.trim();
     if (!nextValue) return;
     if (nextValue.length > MAX_CHAT_TURN_TEXT) {
-      setSurfaceError(buildChatTurnTrimMessage(nextValue.length));
+      controller.setSurfaceError(buildChatTurnTrimMessage(nextValue.length));
       requestAnimationFrame(() => composerRef.current?.focus());
       return;
     }
 
-    setSurfaceError(null);
-    setFailedDraft(null);
-    attemptedDraftRef.current = nextValue;
     setDraft("");
-
-    try {
-      await sendMessage(
-        { text: nextValue },
-        {
-          body: {
-            branchId: displayBranchId,
-            expectedHeadTurnId: activeBranch.head_turn_id,
-          },
-        },
-      );
-    } catch (nextError) {
-      attemptedDraftRef.current = null;
-      const nextMessage =
-        nextError instanceof Error
-          ? humanizeChatError(nextError.message)
-          : "We couldn't send that turn.";
-      setSurfaceError(nextMessage);
-      setFailedDraft(nextValue);
-      setDraft(nextValue);
-      requestAnimationFrame(() => composerRef.current?.focus());
-    }
+    await controller.submit(nextValue);
   }
 
   function openBranchSheet(turnId: string) {
@@ -285,13 +196,12 @@ export function ChatWorkspace({
     controlsByMessageId,
     pendingAction,
     rewriteBlocked,
-    onRegenerate: regenerate,
+    onRegenerate: () => controller.regenerate(),
     onOpenEditMessage: (
       messageId: string,
       currentText: string,
       target: EditableTurnTarget,
-    ) =>
-      setSheet({ kind: "edit", target, messageId, value: currentText }),
+    ) => setSheet({ kind: "edit", target, messageId, value: currentText }),
     onOpenBranchFromCheckpoint: openBranchSheet,
     onRewindCheckpoint: async (turnId: string) => {
       confirmRewind({
@@ -301,7 +211,7 @@ export function ChatWorkspace({
         confirmLabel: "Rewind",
         variant: "destructive",
         onConfirm: () => {
-          rewind(turnId, () => {
+          void controller.rewind(turnId, () => {
             requestAnimationFrame(() => composerRef.current?.focus());
           });
         },
@@ -309,7 +219,7 @@ export function ChatWorkspace({
     },
     onOpenPinMessage: (messageId: string, currentText: string) =>
       setSheet({ kind: "pin", messageId, value: currentText }),
-    onRateCheckpoint: rate,
+    onRateCheckpoint: controller.rate,
   } as const;
 
   const composerProps = {
@@ -355,17 +265,19 @@ export function ChatWorkspace({
         displayBranchId={displayBranchId}
         branches={branches}
         switchPending={switchPending}
-        onBranchSwitch={onBranchSwitch}
-        displayPersonaId={displayPersonaId}
+        onBranchSwitch={controller.switchBranch}
+        displayPersonaId={displaySettings.personaId}
         personas={personas}
-        onPersonaSwitch={onPersonaSwitch}
-        currentModel={currentModel}
-        currentConnectionLabel={currentConnectionLabel}
+        onPersonaSwitch={controller.switchPersona}
+        currentModel={displayModel}
+        currentConnectionLabel={displayConnectionLabel}
         modelChoices={modelChoices}
         messagesLength={messages.length}
         composerBusy={composerBusy}
         suggestedStarters={suggestedStarters}
-        triggerStarter={triggerStarter}
+        triggerStarter={(starter, onSuccess) =>
+          void controller.triggerStarter(starter, onSuccess)
+        }
         transcriptProps={transcriptProps}
         continuityBannerBlock={continuityBannerBlock}
         errorBannerBlock={errorBannerBlock}
@@ -374,15 +286,15 @@ export function ChatWorkspace({
         activeInspectorTab={activeInspectorTab}
         inspectorView={inspectorView}
         pendingAction={pendingAction}
-        removePin={removePin}
+        removePin={controller.removePin}
         setActiveInspectorTab={setActiveInspectorTab}
-        onModelSwitch={onModelSwitch}
-        currentBrainConnectionId={currentBrainConnectionId}
-        currentBrainModelId={currentBrainModelId}
-        optimisticBrainModel={optimisticBrainModel}
-        onBrainModelSwitch={onBrainModelSwitch}
-        maxOutputTokens={displayTokens}
-        onTokensSwitch={onTokensSwitch}
+        onModelSwitch={controller.switchModel}
+        currentBrainConnectionId={displaySettings.brain.connectionId}
+        currentBrainModelId={displaySettings.brain.modelId}
+        optimisticBrainModel={null}
+        onBrainModelSwitch={controller.switchBrainModel}
+        maxOutputTokens={displaySettings.maxOutputTokens}
+        onTokensSwitch={controller.switchTokens}
       />
 
       {sheet ? (
@@ -399,15 +311,15 @@ export function ChatWorkspace({
           onClose={() => setSheet(null)}
           onSubmit={async (value) => {
             if (sheet.kind === "edit") {
-              await editMessage(sheet.target, value);
+              await controller.editMessage(sheet.target, value);
             } else if (sheet.kind === "branch") {
-              await createBranch({ sourceTurnId: sheet.turnId, name: value });
+              await controller.createBranch({ sourceTurnId: sheet.turnId, name: value });
             } else {
               const turnId = controlsByMessageId[sheet.messageId]?.turnId;
               if (!turnId) {
                 throw new Error("Fantasia could not find the source turn for this pin.");
               }
-              await createPin(turnId, value);
+              await controller.createPin(turnId, value);
             }
             setSheet(null);
           }}
