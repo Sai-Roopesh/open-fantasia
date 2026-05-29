@@ -146,6 +146,41 @@ export type TranscriptControl = {
   feedbackRating: number | null;
 };
 
+/**
+ * The switchable thread-level settings the chat workspace renders. Built once on
+ * the server and applied optimistically on the client so selectors never snap back.
+ */
+export type ThreadSettingsSlice = {
+  model: { connectionId: string; modelId: string; label: string };
+  personaId: string;
+  brain: { connectionId: string | null; modelId: string | null };
+  maxOutputTokens: number;
+};
+
+/**
+ * The authoritative slice of reconcilable chat state returned by every mutation
+ * (read-your-writes). The client applies this directly to its store so the UI
+ * updates instantly without a blind router.refresh().
+ */
+export type TurnSlicePatch = {
+  headTurnId: string | null;
+  messages: FantasiaUIMessage[];
+  controlsByMessageId: Record<string, TranscriptControl>;
+  activeBranch: ChatBranchRecord;
+  branches: ChatBranchRecord[];
+  inspectorView: ContinuityInspectorView;
+  settings: ThreadSettingsSlice;
+};
+
+export type MutationResult<T = TurnSlicePatch> =
+  | { ok: true; slice: T }
+  | { ok: false; error: string };
+
+/** Result of a list mutation that carries no read-your-writes payload. */
+export type ActionResult =
+  | { ok: true }
+  | { ok: false; error: string };
+
 export type ThreadListItem = ThreadRecord & {
   character_name: string | null;
   persona_name: string | null;

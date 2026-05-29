@@ -1,15 +1,8 @@
 import Link from "next/link";
-import { ArchiveRestore, ArrowRight, PencilLine, Pin, PinOff } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { requireAllowedUser } from "@/lib/auth";
 import { listThreadItems } from "@/lib/data/threads";
-import {
-  deleteThreadFromListAction,
-  renameThreadAction,
-  setThreadArchiveAction,
-  setThreadPinnedAction,
-} from "@/app/(app)/app/threads/actions";
-import { ConfirmSubmitButton } from "@/components/forms/confirm-submit-button";
-import { formatDateTime } from "@/lib/utils";
+import { ThreadList } from "@/components/threads/thread-list";
 
 export default async function ThreadsPage({
   searchParams,
@@ -23,7 +16,6 @@ export default async function ThreadsPage({
     typeof params.status === "string" && ["active", "archived", "all"].includes(params.status)
       ? (params.status as "active" | "archived" | "all")
       : "active";
-  const deleted = params.deleted === "1";
   const threads = await listThreadItems(supabase, user.id, { query, status });
 
   return (
@@ -41,12 +33,6 @@ export default async function ThreadsPage({
           <ArrowRight className="h-3 w-3" />
         </Link>
       </div>
-
-      {deleted && (
-        <div className="rounded border border-status-success/30 bg-status-success/10 px-3 py-2 text-xs font-medium text-status-success">
-          Thread removed.
-        </div>
-      )}
 
       {/* Search/filter */}
       <form
@@ -79,117 +65,7 @@ export default async function ThreadsPage({
       </form>
 
       {/* Thread list */}
-      <div className="space-y-2">
-        {threads.length ? (
-          threads.map((thread) => (
-            <article
-              key={thread.id}
-              className="rounded-lg border border-border-subtle bg-background-front p-4"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2">
-                    <Link
-                      href={`/app/chats/${thread.id}`}
-                      className="truncate text-sm font-semibold text-on-surface hover:text-primary"
-                    >
-                      {thread.title}
-                    </Link>
-                    {thread.pinned_at && (
-                      <span className="shrink-0 rounded border border-primary-container/30 bg-primary-container/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.05em] text-primary-container">
-                        pinned
-                      </span>
-                    )}
-                    {thread.status === "archived" && (
-                      <span className="shrink-0 rounded border border-muted-foreground/30 bg-muted/30 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
-                        archived
-                      </span>
-                    )}
-                  </div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {thread.character_name ?? "Unknown"}
-                    {thread.persona_name ? ` · ${thread.persona_name}` : ""}
-                  </p>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    Updated {formatDateTime(thread.updated_at)}
-                    {thread.archived_at ? ` · Archived ${formatDateTime(thread.archived_at)}` : ""}
-                  </p>
-                </div>
-
-                <div className="flex shrink-0 items-center gap-1">
-                  <Link
-                    href={`/app/chats/${thread.id}`}
-                    className="rounded bg-primary-container/10 px-2 py-1 text-xs font-semibold text-primary-container"
-                  >
-                    Open
-                  </Link>
-
-                  <form action={setThreadPinnedAction}>
-                    <input type="hidden" name="threadId" value={thread.id} />
-                    <input type="hidden" name="pinned" value={thread.pinned_at ? "false" : "true"} />
-                    <button
-                      type="submit"
-                      className="flex h-7 w-7 items-center justify-center rounded text-on-surface-variant hover:text-on-surface"
-                      aria-label={thread.pinned_at ? "Unpin" : "Pin"}
-                    >
-                      {thread.pinned_at ? <PinOff className="h-3.5 w-3.5" /> : <Pin className="h-3.5 w-3.5" />}
-                    </button>
-                  </form>
-
-                  <form action={setThreadArchiveAction}>
-                    <input type="hidden" name="threadId" value={thread.id} />
-                    <input type="hidden" name="status" value={thread.status === "archived" ? "active" : "archived"} />
-                    <button
-                      type="submit"
-                      className="flex h-7 w-7 items-center justify-center rounded text-on-surface-variant hover:text-on-surface"
-                      aria-label={thread.status === "archived" ? "Restore" : "Archive"}
-                    >
-                      <ArchiveRestore className="h-3.5 w-3.5" />
-                    </button>
-                  </form>
-                </div>
-              </div>
-
-              {/* Expandable manage section */}
-              <details className="mt-3 rounded border border-border-subtle bg-surface-container-low px-3 py-2">
-                <summary className="cursor-pointer list-none text-xs font-semibold text-on-surface-variant">
-                  <PencilLine className="mr-1 inline h-3 w-3" />
-                  Manage
-                </summary>
-                <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
-                  <form action={renameThreadAction} className="flex flex-1 gap-2">
-                    <input type="hidden" name="threadId" value={thread.id} />
-                    <input
-                      name="title"
-                      defaultValue={thread.title}
-                      className="min-w-0 flex-1 rounded border border-border-subtle bg-surface-container px-2 py-1.5 text-sm text-on-surface outline-none focus:border-primary-container"
-                    />
-                    <button
-                      type="submit"
-                      className="rounded bg-primary-container px-3 py-1.5 text-xs font-semibold text-on-primary-container"
-                    >
-                      Save
-                    </button>
-                  </form>
-                  <form action={deleteThreadFromListAction}>
-                    <input type="hidden" name="threadId" value={thread.id} />
-                    <ConfirmSubmitButton
-                      confirmMessage="Delete this thread and all of its branches, messages, snapshots, and pins?"
-                      className="rounded bg-status-critical/10 border border-status-critical/30 px-3 py-1.5 text-xs font-semibold text-status-critical"
-                    >
-                      Delete
-                    </ConfirmSubmitButton>
-                  </form>
-                </div>
-              </details>
-            </article>
-          ))
-        ) : (
-          <div className="rounded-lg border border-dashed border-border-subtle bg-surface-container-low p-6 text-center text-sm text-muted-foreground">
-            No threads match this view. Start one from a character sheet.
-          </div>
-        )}
-      </div>
+      <ThreadList threads={threads} status={status} />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { getCurrentUser } from "@/lib/auth";
 import { rateTurn } from "@/lib/data/turns";
 import { getThreadGraphView } from "@/lib/threads/read-model";
+import { buildSliceResponse } from "@/lib/threads/slice-response";
 import { rateTurnRequestSchema } from "@/lib/validation";
 
 export async function POST(
@@ -28,5 +29,5 @@ export async function POST(
   }
 
   await rateTurn(context.supabase, threadId, turnId, parsedBody.data.rating);
-  return Response.json({ ok: true });
+  return buildSliceResponse(context.supabase, context.user.id, threadId);
 }

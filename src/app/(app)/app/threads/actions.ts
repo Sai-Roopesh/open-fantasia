@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { redirect } from "next/navigation";
 import { requireAllowedUser } from "@/lib/auth";
 import {
   deleteThread,
@@ -10,6 +9,7 @@ import {
   updateThreadPinnedState,
   updateThreadStatus,
 } from "@/lib/data/threads";
+import type { ActionResult } from "@/lib/types";
 import {
   threadDeleteCommandSchema,
   threadPinnedCommandSchema,
@@ -17,79 +17,73 @@ import {
   threadStatusCommandSchema,
 } from "@/lib/validation";
 
-export async function renameThreadAction(formData: FormData) {
-  const { supabase, user } = await requireAllowedUser();
-  const parsed = threadRenameCommandSchema.safeParse({
-    threadId: String(formData.get("threadId") ?? "").trim(),
-    title: String(formData.get("title") ?? "").trim(),
-  });
+function revalidateThreadSurfaces(threadId: string) {
+  revalidatePath("/app");
+  revalidatePath("/app/threads");
+  revalidatePath(`/app/chats/${threadId}`);
+}
 
+export async function renameThreadAction(input: {
+  threadId: string;
+  title: string;
+}): Promise<ActionResult> {
+  const parsed = threadRenameCommandSchema.safeParse(input);
   if (!parsed.success) {
-    throw new Error("A thread id and title are required.");
+    return { ok: false, error: "A thread id and title are required." };
   }
 
+  const { supabase, user } = await requireAllowedUser();
   await renameThread(supabase, user.id, parsed.data.threadId, parsed.data.title);
-  revalidatePath("/app");
-  revalidatePath("/app/threads");
-  revalidatePath(`/app/chats/${parsed.data.threadId}`);
+  revalidateThreadSurfaces(parsed.data.threadId);
+  return { ok: true };
 }
 
-export async function setThreadArchiveAction(formData: FormData) {
-  const { supabase, user } = await requireAllowedUser();
-  const parsed = threadStatusCommandSchema.safeParse({
-    threadId: String(formData.get("threadId") ?? "").trim(),
-    status: String(formData.get("status") ?? "active"),
-  });
-
+export async function setThreadArchiveAction(input: {
+  threadId: string;
+  status: "active" | "archived";
+}): Promise<ActionResult> {
+  const parsed = threadStatusCommandSchema.safeParse(input);
   if (!parsed.success) {
-    throw new Error("Thread id is required.");
+    return { ok: false, error: "Thread id is required." };
   }
 
+  const { supabase, user } = await requireAllowedUser();
   await updateThreadStatus(supabase, user.id, parsed.data);
-
-  revalidatePath("/app");
-  revalidatePath("/app/threads");
-  revalidatePath(`/app/chats/${parsed.data.threadId}`);
-
-  if (parsed.data.status === "archived") {
-    redirect("/app/threads?status=archived");
-  }
+  revalidateThreadSurfaces(parsed.data.threadId);
+  return { ok: true };
 }
 
-export async function setThreadPinnedAction(formData: FormData) {
-  const { supabase, user } = await requireAllowedUser();
-  const parsed = threadPinnedCommandSchema.safeParse({
-    threadId: String(formData.get("threadId") ?? "").trim(),
-    pinned: String(formData.get("pinned") ?? "false") === "true",
-  });
-
+export async function setThreadPinnedAction(input: {
+  threadId: string;
+  pinned: boolean;
+}): Promise<ActionResult> {
+  const parsed = threadPinnedCommandSchema.safeParse(input);
   if (!parsed.success) {
-    throw new Error("Thread id is required.");
+    return { ok: false, error: "Thread id is required." };
   }
 
+  const { supabase, user } = await requireAllowedUser();
   await updateThreadPinnedState(supabase, user.id, parsed.data);
-  revalidatePath("/app");
-  revalidatePath("/app/threads");
-  revalidatePath(`/app/chats/${parsed.data.threadId}`);
+  revalidateThreadSurfaces(parsed.data.threadId);
+  return { ok: true };
 }
 
-export async function deleteThreadFromListAction(formData: FormData) {
-  const { supabase, user } = await requireAllowedUser();
-  const parsed = threadDeleteCommandSchema.safeParse({
-    threadId: String(formData.get("threadId") ?? "").trim(),
-  });
-
+export async function deleteThreadFromListAction(input: {
+  threadId: string;
+}): Promise<ActionResult> {
+  const parsed = threadDeleteCommandSchema.safeParse(input);
   if (!parsed.success) {
-    throw new Error("Thread id is required.");
+    return { ok: false, error: "Thread id is required." };
   }
 
+  const { supabase, user } = await requireAllowedUser();
   const thread = await getThread(supabase, user.id, parsed.data.threadId);
   if (!thread) {
-    redirect("/app/threads");
+    return { ok: true };
   }
 
   await deleteThread(supabase, user.id, parsed.data.threadId);
   revalidatePath("/app");
   revalidatePath("/app/threads");
-  redirect("/app/threads?deleted=1");
+  return { ok: true };
 }

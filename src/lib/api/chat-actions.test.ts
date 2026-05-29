@@ -13,7 +13,7 @@ describe("chat-actions", () => {
     vi.restoreAllMocks();
   });
 
-  function mockFetchResponse(ok: boolean, body: unknown = {}) {
+  function mockFetchResponse(ok: boolean, body: unknown = { ok: true }) {
     (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue(
       new Response(JSON.stringify(body), {
         status: ok ? 200 : 500,
@@ -81,7 +81,7 @@ describe("chat-actions", () => {
           expectedHeadTurnId: "head1",
           mode: "regenerate",
         }),
-      ).resolves.toBeUndefined();
+      ).resolves.toMatchObject({ ok: true });
     });
 
     it("rewrites the latest user turn", async () => {
@@ -93,7 +93,7 @@ describe("chat-actions", () => {
           mode: "user",
           text: "Rewrite this.",
         }),
-      ).resolves.toBeUndefined();
+      ).resolves.toMatchObject({ ok: true });
       expect(global.fetch).toHaveBeenCalledWith("/api/chats/t1/rewrite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -115,7 +115,7 @@ describe("chat-actions", () => {
           mode: "assistant",
           text: "Keep only context a.",
         }),
-      ).resolves.toBeUndefined();
+      ).resolves.toMatchObject({ ok: true });
       expect(global.fetch).toHaveBeenCalledWith("/api/chats/t1/rewrite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -148,7 +148,7 @@ describe("chat-actions", () => {
   describe("rewindTurn", () => {
     it("posts to the rewind route without an unused request body", async () => {
       mockFetchResponse(true);
-      await expect(actions.rewindTurn("t1", "turn1")).resolves.toBeUndefined();
+      await expect(actions.rewindTurn("t1", "turn1")).resolves.toMatchObject({ ok: true });
       expect(global.fetch).toHaveBeenCalledWith("/api/chats/t1/turns/turn1/rewind", {
         method: "POST",
       });

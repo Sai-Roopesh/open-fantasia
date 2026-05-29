@@ -1,4 +1,4 @@
-import { convertToModelMessages, streamText } from "ai";
+import { convertToModelMessages, smoothStream, streamText } from "ai";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/auth";
 import { createLanguageModel } from "@/lib/ai/provider-factory";
@@ -222,6 +222,9 @@ export async function POST(request: Request) {
       temperature: runtime.generationSettings.temperature,
       topP: runtime.generationSettings.topP,
       maxOutputTokens: runtime.generationSettings.maxOutputTokens,
+      // Even out bursty provider chunks into a steady word cadence; combined with
+      // the client-side experimental_throttle this gives smooth token rendering.
+      experimental_transform: smoothStream({ chunking: "word" }),
       onError: async ({ error }) => {
         if (turnSettled) {
           return;

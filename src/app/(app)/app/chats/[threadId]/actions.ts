@@ -3,8 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAllowedUser } from "@/lib/auth";
-import { getConnection } from "@/lib/data/connections";
+import type { DatabaseClient } from "@/lib/data/shared";
+import { getConnection, listConnections } from "@/lib/data/connections";
 import { getPersona } from "@/lib/data/personas";
+import type { MutationResult } from "@/lib/types";
 import {
   deleteThread,
   getThread,
@@ -15,7 +17,7 @@ import {
   updateThreadTokens,
 } from "@/lib/data/threads";
 import { insertTimelineEvent } from "@/lib/data/timeline";
-import { getThreadGraphView } from "@/lib/threads/read-model";
+import { buildTurnSlicePatch, getThreadGraphView } from "@/lib/threads/read-model";
 import {
   switchThreadBranchSchema,
   switchThreadModelSchema,
@@ -25,11 +27,30 @@ import {
   updateThreadTokensSchema,
 } from "@/lib/validation";
 
+/**
+ * Rebuild the authoritative thread slice after a settings mutation so the client
+ * can apply read-your-writes without a blind router.refresh().
+ */
+async function buildSliceResult(
+  supabase: DatabaseClient,
+  userId: string,
+  threadId: string,
+): Promise<MutationResult> {
+  const [view, connections] = await Promise.all([
+    getThreadGraphView(supabase, userId, threadId),
+    listConnections(supabase, userId),
+  ]);
+  if (!view) {
+    return { ok: false, error: "Thread not found." };
+  }
+  return { ok: true, slice: buildTurnSlicePatch(view, connections) };
+}
+
 export async function switchThreadModelAction(input: {
   threadId: string;
   connectionId: string;
   modelId: string;
-}) {
+}): Promise<MutationResult> {
   const parsed = switchThreadModelSchema.parse(input);
   const { supabase, user } = await requireAllowedUser();
   const view = await getThreadGraphView(supabase, user.id, parsed.threadId);
@@ -64,13 +85,14 @@ export async function switchThreadModelAction(input: {
 
   revalidatePath(`/app/chats/${parsed.threadId}`);
   revalidatePath("/app");
+  return buildSliceResult(supabase, user.id, parsed.threadId);
 }
 
 export async function switchThreadBrainModelAction(input: {
   threadId: string;
   connectionId: string | null;
   modelId: string | null;
-}) {
+}): Promise<MutationResult> {
   const parsed = switchThreadBrainModelSchema.parse(input);
   const { supabase, user } = await requireAllowedUser();
   const view = await getThreadGraphView(supabase, user.id, parsed.threadId);
@@ -116,12 +138,13 @@ export async function switchThreadBrainModelAction(input: {
 
   revalidatePath(`/app/chats/${parsed.threadId}`);
   revalidatePath("/app");
+  return buildSliceResult(supabase, user.id, parsed.threadId);
 }
 
 export async function switchThreadTokensAction(input: {
   threadId: string;
   maxOutputTokens: number;
-}) {
+}): Promise<MutationResult> {
   const parsed = updateThreadTokensSchema.parse(input);
   const { supabase, user } = await requireAllowedUser();
   const view = await getThreadGraphView(supabase, user.id, parsed.threadId);
@@ -144,12 +167,13 @@ export async function switchThreadTokensAction(input: {
 
   revalidatePath(`/app/chats/${parsed.threadId}`);
   revalidatePath("/app");
+  return buildSliceResult(supabase, user.id, parsed.threadId);
 }
 
 export async function switchThreadPersonaAction(input: {
   threadId: string;
   personaId: string;
-}) {
+}): Promise<MutationResult> {
   const parsed = switchThreadPersonaSchema.parse(input);
   const { supabase, user } = await requireAllowedUser();
   const view = await getThreadGraphView(supabase, user.id, parsed.threadId);
@@ -176,12 +200,13 @@ export async function switchThreadPersonaAction(input: {
   });
 
   revalidatePath(`/app/chats/${parsed.threadId}`);
+  return buildSliceResult(supabase, user.id, parsed.threadId);
 }
 
 export async function switchThreadBranchAction(input: {
   threadId: string;
   branchId: string;
-}) {
+}): Promise<MutationResult> {
   const parsed = switchThreadBranchSchema.parse(input);
   const { supabase, user } = await requireAllowedUser();
   const thread = await getThread(supabase, user.id, parsed.threadId);
@@ -192,6 +217,7 @@ export async function switchThreadBranchAction(input: {
   await switchActiveBranch(supabase, user.id, parsed);
 
   revalidatePath(`/app/chats/${parsed.threadId}`);
+  return buildSliceResult(supabase, user.id, parsed.threadId);
 }
 
 export async function deleteThreadAction(formData: FormData) {

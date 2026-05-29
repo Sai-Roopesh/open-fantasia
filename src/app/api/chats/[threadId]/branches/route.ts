@@ -3,6 +3,7 @@ import { createBranchFromTurn } from "@/lib/data/branches";
 import { insertTimelineEvent } from "@/lib/data/timeline";
 import { copyWorldStateToBranch } from "@/lib/data/world-state";
 import { getThreadGraphView } from "@/lib/threads/read-model";
+import { buildSliceResponse } from "@/lib/threads/slice-response";
 import { createBranchRequestSchema } from "@/lib/validation";
 
 export async function POST(
@@ -56,5 +57,5 @@ export async function POST(
     affected_relationship_ids: [],
   });
 
-  return Response.json({ ok: true, branchId: branch.id, branchName: branch.name });
+  return buildSliceResponse(context.supabase, context.user.id, threadId);
 }

@@ -1,5 +1,6 @@
 import { getCurrentUser } from "@/lib/auth";
 import { resolvePin } from "@/lib/data/pins";
+import { buildSliceResponse } from "@/lib/threads/slice-response";
 
 export async function DELETE(
   _request: Request,
@@ -12,5 +13,5 @@ export async function DELETE(
 
   const { threadId, pinId } = await params;
   await resolvePin(context.supabase, context.user.id, threadId, pinId);
-  return Response.json({ ok: true });
+  return buildSliceResponse(context.supabase, context.user.id, threadId);
 }

@@ -14,12 +14,16 @@ import type {
   ChatBranchRecord,
   ChatPinRecord,
   ChatTurnRecord,
+  ConnectionRecord,
+  ContinuityInspectorView,
   DurableMemorySnapshot,
   FantasiaUIMessage,
   MessageMetadata,
   ThreadRecord,
+  ThreadSettingsSlice,
   TimelineEventRecord,
   TranscriptControl,
+  TurnSlicePatch,
   WorldSnapshotRecord,
 } from "@/lib/types";
 import { z } from "zod";
@@ -421,5 +425,189 @@ export async function getThreadGraphView(
     canonicalMessages,
     recentSceneMessages,
     controlsByMessageId: buildControlsByMessageId(reachableTurns),
+  };
+}
+
+function truncateCopy(value: string, length: number) {
+  if (value.length <= length) return value;
+  return `${value.slice(0, length).trim()}...`;
+}
+
+/**
+ * Build the continuity inspector payload (story summary, scene, entities,
+ * relationships, pins, timeline, branch metadata) from a thread view. Shared by
+ * the chat page and every mutation so read-your-writes returns an identical shape.
+ */
+export function buildInspectorView(view: ThreadGraphView): ContinuityInspectorView {
+  const turnExcerptById = new Map(
+    view.turns.map((turn) => {
+      const transcript = [turn.user_input_text, turn.assistant_output_text ?? ""]
+        .filter(Boolean)
+        .join("\n");
+      return [turn.id, transcript];
+    }),
+  );
+  const parentBranch = view.branches.find(
+    (branch) => branch.id === view.activeBranch.parent_branch_id,
+  );
+  const continuitySnapshot = view.headSnapshot;
+  const continuityStatus = view.headSnapshotFailed
+    ? {
+        tone: "error" as const,
+        title: "Continuity reconciliation failed",
+        detail:
+          view.headSnapshotFailureMessage ??
+          "The active branch could not reconcile its latest turn. New turns stay blocked until you rewrite, regenerate, or rewind to a surviving turn.",
+      }
+    : view.headSnapshotPending
+      ? {
+          tone: "pending" as const,
+          title: "Continuity reconciliation is still running",
+          detail:
+            "The latest turn has not produced a committed head snapshot yet. New turns stay blocked until reconciliation finishes.",
+        }
+      : null;
+
+  return {
+    continuityStatus,
+    continuity: [
+      {
+        label: "Story summary",
+        value:
+          continuitySnapshot?.narrative_state.story_summary ||
+          "No durable story summary has been written for this branch yet.",
+        helper:
+          "This is the whole-branch memory summary the next assistant turn receives as durable context.",
+      },
+      {
+        label: "Current scene",
+        value:
+          continuitySnapshot?.narrative_state.scene_summary ||
+          "No current-scene summary has been written for this branch yet.",
+        helper:
+          "This is the short scene-local memory that keeps the immediate situation sharp without replaying the whole chat.",
+      },
+      {
+        label: "Last beat",
+        value:
+          continuitySnapshot?.narrative_state.last_turn_beat ||
+          "No latest beat has been written for this branch yet.",
+        helper:
+          "This captures how the newest exchange changed the scene, so the next reply can build forward instead of repeating itself.",
+      },
+      {
+        label: "Entities",
+        value: continuitySnapshot?.entity_state.length
+          ? continuitySnapshot.entity_state
+              .map((e) => `• ${e.canonical_name} (${e.entity_type}) — ${e.primary_emotion} [${e.emotion_intensity}/10]`)
+              .join("\n")
+          : "No entities are currently tracked.",
+        helper:
+          "All characters, NPCs, creatures, and objects the engine is tracking, with their current emotional state.",
+      },
+      {
+        label: "Relationships",
+        value: continuitySnapshot?.relational_state.length
+          ? continuitySnapshot.relational_state
+              .map((r) => `• ${r.source_entity_name} → ${r.target_entity_name}: ${r.dynamic_status} (${r.relationship_type})`)
+              .join("\n")
+          : "No relationships are currently tracked.",
+        helper:
+          "Active relationships between entities with their current dynamic status.",
+      },
+      {
+        label: "Current location",
+        value: continuitySnapshot?.spatial_state.current_location
+          ? `${continuitySnapshot.spatial_state.current_location.name}: ${continuitySnapshot.spatial_state.current_location.description}`
+          : "No current location is set.",
+        helper:
+          "The user entity's current location in the world graph.",
+      },
+      {
+        label: "Active threads",
+        value:
+          continuitySnapshot?.narrative_state.active_threads?.length
+            ? continuitySnapshot.narrative_state.active_threads.map((t) => `• [${t.status}] ${t.objective}`).join("\n")
+            : "No active threads are currently tracked on this branch.",
+        helper:
+          "These are the unresolved plot threads that are still alive and should be available to pull the next beat forward.",
+      },
+      {
+        label: "Resolved threads",
+        value: continuitySnapshot?.narrative_state.resolved_threads?.length
+          ? continuitySnapshot.narrative_state.resolved_threads.map((item) => `• ${item}`).join("\n")
+          : "No resolved threads are currently tracked yet.",
+        helper:
+          "Resolved threads are closed beats the runtime remembers as settled, so the assistant does not keep reopening them.",
+      },
+    ],
+    pins: view.pins.map((pin) => ({
+      id: pin.id,
+      body: pin.body,
+      createdAt: pin.created_at,
+      sourceLabel: pin.turn_id ? "Pinned from transcript" : "Pinned manually",
+      sourceExcerpt: pin.turn_id
+        ? truncateCopy(turnExcerptById.get(pin.turn_id) ?? "Source turn is no longer on this branch.", 120)
+        : "This pin was saved without a direct source message.",
+    })),
+    timeline: view.timeline.map((event) => ({
+      id: event.id,
+      title: event.title,
+      detail: event.detail,
+      importance: event.importance,
+      createdAt: event.created_at,
+    })),
+    branch: {
+      activeBranchId: view.activeBranch.id,
+      activeBranchName: view.activeBranch.name,
+      parentBranchName: parentBranch?.name ?? null,
+      forkTurnId: view.activeBranch.fork_turn_id,
+      headTurnId: view.activeBranch.head_turn_id,
+      totalBranches: view.branches.length,
+      totalTurns: view.turns.length,
+    },
+  };
+}
+
+/**
+ * Build the switchable thread-settings slice. `connections` is used only to
+ * resolve the human-readable label for the active chat connection.
+ */
+export function buildThreadSettingsSlice(
+  view: ThreadGraphView,
+  connections: ConnectionRecord[],
+): ThreadSettingsSlice {
+  const connection = connections.find((c) => c.id === view.thread.connection_id);
+  return {
+    model: {
+      connectionId: view.thread.connection_id,
+      modelId: view.thread.model_id,
+      label: connection?.label ?? "",
+    },
+    personaId: view.thread.persona_id ?? "",
+    brain: {
+      connectionId: view.thread.brain_connection_id,
+      modelId: view.thread.brain_model_id,
+    },
+    maxOutputTokens: view.thread.max_output_tokens,
+  };
+}
+
+/**
+ * Build the full read-your-writes slice returned by every chat mutation. Applying
+ * it on the client is a wholesale replace of the reconcilable region — no diffing.
+ */
+export function buildTurnSlicePatch(
+  view: ThreadGraphView,
+  connections: ConnectionRecord[],
+): TurnSlicePatch {
+  return {
+    headTurnId: view.activeBranch.head_turn_id,
+    messages: view.canonicalMessages,
+    controlsByMessageId: view.controlsByMessageId,
+    activeBranch: view.activeBranch,
+    branches: view.branches,
+    inspectorView: buildInspectorView(view),
+    settings: buildThreadSettingsSlice(view, connections),
   };
 }
