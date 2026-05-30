@@ -158,6 +158,21 @@ export type ThreadSettingsSlice = {
 };
 
 /**
+ * A node in the branch tree (git-style). Children are branches forked from this
+ * branch (parent_branch_id), ordered by creation. Powers the sidebar tree.
+ */
+export type BranchTreeNode = {
+  id: string;
+  name: string;
+  parentBranchId: string | null;
+  forkTurnId: string | null;
+  headTurnId: string | null;
+  isActive: boolean;
+  createdAt: string;
+  children: BranchTreeNode[];
+};
+
+/**
  * The authoritative slice of reconcilable chat state returned by every mutation
  * (read-your-writes). The client applies this directly to its store so the UI
  * updates instantly without a blind router.refresh().
@@ -168,6 +183,7 @@ export type TurnSlicePatch = {
   controlsByMessageId: Record<string, TranscriptControl>;
   activeBranch: ChatBranchRecord;
   branches: ChatBranchRecord[];
+  branchTree: BranchTreeNode[];
   inspectorView: ContinuityInspectorView;
   settings: ThreadSettingsSlice;
 };

@@ -55,6 +55,7 @@ const slice = (overrides: Partial<TurnSlicePatch> = {}): TurnSlicePatch => ({
   controlsByMessageId: { "turn2:assistant": {} as never },
   activeBranch: branch("b1", "turn2"),
   branches: [branch("b1", "turn2")],
+  branchTree: [],
   inspectorView: inspector(),
   settings: settings({ personaId: "p2" }),
   ...overrides,

@@ -6,6 +6,7 @@ import type {
   TurnSlicePatch,
 } from "@/lib/types";
 import type { ThreadAssembly } from "./thread-assembly";
+import { buildBranchTree } from "./branch-tree";
 import {
   buildCanonicalMessages,
   buildControlsByMessageId,
@@ -192,6 +193,7 @@ export function buildTurnSlicePatch(
     controlsByMessageId: buildControlsByMessageId(assembly.turns),
     activeBranch: assembly.activeBranch,
     branches: assembly.branches,
+    branchTree: buildBranchTree(assembly.branches),
     inspectorView: buildInspectorView(assembly, snapshot),
     settings: buildThreadSettingsSlice(assembly, connections),
   };
