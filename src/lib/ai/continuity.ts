@@ -1,4 +1,4 @@
-import { getTextFromMessage } from "@/lib/ai/message-text";
+import { getTextFromMessage } from "@/lib/utils/message-text";
 import {
   extractStateChanges,
   type ExtractionOutput,

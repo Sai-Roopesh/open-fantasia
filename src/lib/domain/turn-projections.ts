@@ -1,7 +1,106 @@
 import type { ChatTurnRecord, FantasiaUIMessage, TranscriptControl } from "@/lib/types";
-import { toTranscriptMessages, toModelContextMessages } from "@/lib/data/turns";
+import { createTextMessage } from "@/lib/domain/message-factory";
 
 export const RECENT_SCENE_TURN_WINDOW = 4;
+
+/**
+ * Converts a committed turn into UI messages for the **displayed transcript**.
+ * Turns with `user_input_hidden === true` omit the user message entirely — the
+ * user never sees hidden prompts (starter seeds, regeneration guidance) in the
+ * chat history.
+ *
+ * For the model's context window (where hidden turns must be included), use
+ * {@link toModelContextMessages} instead.
+ */
+export function toTranscriptMessages(turn: ChatTurnRecord): FantasiaUIMessage[] {
+  if (turn.generation_status !== "committed") {
+    return [];
+  }
+
+  const messages: FantasiaUIMessage[] = [];
+  if (!turn.user_input_hidden) {
+    messages.push(
+      createTextMessage({
+        id: `${turn.id}:user`,
+        role: "user",
+        text: turn.user_input_text,
+        metadata: {
+          createdAt: turn.created_at,
+          turnId: turn.id,
+        },
+      }),
+    );
+  }
+
+  if (turn.assistant_output_text) {
+    messages.push(
+      createTextMessage({
+        id: `${turn.id}:assistant`,
+        role: "assistant",
+        text: turn.assistant_output_text,
+        metadata: {
+          createdAt: turn.generation_finished_at ?? turn.updated_at,
+          turnId: turn.id,
+          provider: turn.assistant_provider ?? undefined,
+          model: turn.assistant_model ?? undefined,
+          connectionLabel: turn.assistant_connection_label ?? undefined,
+          finishReason: turn.finish_reason ?? undefined,
+          totalTokens: turn.total_tokens ?? undefined,
+        },
+      }),
+    );
+  }
+
+  return messages;
+}
+
+/**
+ * Converts a committed turn into UI messages for the **model context window**.
+ * Unlike {@link toTranscriptMessages}, this always includes the user input —
+ * even when `user_input_hidden` is true — because the model needs the full
+ * conversational context. The `hiddenFromTranscript` and `starterSeed`
+ * metadata flags let callers distinguish hidden prompts if needed.
+ */
+export function toModelContextMessages(turn: ChatTurnRecord): FantasiaUIMessage[] {
+  if (turn.generation_status !== "committed") {
+    return [];
+  }
+
+  const messages: FantasiaUIMessage[] = [
+    createTextMessage({
+      id: `${turn.id}:user`,
+      role: "user",
+      text: turn.user_input_text,
+      metadata: {
+        createdAt: turn.created_at,
+        turnId: turn.id,
+        hiddenFromTranscript: turn.user_input_hidden,
+        starterSeed: turn.starter_seed,
+      },
+    }),
+  ];
+
+  if (turn.assistant_output_text) {
+    messages.push(
+      createTextMessage({
+        id: `${turn.id}:assistant`,
+        role: "assistant",
+        text: turn.assistant_output_text,
+        metadata: {
+          createdAt: turn.generation_finished_at ?? turn.updated_at,
+          turnId: turn.id,
+          provider: turn.assistant_provider ?? undefined,
+          model: turn.assistant_model ?? undefined,
+          connectionLabel: turn.assistant_connection_label ?? undefined,
+          finishReason: turn.finish_reason ?? undefined,
+          totalTokens: turn.total_tokens ?? undefined,
+        },
+      }),
+    );
+  }
+
+  return messages;
+}
 
 export function buildTurnPath(
   turns: ChatTurnRecord[],

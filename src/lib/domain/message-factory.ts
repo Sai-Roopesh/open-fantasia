@@ -1,4 +1,4 @@
-import { getTextFromMessageParts } from "@/lib/ai/message-text";
+import { getTextFromMessageParts } from "@/lib/utils/message-text";
 import type { FantasiaUIMessage, MessageMetadata } from "@/lib/types";
 
 export function createTextMessage(args: {

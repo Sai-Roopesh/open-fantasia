@@ -1,8 +1,11 @@
-import type { User } from "@supabase/supabase-js";
+import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { redirect } from "next/navigation";
 import { getAllowedEmails } from "@/lib/env";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import type { Database } from "@/lib/supabase/database.types";
 import type { ProfileRecord } from "@/lib/types";
+
+type AuthedClient = SupabaseClient<Database>;
 
 export function isAllowedEmail(email?: string | null) {
   if (!email) {
@@ -13,61 +16,65 @@ export function isAllowedEmail(email?: string | null) {
   return allowed.includes(email.trim().toLowerCase());
 }
 
-async function ensureProfileRecord(
-  user: User,
-  supabase?: Awaited<ReturnType<typeof createSupabaseServerClient>>,
-) {
-  const client = supabase ?? (await createSupabaseServerClient());
+const PROFILE_COLUMNS = "id, email, is_allowed, created_at, updated_at";
+
+/**
+ * Ensures a profile row exists for the user and returns it. Shared by both the
+ * request-time proxy guard and server-side `getCurrentUser`, so the create /
+ * sync logic lives in exactly one place.
+ *
+ * Creation is race-safe: the upsert with `ignoreDuplicates` is a single atomic
+ * `INSERT ... ON CONFLICT DO NOTHING`, so two simultaneous first-time requests
+ * can never collide on the primary key. Critically, it never overwrites
+ * `is_allowed` for an existing row — runtime authorization is profile-backed and
+ * the env allowlist only seeds the value on first insert.
+ */
+export async function ensureProfileForClient(
+  client: AuthedClient,
+  user: Pick<User, "id" | "email">,
+): Promise<ProfileRecord> {
+  const nextEmail = user.email ?? "";
+
+  const { error: seedError } = await client.from("profiles").upsert(
+    {
+      id: user.id,
+      email: nextEmail,
+      is_allowed: isAllowedEmail(user.email),
+    },
+    { onConflict: "id", ignoreDuplicates: true },
+  );
+
+  if (seedError) {
+    throw seedError;
+  }
+
   const { data: existing, error: loadError } = await client
     .from("profiles")
-    .select("id, email, is_allowed, created_at, updated_at")
+    .select(PROFILE_COLUMNS)
     .eq("id", user.id)
-    .maybeSingle();
+    .single();
 
   if (loadError) {
     throw loadError;
   }
 
-  if (existing) {
-    const nextEmail = user.email ?? "";
-    if (existing.email !== nextEmail) {
-      const { data: updated, error: updateError } = await client
-        .from("profiles")
-        .update({
-          email: nextEmail,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", user.id)
-        .select("id, email, is_allowed, created_at, updated_at")
-        .single();
-
-      if (updateError) {
-        throw updateError;
-      }
-
-      return updated as ProfileRecord;
-    }
-
-    return existing as ProfileRecord;
+  const profile = existing as ProfileRecord;
+  if (profile.email === nextEmail) {
+    return profile;
   }
 
-  const { data, error } = await client
+  const { data: updated, error: updateError } = await client
     .from("profiles")
-    .insert({
-      id: user.id,
-      email: user.email ?? "",
-      // Runtime authorization is profile-backed. The env allowlist only bootstraps
-      // first-time profiles so a private deployment can self-seed access safely.
-      is_allowed: isAllowedEmail(user.email),
-    })
-    .select("id, email, is_allowed, created_at, updated_at")
+    .update({ email: nextEmail, updated_at: new Date().toISOString() })
+    .eq("id", user.id)
+    .select(PROFILE_COLUMNS)
     .single();
 
-  if (error) {
-    throw error;
+  if (updateError) {
+    throw updateError;
   }
 
-  return data as ProfileRecord;
+  return updated as ProfileRecord;
 }
 
 export async function getCurrentUser() {
@@ -85,7 +92,7 @@ export async function getCurrentUser() {
     };
   }
 
-  const profile = await ensureProfileRecord(user, supabase);
+  const profile = await ensureProfileForClient(supabase, user);
 
   return {
     supabase,
@@ -116,5 +123,6 @@ export async function requireAllowedUser() {
 }
 
 export async function syncProfile(user: User) {
-  await ensureProfileRecord(user);
+  const supabase = await createSupabaseServerClient();
+  await ensureProfileForClient(supabase, user);
 }

@@ -10,7 +10,7 @@ import {
   startThread,
 } from "@/lib/services/characters";
 import {
-  characterDeleteCommandSchema,
+  characterIdCommandSchema,
   saveCharacterCommandSchema,
   startThreadCommandSchema,
 } from "@/lib/validation";
@@ -72,7 +72,7 @@ export async function saveCharacterAction(formData: FormData) {
 
 export async function regenerateCharacterPortraitAction(formData: FormData) {
   const { supabase, user } = await requireAllowedUser();
-  const parsed = characterDeleteCommandSchema.safeParse({
+  const parsed = characterIdCommandSchema.safeParse({
     characterId: String(formData.get("id") ?? "").trim(),
   });
 
@@ -140,7 +140,7 @@ export async function startThreadAction(formData: FormData) {
 
 export async function deleteCharacterAction(formData: FormData) {
   const { supabase, user } = await requireAllowedUser();
-  const parsed = characterDeleteCommandSchema.safeParse({
+  const parsed = characterIdCommandSchema.safeParse({
     characterId: String(formData.get("characterId") ?? "").trim(),
   });
 

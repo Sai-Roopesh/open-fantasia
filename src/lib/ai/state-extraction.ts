@@ -1,7 +1,7 @@
 import { Output, generateText } from "ai";
 import { z } from "zod";
 import { createLanguageModel } from "@/lib/ai/provider-factory";
-import { getTextFromMessage } from "@/lib/ai/message-text";
+import { getTextFromMessage } from "@/lib/utils/message-text";
 import type {
   CharacterRecord,
   ConnectionRecord,

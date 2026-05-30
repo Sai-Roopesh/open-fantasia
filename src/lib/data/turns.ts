@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { parseRow, parseRows, type DatabaseClient } from "@/lib/data/shared";
 import type { Json } from "@/lib/supabase/database.types";
-import type { ChatTurnRecord, FantasiaUIMessage } from "@/lib/types";
+import type { ChatTurnRecord } from "@/lib/types";
 import { turnRecordSchema } from "@/lib/validation";
 
 const reservedTurnResultSchema = z.object({
@@ -68,125 +68,6 @@ export function normalizeTurn(value: unknown, label = "Turn") {
 
 export function normalizeTurns(value: unknown, label = "Turns") {
   return parseRows(value, turnRecordSchema, label) as ChatTurnRecord[];
-}
-
-function createTextMessage(args: {
-  id: string;
-  role: "user" | "assistant";
-  text: string;
-  metadata?: FantasiaUIMessage["metadata"];
-}) {
-  return {
-    id: args.id,
-    role: args.role,
-    parts: args.text
-      ? [
-          {
-            type: "text" as const,
-            text: args.text,
-          },
-        ]
-      : [],
-    metadata: args.metadata ?? {},
-  } satisfies FantasiaUIMessage;
-}
-
-/**
- * Converts a committed turn into UI messages for the **displayed transcript**.
- * Turns with `user_input_hidden === true` are omitted entirely — the user
- * never sees the hidden prompt in the chat history.
- *
- * For building the model's context window (where hidden turns must be
- * included), use {@link toModelContextMessages} instead.
- */
-export function toTranscriptMessages(turn: ChatTurnRecord): FantasiaUIMessage[] {
-  if (turn.generation_status !== "committed") {
-    return [];
-  }
-
-  const messages: FantasiaUIMessage[] = [];
-  if (!turn.user_input_hidden) {
-    messages.push(
-      createTextMessage({
-        id: `${turn.id}:user`,
-        role: "user",
-        text: turn.user_input_text,
-        metadata: {
-          createdAt: turn.created_at,
-          turnId: turn.id,
-        },
-      }),
-    );
-  }
-
-  if (turn.assistant_output_text) {
-    messages.push(
-      createTextMessage({
-        id: `${turn.id}:assistant`,
-        role: "assistant",
-        text: turn.assistant_output_text,
-        metadata: {
-          createdAt: turn.generation_finished_at ?? turn.updated_at,
-          turnId: turn.id,
-          provider: turn.assistant_provider ?? undefined,
-          model: turn.assistant_model ?? undefined,
-          connectionLabel: turn.assistant_connection_label ?? undefined,
-          finishReason: turn.finish_reason ?? undefined,
-          totalTokens: turn.total_tokens ?? undefined,
-        },
-      }),
-    );
-  }
-
-  return messages;
-}
-
-/**
- * Converts a committed turn into UI messages for the **model context window**.
- * Unlike {@link toTranscriptMessages}, this always includes the user input —
- * even when `user_input_hidden` is true — because the model needs the full
- * conversational context. The `hiddenFromTranscript` and `starterSeed`
- * metadata flags allow callers to distinguish hidden prompts if needed.
- */
-export function toModelContextMessages(turn: ChatTurnRecord): FantasiaUIMessage[] {
-  if (turn.generation_status !== "committed") {
-    return [];
-  }
-
-  const messages = [
-    createTextMessage({
-      id: `${turn.id}:user`,
-      role: "user",
-      text: turn.user_input_text,
-      metadata: {
-        createdAt: turn.created_at,
-        turnId: turn.id,
-        hiddenFromTranscript: turn.user_input_hidden,
-        starterSeed: turn.starter_seed,
-      },
-    }),
-  ];
-
-  if (turn.assistant_output_text) {
-    messages.push(
-      createTextMessage({
-        id: `${turn.id}:assistant`,
-        role: "assistant",
-        text: turn.assistant_output_text,
-        metadata: {
-          createdAt: turn.generation_finished_at ?? turn.updated_at,
-          turnId: turn.id,
-          provider: turn.assistant_provider ?? undefined,
-          model: turn.assistant_model ?? undefined,
-          connectionLabel: turn.assistant_connection_label ?? undefined,
-          finishReason: turn.finish_reason ?? undefined,
-          totalTokens: turn.total_tokens ?? undefined,
-        },
-      }),
-    );
-  }
-
-  return messages;
 }
 
 export async function listTurnsForThread(

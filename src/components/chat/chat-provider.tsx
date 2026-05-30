@@ -10,7 +10,7 @@ import {
   type ActionDispatch,
   type ReactNode,
 } from "react";
-import { getTextFromMessage } from "@/lib/ai/message-text";
+import { getTextFromMessage } from "@/lib/utils/message-text";
 import { messageMetadataSchema, type FantasiaUIMessage } from "@/lib/types";
 import {
   chatStoreReducer,

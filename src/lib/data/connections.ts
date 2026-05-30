@@ -1,4 +1,4 @@
-import { validateOllamaBaseUrl } from "@/lib/ai/ollama-url";
+import { validateOllamaBaseUrl } from "@/lib/utils/url-safety";
 import { encryptSecret } from "@/lib/crypto";
 import { isConfigurationError } from "@/lib/errors";
 import { parseRow, parseRows, type DatabaseClient } from "@/lib/data/shared";

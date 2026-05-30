@@ -36,7 +36,15 @@ vi.mock("@/lib/env", () => ({
 }));
 
 vi.mock("@/lib/auth", () => ({
-  isAllowedEmail: vi.fn((email?: string | null) => email === "allowed@example.com"),
+  ensureProfileForClient: vi.fn(
+    async (_client: unknown, user: { id: string; email?: string | null }) => ({
+      id: user.id,
+      email: user.email ?? "",
+      is_allowed: user.email === "allowed@example.com",
+      created_at: "",
+      updated_at: "",
+    }),
+  ),
 }));
 
 import { config, proxy } from "@/proxy";

@@ -5,7 +5,8 @@ import {
   materializeDurableSnapshot,
 } from "@/lib/ai/state-materializer";
 import type { DatabaseClient } from "@/lib/data/shared";
-import { listTurnsForThread, toTranscriptMessages } from "@/lib/data/turns";
+import { listTurnsForThread } from "@/lib/data/turns";
+import { toTranscriptMessages } from "@/lib/domain/turn-projections";
 import {
   getWorldSnapshot,
   saveWorldSnapshot,

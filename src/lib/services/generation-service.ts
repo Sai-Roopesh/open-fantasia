@@ -1,5 +1,5 @@
 import { convertToModelMessages, generateText, smoothStream, streamText } from "ai";
-import { getTextFromMessage } from "@/lib/ai/message-text";
+import { getTextFromMessage } from "@/lib/utils/message-text";
 import { createLanguageModel } from "@/lib/ai/provider-factory";
 import { insertTimelineEvent } from "@/lib/data/timeline";
 import {

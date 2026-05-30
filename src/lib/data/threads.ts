@@ -333,7 +333,7 @@ export async function updateThreadPersona(
 
 export async function switchActiveBranch(
   supabase: DatabaseClient,
-  _userId: string,
+  userId: string,
   args: { threadId: string; branchId: string },
 ) {
   const { error } = await supabase.rpc("activate_branch", {
@@ -345,7 +345,7 @@ export async function switchActiveBranch(
     throw error;
   }
 
-  return getThread(supabase, _userId, args.threadId);
+  return getThread(supabase, userId, args.threadId);
 }
 
 export async function renameThread(

@@ -11,7 +11,7 @@ import {
   RotateCcw,
   Star,
 } from "lucide-react";
-import { getTextFromMessage } from "@/lib/ai/message-text";
+import { getTextFromMessage } from "@/lib/utils/message-text";
 import type { EditableTurnTarget, FantasiaUIMessage, TranscriptControl } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { parseMarkdownLiteCached } from "@/lib/pretext/parse-cache";
