@@ -19,7 +19,7 @@ function formatSection(tag: string, lines: string[]) {
 
 export function buildRoleplaySystemPrompt(args: {
   character: CharacterBundle;
-  persona: UserPersonaRecord;
+  persona: UserPersonaRecord | null;
   snapshot: DurableMemorySnapshot | null;
   pins: ChatPinRecord[];
   timeline: TimelineEventRecord[];
@@ -35,14 +35,16 @@ export function buildRoleplaySystemPrompt(args: {
     ["Behavior rules", character.character.definition],
     ["Boundaries", character.character.negative_guidance],
   ]);
-  const personaLines = compactLabeledLines([
-    ["Name", persona.name],
-    ["Identity", persona.identity],
-    ["Backstory", persona.backstory],
-    ["Voice style", persona.voice_style],
-    ["Goals", persona.goals],
-    ["Boundaries", persona.boundaries],
-  ]);
+  const personaLines = persona
+    ? compactLabeledLines([
+        ["Name", persona.name],
+        ["Identity", persona.identity],
+        ["Backstory", persona.backstory],
+        ["Voice style", persona.voice_style],
+        ["Goals", persona.goals],
+        ["Boundaries", persona.boundaries],
+      ])
+    : [];
 
   const timelineText = promptTimeline.length
     ? promptTimeline
@@ -88,8 +90,10 @@ export function buildRoleplaySystemPrompt(args: {
     formatSection("character_persona", characterLines.length
       ? characterLines
       : ["No character guidance has been filled in yet."]),
-    formatSection("user_persona", personaLines),
   );
+  if (personaLines.length) {
+    sections.push(formatSection("user_persona", personaLines));
+  }
 
   sections.push(
     formatSection("core_directives", [

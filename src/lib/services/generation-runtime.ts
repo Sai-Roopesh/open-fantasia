@@ -21,7 +21,7 @@ export type GenerationRuntime = {
   snapshot: SnapshotResolution;
   character: CharacterBundle;
   connection: ConnectionRecord;
-  persona: UserPersonaRecord;
+  persona: UserPersonaRecord | null;
   generationSettings: ThreadGenerationSettings;
   brainConnection: ConnectionRecord;
   brainModelId: string;
@@ -39,19 +39,17 @@ export async function loadGenerationRuntime(
 
   const { assembly, snapshot } = assembled;
 
-  if (!assembly.thread.persona_id) {
-    throw new ThreadGenerationServiceError(
-      400,
-      "Threads must carry an explicit persona before generation can continue.",
-    );
-  }
-
+  // Persona is optional: a thread can run on the character sheet alone. When a
+  // persona_id is set we load it; a missing record degrades to no persona
+  // rather than blocking generation.
   const [connection, persona] = await Promise.all([
     getConnection(supabase, userId, assembly.thread.connection_id),
-    getPersona(supabase, userId, assembly.thread.persona_id),
+    assembly.thread.persona_id
+      ? getPersona(supabase, userId, assembly.thread.persona_id)
+      : Promise.resolve(null),
   ]);
 
-  if (!assembly.characterBundle || !connection || !persona) {
+  if (!assembly.characterBundle || !connection) {
     throw new ThreadGenerationServiceError(400, "Missing thread context.");
   }
 

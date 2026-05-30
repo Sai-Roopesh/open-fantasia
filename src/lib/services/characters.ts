@@ -142,7 +142,8 @@ export async function resolveThreadCreationContext(
     null;
 
   if (!character) return { error: "character" as const };
-  if (!persona) return { error: "persona" as const };
+  // Persona is optional — a thread can run on the character sheet alone. If the
+  // user picked one or has a default it is used; otherwise the thread has none.
   if (!usableConnection) return { error: "connection" as const };
 
   const resolvedModelId = params.modelId ?? usableConnection.default_model_id;
@@ -200,7 +201,7 @@ export async function startThread(
     characterId: params.characterId,
     connection: ctx.connection,
     modelId: ctx.modelId,
-    personaId: ctx.persona!.id,
+    personaId: ctx.persona?.id ?? null,
     brainConnectionId: ctx.brainConnectionId,
     brainModelId: ctx.brainModelId,
     title: `Scene with ${ctx.character.name}`,

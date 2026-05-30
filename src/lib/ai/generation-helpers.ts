@@ -57,7 +57,7 @@ export function toPromptTimeline(timeline: TimelineEventRecord[]): TimelineEvent
 
 export function buildGenerationSystemPrompt(args: {
   character: CharacterBundle;
-  persona: UserPersonaRecord;
+  persona: UserPersonaRecord | null;
   snapshot: DurableMemorySnapshot | null;
   pins: ChatPinRecord[];
   timeline: TimelineEventRecord[];
