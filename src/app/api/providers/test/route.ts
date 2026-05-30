@@ -1,5 +1,6 @@
 import { getCurrentUser } from "@/lib/auth";
-import { getConnection, testConnection } from "@/lib/data/connections";
+import { getConnection } from "@/lib/data/connections";
+import { testConnectionHealth } from "@/lib/services/connections";
 import { connectionRequestSchema } from "@/lib/validation";
 
 export async function POST(request: Request) {
@@ -23,7 +24,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "Connection not found" }, { status: 404 });
   }
 
-  const updated = await testConnection(context.supabase, connection);
+  const updated = await testConnectionHealth(context.supabase, connection);
   if (updated.health_status !== "healthy") {
     return Response.json(
       {

@@ -3,7 +3,7 @@ import {
   buildCharacterPortraitPrompt,
   buildCharacterPortraitSourceHash,
   planCharacterPortraitState,
-} from "@/lib/characters/portraits";
+} from "@/lib/domain/character-portraits";
 
 const baseInput = {
   name: "Captain Mirelle",

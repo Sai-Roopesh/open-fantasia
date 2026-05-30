@@ -1,7 +1,7 @@
 import { getCurrentUser } from "@/lib/auth";
 import { rewindBranchToTurn } from "@/lib/data/branches";
-import { getThreadGraphView } from "@/lib/threads/read-model";
-import { buildSliceResponse } from "@/lib/threads/slice-response";
+import { loadThreadAssembly } from "@/lib/services/thread-reader";
+import { buildSliceResponse } from "@/lib/services/slice-service";
 
 export async function POST(
   _request: Request,
@@ -13,7 +13,7 @@ export async function POST(
   }
 
   const { threadId, turnId } = await params;
-  const threadView = await getThreadGraphView(context.supabase, context.user.id, threadId);
+  const threadView = await loadThreadAssembly(context.supabase, context.user.id, threadId);
   if (!threadView) {
     return Response.json({ error: "Thread not found." }, { status: 404 });
   }

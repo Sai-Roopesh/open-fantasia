@@ -1,7 +1,7 @@
 import { getCurrentUser } from "@/lib/auth";
 import { createPin } from "@/lib/data/pins";
-import { getThreadGraphView } from "@/lib/threads/read-model";
-import { buildSliceResponse } from "@/lib/threads/slice-response";
+import { loadThreadAssembly } from "@/lib/services/thread-reader";
+import { buildSliceResponse } from "@/lib/services/slice-service";
 import { createPinRequestSchema } from "@/lib/validation";
 
 export async function POST(
@@ -19,7 +19,7 @@ export async function POST(
     return Response.json({ error: "Pin body is required." }, { status: 400 });
   }
 
-  const threadView = await getThreadGraphView(context.supabase, context.user.id, threadId);
+  const threadView = await loadThreadAssembly(context.supabase, context.user.id, threadId);
   if (!threadView) {
     return Response.json({ error: "Thread not found." }, { status: 404 });
   }

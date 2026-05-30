@@ -165,7 +165,9 @@ Before the first visible turn, the user can seed the opening scene with hidden g
 
 - `src/components/chat/chat-workspace.tsx`
 - `src/app/api/chat/route.ts`
-- `src/lib/ai/thread-generation-service.ts`
+- `src/lib/services/generation-service.ts`
+- `src/lib/services/generation-runtime.ts`
+- `src/lib/services/continuity-service.ts`
 - `src/lib/ai/continuity.ts`
 
 ## 9. Rewriting the Latest Turn
@@ -317,7 +319,8 @@ Inspect:
 Inspect:
 
 - chat page continuity status
-- `src/lib/ai/continuity.ts`
+- `src/lib/services/continuity-service.ts` (DB write pipeline)
+- `src/lib/ai/continuity.ts` (extraction logic)
 - whether the latest committed turn has a reachable snapshot
 - branch lock state in `chat_branches`
 

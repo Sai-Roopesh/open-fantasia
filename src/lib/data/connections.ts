@@ -1,4 +1,3 @@
-import { discoverModels } from "@/lib/ai/model-discovery";
 import { validateOllamaBaseUrl } from "@/lib/ai/ollama-url";
 import { encryptSecret } from "@/lib/crypto";
 import { isConfigurationError } from "@/lib/errors";
@@ -154,26 +153,6 @@ export function classifyConnectionError(error: unknown) {
   };
 }
 
-async function updateConnection(
-  supabase: DatabaseClient,
-  connectionId: string,
-  userId: string,
-  payload: Record<string, unknown>,
-) {
-  const { data, error } = await supabase
-    .from("ai_connections")
-    .update(payload)
-    .eq("id", connectionId)
-    .eq("user_id", userId)
-    .select(connectionSelect)
-    .single();
-
-  if (error) {
-    throw error;
-  }
-
-  return normalizeConnection(data, "Updated connection");
-}
 
 export async function listConnections(supabase: DatabaseClient, userId: string) {
   const { data, error } = await supabase
@@ -316,62 +295,3 @@ export async function deleteConnection(
   }
 }
 
-export async function refreshConnectionModels(
-  supabase: DatabaseClient,
-  connection: ConnectionRecord,
-) {
-  try {
-    const models = await discoverModels(connection);
-    const now = new Date().toISOString();
-    const nextDefaultModelId = models.some(
-      (model) => model.id === connection.default_model_id,
-    )
-      ? connection.default_model_id
-      : models[0]?.id ?? null;
-
-    return await updateConnection(supabase, connection.id, connection.user_id, {
-      model_cache: models,
-      default_model_id: nextDefaultModelId,
-      last_synced_at: now,
-      last_checked_at: now,
-      last_model_refresh_at: now,
-      health_status: "healthy",
-      health_message: models.length
-        ? `Connected successfully. ${models.length} text-capable models are ready.`
-        : "Connected successfully, but no text-capable models were returned.",
-    });
-  } catch (error) {
-    const failure = classifyConnectionError(error);
-    await updateConnection(supabase, connection.id, connection.user_id, {
-      last_checked_at: new Date().toISOString(),
-      health_status: failure.status,
-      health_message: failure.message,
-    });
-    throw new Error(failure.message);
-  }
-}
-
-export async function testConnection(
-  supabase: DatabaseClient,
-  connection: ConnectionRecord,
-) {
-  try {
-    const models = await discoverModels(connection);
-    const now = new Date().toISOString();
-
-    return await updateConnection(supabase, connection.id, connection.user_id, {
-      last_checked_at: now,
-      health_status: "healthy",
-      health_message: models.length
-        ? `Connection verified. ${models.length} models are available to refresh.`
-        : "Connection verified, but no compatible text models were detected.",
-    });
-  } catch (error) {
-    const failure = classifyConnectionError(error);
-    return updateConnection(supabase, connection.id, connection.user_id, {
-      last_checked_at: new Date().toISOString(),
-      health_status: failure.status,
-      health_message: failure.message,
-    });
-  }
-}

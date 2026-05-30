@@ -2,8 +2,8 @@ import { getCurrentUser } from "@/lib/auth";
 import { createBranchFromTurn } from "@/lib/data/branches";
 import { insertTimelineEvent } from "@/lib/data/timeline";
 import { copyWorldStateToBranch } from "@/lib/data/world-state";
-import { getThreadGraphView } from "@/lib/threads/read-model";
-import { buildSliceResponse } from "@/lib/threads/slice-response";
+import { loadThreadAssembly } from "@/lib/services/thread-reader";
+import { buildSliceResponse } from "@/lib/services/slice-service";
 import { createBranchRequestSchema } from "@/lib/validation";
 
 export async function POST(
@@ -21,7 +21,7 @@ export async function POST(
     return Response.json({ error: "Invalid branch payload." }, { status: 400 });
   }
 
-  const threadView = await getThreadGraphView(context.supabase, context.user.id, threadId);
+  const threadView = await loadThreadAssembly(context.supabase, context.user.id, threadId);
   if (!threadView) {
     return Response.json({ error: "Thread not found." }, { status: 404 });
   }

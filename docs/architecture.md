@@ -6,13 +6,17 @@ This document describes the current runtime shape of Open-Fantasia as implemente
 
 Open-Fantasia is a private Next.js App Router application with a Supabase-backed persistence layer and a Vercel AI SDK v6 chat runtime. The product is intentionally single-user in tone and workflow, but the schema still models ownership through `user_id` and RLS throughout.
 
-The main architecture layers are:
+The codebase is organized into five explicit layers with a strict dependency direction:
 
-1. App shell and route protection
-2. Domain-specific server actions and API routes
-3. Read/write data modules over Supabase
-4. AI generation and continuity materialization
-5. Optional background task draining for portraits
+```
+src/lib/data/        — thin Supabase wrappers, no domain logic
+src/lib/ai/          — pure AI: prompt building, state extraction, validation, reflection, provider factory (zero DB writes)
+src/lib/domain/      — pure assembly and projection (no I/O, no HTTP)
+src/lib/services/    — orchestrates data + AI + domain; only layer that writes to the DB
+src/app/api/         — thin routes: validate input → call service → return response
+```
+
+Each layer depends only on layers below it. Routes depend on services. Services depend on domain, AI, and data. Domain depends on data for pure transformation helpers. AI depends on nothing internal except types.
 
 ## Route Structure
 
@@ -36,11 +40,12 @@ All protected routes live under `src/app/(app)/app/` and are wrapped by the prot
 
 ### API routes
 
-- `/api/chat`: main streaming user turn endpoint
+- `/api/chat`: main streaming user turn endpoint (new turn, regenerate, user-edit)
 - `/api/providers/test`: connection health check
 - `/api/providers/discover`: model cache refresh
+- `/api/chats/[threadId]/slice`: read-your-writes slice fetch (used after streaming)
 - `/api/chats/[threadId]/starter`: hidden starter-seed opening
-- `/api/chats/[threadId]/rewrite`: replace the latest branch head by rewriting the latest user turn, rewriting the latest assistant reply, or regenerating the latest assistant reply
+- `/api/chats/[threadId]/rewrite`: non-streaming assistant direct edit
 - `/api/chats/[threadId]/branches`: create a new branch from a visible turn
 - `/api/chats/[threadId]/pins`: create a pin from a visible turn
 - `/api/chats/[threadId]/pins/[pinId]`: resolve an active pin
@@ -98,7 +103,7 @@ The transcript itself is rendered by `src/components/chat/pretext-transcript.tsx
 
 ## Data Layer Structure
 
-The data layer is intentionally split by domain:
+The data layer contains thin Supabase query wrappers, split by domain. No orchestration lives here — only reads and writes that map closely to individual tables and RPCs.
 
 - `src/lib/data/personas.ts`
 - `src/lib/data/characters.ts`
@@ -115,93 +120,117 @@ Patterns used across these modules:
 
 - Supabase query wrappers stay close to the underlying tables and RPCs
 - Zod parsing normalizes row payloads after reads
-- higher-level orchestration stays in route handlers or dedicated service modules
+- higher-level orchestration stays in the services layer
 
-## Thread Read Model
+## Domain Layer
 
-`src/lib/threads/read-model.ts` is the core assembly layer for chat runtime state.
+The domain layer contains pure functions — no I/O of any kind.
 
-It builds a `ThreadGraphView` containing:
+- `src/lib/domain/thread-assembly.ts`: defines `ThreadAssembly` (the core domain type) and `buildThreadAssembly` (pure builder from pre-fetched raw records)
+- `src/lib/domain/turn-projections.ts`: `buildTurnPath`, `buildCanonicalMessages`, `buildRecentSceneMessages`, `buildControlsByMessageId`
+- `src/lib/domain/message-factory.ts`: `createTextMessage`, `truncateMessageText`
+- `src/lib/domain/slice-projections.ts`: `buildInspectorView`, `buildThreadSettingsSlice`, `buildTurnSlicePatch` — all take `ThreadAssembly` + `SnapshotResolution` as explicit params
+- `src/lib/domain/character-portraits.ts`: `buildCharacterPortraitPrompt`, `buildCharacterPortraitSourceHash`, `generateCharacterPortraitSeed`, `buildCharacterPortraitObjectPath`, `planCharacterPortraitState` — all pure, no I/O
 
-- the thread record
-- all branches
-- the active branch
-- all turns
-- the latest reachable turn
-- the character bundle
-- the best available head snapshot
-- timeline events
-- active pins
-- transcript-ready messages
-- recent-scene model-context messages
-- per-message control affordances
+### ThreadAssembly vs the old ThreadGraphView
 
-This read model is the shared foundation for:
+`ThreadAssembly` is the domain type that replaces `ThreadGraphView`. The key difference is that snapshots and UI projections are no longer embedded in it:
 
-- chat page rendering
-- generation runtime loading
-- branch and rewind eligibility checks
-- pinning and rating validation
+- `ThreadAssembly` contains: thread record, branches, active branch, reachable turn path, character bundle, filtered timeline, filtered pins
+- It does NOT contain: materialized snapshot, UI messages, control affordances
+
+This decoupling means cheap mutations (rate, rewind, pin, settings changes) load the assembly without paying for snapshot materialization. The snapshot is resolved separately via `SnapshotResolution` only when needed.
+
+## Services Layer
+
+The services layer orchestrates domain, AI, and data. All DB writes go through here.
+
+- `src/lib/services/thread-reader.ts`: `loadThreadAssembly` (no snapshot, used by cheap mutations) and `loadThreadAssemblyWithSnapshot` (full load including snapshot, used by generation and page renders). Also contains the private `resolveSnapshotForAssembly` helper.
+- `src/lib/services/slice-service.ts`: `buildSliceResponse` (returns a `Response`) and `buildSlicePatch` (returns a `TurnSlicePatch`) — the single unified read-your-writes builder used by all mutation routes and server actions
+- `src/lib/services/continuity-service.ts`: `materializeSnapshotForTurn` — the HCE write pipeline (ancestor walk, extraction via AI layer, DB mutation application, snapshot persistence)
+- `src/lib/services/generation-runtime.ts`: `GenerationRuntime` type and `loadGenerationRuntime` — loads everything needed to generate a turn; holds `SnapshotResolution` as an immutable field (never mutated in place)
+- `src/lib/services/generation-service.ts`: `streamNewTurn`, `streamRewriteTurn` (streaming), `rewriteLatestTurn`, `generateStarterTurn` (non-streaming), `generateReply` — owns the full turn lifecycle including commit and continuity materialization
+- `src/lib/services/connections.ts`: `testConnectionHealth`, `refreshConnectionModels` (external API + DB write), `saveConnectionWithValidation`, `deleteConnectionSafely` — connection orchestration that involves external API calls
+- `src/lib/services/characters.ts`: `saveCharacterWithPortrait`, `regenerateCharacterPortrait`, `startThread` — character and thread creation orchestration including portrait job enqueueing
+- `src/lib/services/thread-settings-service.ts`: `switchThreadModel`, `switchThreadBrainModel`, `switchThreadPersona`, `switchThreadTokens`, `switchThreadBranch` — settings mutation orchestration called by server actions
+
+## AI Layer
+
+The AI layer contains pure functions with zero DB writes.
+
+- `src/lib/ai/continuity.ts`: `runContinuityExtraction` — pure extraction orchestrator that calls `extractStateChanges`, validates, optionally reflects, strips invalid mutations, and returns a clean `ExtractionOutput`. Zero DB calls.
+- `src/lib/ai/state-extraction.ts`: LLM-based structured state extraction
+- `src/lib/ai/state-validator.ts`: validates LLM-emitted mutations against the current snapshot
+- `src/lib/ai/state-reflector.ts`: dual-pass reflection for failed extractions
+- `src/lib/ai/state-materializer.ts`: `materializeDurableSnapshot` — assembles a `DurableMemorySnapshot` from the normalized `world_*` DB tables (read-only, 7 parallel queries)
+- `src/lib/ai/roleplay-prompt.ts`: `buildRoleplaySystemPrompt` — pure prompt builder
+- `src/lib/ai/generation-helpers.ts`: `ThreadGenerationServiceError`, `toThreadGenerationErrorResponse`, `buildGenerationMessages`, `buildGenerationSystemPrompt`, `assertBranchReadyForNewTurn`, `assertBranchReadyForRewrite`, `assertLatestTurnRewriteTarget`
+- `src/lib/ai/generation-settings.ts`: `resolveThreadGenerationSettings`
+- `src/lib/ai/provider-factory.ts`: `createLanguageModel`
+- `src/lib/ai/catalog.ts`: provider and model catalog
 
 ## Chat Generation Lifecycle
 
-The main flow lives in `src/app/api/chat/route.ts`.
+The main chat route at `src/app/api/chat/route.ts` is a thin dispatcher (~70 lines). It validates the request and delegates to `streamNewTurn` or `streamRewriteTurn` in `src/lib/services/generation-service.ts`.
 
-### Normal user turn
+### Normal user turn (`mode: "new"`)
 
 1. Authenticate with `getCurrentUser()`.
-2. Validate the request body with Zod.
-3. Load the thread runtime via `loadThreadGenerationRuntime(...)`.
-4. Assert the active branch is not already locked.
-5. Reserve a turn with the `begin_turn` RPC wrapper.
-6. Mark the turn as `streaming`.
-7. Build the system prompt from character, persona, hybrid memory snapshot, pins, and filtered timeline state.
-8. Send only the recent-scene window plus the new user turn to `streamText(...)`.
-9. On success, persist with `commit_turn`.
-10. Immediately materialize the new continuity snapshot.
-11. On failure, persist failure state with `fail_turn`.
+2. Validate request body with Zod.
+3. Delegate to `streamNewTurn` in `generation-service.ts`.
+4. Inside `streamNewTurn`: load `GenerationRuntime` via `loadGenerationRuntime`.
+5. Assert the active branch is not generation-locked.
+6. Reserve a turn with the `begin_turn` RPC wrapper.
+7. Mark the turn as `streaming`.
+8. Build the system prompt from character, persona, head snapshot, pins, and filtered timeline.
+9. Send the recent-scene window plus the new user turn to `streamText(...)`.
+10. On success (`onFinish`): `commitTurn` → `materializeSnapshotForTurn`.
+11. On failure (`onError`): `failTurn`.
 
-### Latest-turn rewrites
+### Rewrite turns (`mode: "regenerate"` or `mode: "user"`)
 
-The rewrite route does not stream responses to the browser. It:
+Handled by `streamRewriteTurn` in `generation-service.ts`. The flow is the same as a new turn except:
 
-- loads the same generation runtime
-- asserts the branch is in a rewrite-safe state
-- reserves a replacement turn
-- replaces the current head in one of three modes: regenerate the latest assistant reply, rewrite the latest user turn and regenerate, or rewrite the latest assistant reply directly
-- commits the replacement turn
-- materializes a fresh snapshot inline
+- The existing latest turn is asserted as the current head before reserving
+- The new turn is parented to the replaced turn's parent (replacing the old head in the chain)
+- The system prompt uses the parent's snapshot instead of the current head snapshot
+
+### Non-streaming rewrite (`mode: "assistant"`)
+
+Handled by `src/app/api/chats/[threadId]/rewrite/route.ts`. It uses `generateReply` (non-streaming) from `generation-service.ts` and returns a slice response instead of a stream.
 
 ### Starter generation
 
-The starter route is only allowed before the first visible turn. It inserts a hidden user prompt marked as `starter_seed`, generates the opening assistant reply, logs a timeline event, and saves the resulting snapshot.
+The starter route is only allowed before the first visible turn. It uses `generateReply` (non-streaming), inserts a hidden `starter_seed` user message, generates the opening assistant reply, logs a timeline event, and materializes a snapshot.
 
 ## Continuity Architecture
 
-Continuity is handled by the Hybrid Continuity Engine (HCE), implemented across several modules:
+Continuity is handled by the Hybrid Continuity Engine (HCE), split cleanly across the AI and services layers:
 
-- `src/lib/ai/continuity.ts`: orchestrator that drives the full extraction → validation → reflection → persistence pipeline
-- `src/lib/ai/state-extraction.ts`: LLM-based structured state extraction, outputs entity/relationship/spatial/narrative mutations as validated JSON using Zod schemas
-- `src/lib/ai/state-materializer.ts`: assembles a `DurableMemorySnapshot` from normalized `world_*` database tables
-- `src/lib/ai/state-validator.ts`: validates LLM-emitted mutations against the current world state, partitions valid from invalid operations
-- `src/lib/ai/state-reflector.ts`: dual-pass reflection for failed extractions — re-prompts the LLM with validation errors to self-correct
+**AI layer (pure, no DB writes):**
+- `src/lib/ai/continuity.ts`: `runContinuityExtraction` — extraction → validation → optional reflection → strip invalid mutations → return clean `ExtractionOutput`
+- `src/lib/ai/state-extraction.ts`: LLM-based structured state extraction
+- `src/lib/ai/state-validator.ts`: validates mutations against the current world state
+- `src/lib/ai/state-reflector.ts`: dual-pass reflection for failed extractions
+- `src/lib/ai/state-materializer.ts`: read-only snapshot assembly from `world_*` tables
 
-For a committed turn, the runtime tries to:
+**Services layer (DB writes):**
+- `src/lib/services/continuity-service.ts`: `materializeSnapshotForTurn` — the full persistence pipeline
 
-1. load any existing world snapshot for the turn
-2. recursively materialize the parent snapshot if needed
-3. combine the previous snapshot with the last 15 committed turns on the reachable path
-4. call the state extraction engine to produce structured mutation operations (entity, fact, relationship, location, placement, narrative thread, timeline events)
-5. validate all mutations against the current snapshot
-6. if more than 50% of mutations fail validation, attempt a reflection pass to self-correct
-7. strip any remaining invalid mutations
-8. apply valid mutations to the normalized `world_*` tables
-9. persist the world snapshot record
-10. every 10 committed turns, run a full re-materialization (defragmentation) pass with anti-drift prompt engineering
+For a committed turn, `materializeSnapshotForTurn` does:
 
-If extraction fails completely, the system falls back to a deterministic snapshot that carries forward the previous state. Normal generation uses a short recent-scene transcript window instead of replaying the whole branch transcript every turn.
+1. Load all turns for the thread and build the reachable path
+2. Walk backwards to find the nearest ancestor snapshot
+3. Materialize the previous snapshot (or build an empty one)
+4. Call `runContinuityExtraction` (AI layer) to produce a validated `ExtractionOutput`
+5. Apply the mutations to the `world_*` tables via `applyMutationsToDb`
+6. Persist the world snapshot record
+7. Re-materialize and return the new `DurableMemorySnapshot`
+8. Every 10 committed turns, run a full re-materialization (defragmentation) pass
 
-The chat page still treats a missing or failed head snapshot as a first-class condition. When the head snapshot is pending or failed, the composer blocks new progress until the branch state is coherent again.
+If extraction fails completely, the system falls back to a deterministic snapshot carrying forward the previous state.
+
+**Note on atomicity**: `applyMutationsToDb` applies 8 mutation categories with sequential awaits and no wrapping transaction. If the process crashes mid-apply, world state will be partially written. The service structure isolates this to a single function in one file, making a Postgres RPC transaction a single-site change when ready.
 
 ## Branching, Rewind, and Destructive Semantics
 
@@ -249,27 +278,35 @@ Provider routes support two operational flows:
 - connection testing
 - model discovery / cache refresh
 
-Threads persist the chosen `connection_id` and `model_id`, and the chat page also supports switching those later through server actions.
+Threads persist the chosen `connection_id` and `model_id`, and the chat page supports switching those later through server actions.
 
 ## Portrait Pipeline
 
-Portrait behavior is split in two parts.
+Portrait behavior is spread across three layers, following the layer contract:
 
-### Planning
+### Planning (domain layer)
 
-`src/lib/characters/portraits.ts` determines whether a portrait should be regenerated when a character changes. It derives:
+`src/lib/domain/character-portraits.ts` contains pure functions:
 
-- the prompt
-- a content hash
-- the generation seed
-- the next portrait state
+- `planCharacterPortraitState()` — decides whether a new portrait is needed and what the next state should be
+- `buildCharacterPortraitPrompt()` — builds the Pollinations prompt from character fields
+- `buildCharacterPortraitSourceHash()` — stable hash of the portrait-driving fields
+- `buildCharacterPortraitObjectPath()` — constructs the storage object path
 
-### Execution
+### Portrait URL resolution (data layer)
+
+`resolveCharacterPortraitUrl()` in `src/lib/data/characters.ts` resolves a Supabase storage public URL from a portrait path.
+
+### Orchestration (services layer)
+
+`src/lib/services/characters.ts` contains `saveCharacterWithPortrait()` and `regenerateCharacterPortrait()`, which combine portrait planning with character persistence and task enqueueing.
+
+### Execution (jobs layer)
 
 Portrait tasks are queued from character server actions. Task draining happens in `src/lib/jobs/task-drain.ts` and:
 
 - claims runnable portrait tasks
-- fetches the image from Pollinations
+- fetches the image from Pollinations via `src/lib/jobs/portrait-fetch.ts`
 - uploads it into Supabase storage
 - updates the character portrait fields
 - retries with backoff on failure
@@ -294,6 +331,7 @@ Portrait tasks are queued from character server actions. Task draining happens i
 
 On `main`, the workflow then builds and deploys to Vercel production.
 
+
 ## Source File Shortlist
 
 If you only have time to read a few files before making a change, these give the fastest accurate orientation:
@@ -301,8 +339,10 @@ If you only have time to read a few files before making a change, these give the
 - `src/proxy.ts`
 - `src/lib/auth.ts`
 - `src/app/api/chat/route.ts`
-- `src/lib/ai/thread-generation-service.ts`
-- `src/lib/ai/continuity.ts`
-- `src/lib/threads/read-model.ts`
+- `src/lib/services/generation-service.ts`
+- `src/lib/services/generation-runtime.ts`
+- `src/lib/services/continuity-service.ts`
+- `src/lib/domain/thread-assembly.ts`
+- `src/lib/services/thread-reader.ts`
 - `src/app/(app)/app/chats/[threadId]/page.tsx`
 - `supabase/migrations/0001_baseline.sql`

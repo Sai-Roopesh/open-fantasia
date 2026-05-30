@@ -487,3 +487,10 @@ export type CharacterPortraitPayload = {
   seed: number;
   sourceHash: string;
 };
+
+export type SnapshotResolution = {
+  snapshot: DurableMemorySnapshot | null;
+  isPending: boolean;
+  isFailed: boolean;
+  failureMessage: string | null;
+};

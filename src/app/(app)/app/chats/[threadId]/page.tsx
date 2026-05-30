@@ -1,14 +1,12 @@
 import { notFound, redirect } from "next/navigation";
 import { ChatWorkspace } from "@/components/chat/chat-workspace";
-import { resolveCharacterPortraitUrl } from "@/lib/characters/portraits";
+import { resolveCharacterPortraitUrl } from "@/lib/data/characters";
 import { requireAllowedUser } from "@/lib/auth";
 import { listConnections } from "@/lib/data/connections";
 import { listPersonas } from "@/lib/data/personas";
-import {
-  buildInspectorView,
-  buildThreadSettingsSlice,
-  getThreadGraphView,
-} from "@/lib/threads/read-model";
+import { buildInspectorView, buildThreadSettingsSlice } from "@/lib/domain/slice-projections";
+import { buildCanonicalMessages, buildControlsByMessageId } from "@/lib/domain/turn-projections";
+import { loadThreadAssemblyWithSnapshot } from "@/lib/services/thread-reader";
 import {
   switchThreadBranchAction,
   switchThreadModelAction,
@@ -25,25 +23,23 @@ export default async function ChatThreadPage({
   const { threadId } = await params;
   const { supabase, user } = await requireAllowedUser();
 
-  const threadViewPromise = getThreadGraphView(supabase, user.id, threadId);
-  const connectionsPromise = listConnections(supabase, user.id);
-  const personasPromise = listPersonas(supabase, user.id);
-  const [threadView, connections, personas] = await Promise.all([
-    threadViewPromise,
-    connectionsPromise,
-    personasPromise,
+  const [assembled, connections, personas] = await Promise.all([
+    loadThreadAssemblyWithSnapshot(supabase, user.id, threadId),
+    listConnections(supabase, user.id),
+    listPersonas(supabase, user.id),
   ]);
 
-  if (!threadView) {
+  if (!assembled) {
     notFound();
   }
-  const view = threadView;
-  const character = view.characterBundle;
+
+  const { assembly, snapshot } = assembled;
+  const character = assembly.characterBundle;
 
   if (!character) {
     redirect("/app/characters");
   }
-  if (!view.thread.persona_id) {
+  if (!assembly.thread.persona_id) {
     redirect("/app/personas?reason=default");
   }
   const characterBackgroundUrl = resolveCharacterPortraitUrl(
@@ -51,34 +47,30 @@ export default async function ChatThreadPage({
     character.character.portrait_path,
   );
 
-  const currentConnection = connections.find(
-    (connection) => connection.id === view.thread.connection_id,
-  );
+  const currentConnection = connections.find((c) => c.id === assembly.thread.connection_id);
   if (!currentConnection) {
     redirect("/app/settings/providers?reason=connection");
   }
 
-  const currentPersona = personas.find(
-    (persona) => persona.id === view.thread.persona_id,
-  );
+  const currentPersona = personas.find((p) => p.id === assembly.thread.persona_id);
   if (!currentPersona) {
     redirect("/app/personas?reason=default");
   }
 
-  const inspectorView = buildInspectorView(view);
-  const settings = buildThreadSettingsSlice(view, connections);
+  const inspectorView = buildInspectorView(assembly, snapshot);
+  const settings = buildThreadSettingsSlice(assembly, connections);
 
   return (
     <ChatWorkspace
-      key={view.thread.id}
-      threadId={view.thread.id}
+      key={assembly.thread.id}
+      threadId={assembly.thread.id}
       characterName={character.character.name}
       characterBackgroundUrl={characterBackgroundUrl}
-      activeBranch={view.activeBranch}
-      branches={view.branches}
+      activeBranch={assembly.activeBranch}
+      branches={assembly.branches}
       personas={personas}
-      initialMessages={view.canonicalMessages}
-      controlsByMessageId={view.controlsByMessageId}
+      initialMessages={buildCanonicalMessages(assembly.turns)}
+      controlsByMessageId={buildControlsByMessageId(assembly.turns)}
       inspectorView={inspectorView}
       settings={settings}
       suggestedStarters={character.starters.map((starter) => starter.text)}

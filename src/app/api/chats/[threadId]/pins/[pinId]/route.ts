@@ -1,6 +1,6 @@
 import { getCurrentUser } from "@/lib/auth";
 import { resolvePin } from "@/lib/data/pins";
-import { buildSliceResponse } from "@/lib/threads/slice-response";
+import { buildSliceResponse } from "@/lib/services/slice-service";
 
 export async function DELETE(
   _request: Request,

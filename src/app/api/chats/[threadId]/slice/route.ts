@@ -1,5 +1,5 @@
 import { getCurrentUser } from "@/lib/auth";
-import { buildSliceResponse } from "@/lib/threads/slice-response";
+import { buildSliceResponse } from "@/lib/services/slice-service";
 
 /**
  * Returns the current authoritative thread slice. Used by the client to
