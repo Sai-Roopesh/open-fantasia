@@ -11,7 +11,7 @@ import {
   ThreadGenerationServiceError,
   toThreadGenerationErrorResponse,
 } from "@/lib/ai/generation-helpers";
-import { materializeDurableSnapshot } from "@/lib/ai/state-materializer";
+import { parseWorldSnapshot } from "@/lib/domain/world-snapshot";
 import { getWorldSnapshot } from "@/lib/data/world-state";
 import { beginTurn, commitTurn, failTurn, markTurnStreaming } from "@/lib/data/turns";
 import { createTextMessage } from "@/lib/domain/message-factory";
@@ -264,13 +264,7 @@ export async function streamRewriteTurn(args: {
       ? await getWorldSnapshot(supabase, latestTurn.parent_turn_id)
       : null;
     const previousSnapshot: DurableMemorySnapshot | null = previousSnapshotRecord
-      ? await materializeDurableSnapshot(
-          supabase,
-          threadId,
-          branchId,
-          latestTurn.parent_turn_id!,
-          previousSnapshotRecord,
-        )
+      ? parseWorldSnapshot(previousSnapshotRecord)
       : null;
 
     system = buildGenerationSystemPrompt({
@@ -511,13 +505,7 @@ export async function rewriteLatestTurn(args: {
         ? await getWorldSnapshot(supabase, latestTurn.parent_turn_id)
         : null;
       const previousSnapshot: DurableMemorySnapshot | null = previousSnapshotRecord
-        ? await materializeDurableSnapshot(
-            supabase,
-            threadId,
-            branchId,
-            latestTurn.parent_turn_id!,
-            previousSnapshotRecord,
-          )
+        ? parseWorldSnapshot(previousSnapshotRecord)
         : null;
 
       const { assistantMessage, result } = await generateReply({

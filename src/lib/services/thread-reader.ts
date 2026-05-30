@@ -5,7 +5,7 @@ import { getThread } from "@/lib/data/threads";
 import { listBranches } from "@/lib/data/branches";
 import { listTurnsForThread } from "@/lib/data/turns";
 import { listWorldSnapshots } from "@/lib/data/world-state";
-import { materializeDurableSnapshot } from "@/lib/ai/state-materializer";
+import { parseWorldSnapshot } from "@/lib/domain/world-snapshot";
 import {
   buildThreadAssembly,
   type ThreadAssembly,
@@ -81,12 +81,11 @@ async function listPins(
   ) as ChatPinRecord[];
 }
 
-async function resolveSnapshotForAssembly(
-  supabase: DatabaseClient,
+function resolveSnapshotForAssembly(
   assembly: ThreadAssembly,
   snapshotRecords: WorldSnapshotRecord[],
-): Promise<SnapshotResolution> {
-  const { thread, activeBranch, turns, latestTurn } = assembly;
+): SnapshotResolution {
+  const { turns, latestTurn } = assembly;
 
   const snapshotsByTurnId = new Map(snapshotRecords.map((s) => [s.turn_id, s]));
 
@@ -104,24 +103,15 @@ async function resolveSnapshotForAssembly(
     return { snapshot: null, isPending: false, isFailed: false, failureMessage: null };
   }
 
-  try {
-    const snapshot = await materializeDurableSnapshot(
-      supabase,
-      thread.id,
-      activeBranch.id,
-      headSnapshotRecord.turn_id,
-      headSnapshotRecord,
-    );
-    return { snapshot, isPending: false, isFailed: false, failureMessage: null };
-  } catch (error) {
-    const failureMessage = error instanceof Error ? error.message : String(error);
-    console.error("[thread-reader] Failed to materialize durable snapshot.", {
-      threadId: thread.id,
-      turnId: headSnapshotRecord.turn_id,
-      error: failureMessage,
-    });
-    return { snapshot: null, isPending: false, isFailed: true, failureMessage };
-  }
+  // JSONB storage: the snapshot is read directly off the row — no multi-table
+  // assembly that could partially fail, so there is no materialization-error
+  // state to surface here.
+  return {
+    snapshot: parseWorldSnapshot(headSnapshotRecord),
+    isPending: false,
+    isFailed: false,
+    failureMessage: null,
+  };
 }
 
 /**
@@ -205,6 +195,6 @@ export async function loadThreadAssemblyWithSnapshot(
     return null;
   }
 
-  const snapshot = await resolveSnapshotForAssembly(supabase, assembly, snapshotRecords ?? []);
+  const snapshot = resolveSnapshotForAssembly(assembly, snapshotRecords ?? []);
   return { assembly, snapshot };
 }

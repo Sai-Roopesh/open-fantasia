@@ -1,7 +1,6 @@
 import { getCurrentUser } from "@/lib/auth";
 import { createBranchFromTurn } from "@/lib/data/branches";
 import { insertTimelineEvent } from "@/lib/data/timeline";
-import { copyWorldStateToBranch } from "@/lib/data/world-state";
 import { loadThreadAssembly } from "@/lib/services/thread-reader";
 import { buildSliceResponse } from "@/lib/services/slice-service";
 import { createBranchRequestSchema } from "@/lib/validation";
@@ -43,8 +42,9 @@ export async function POST(
     makeActive: parsedBody.data.makeActive,
   });
 
-  await copyWorldStateToBranch(context.supabase, threadId, threadView.activeBranch.id, branch.id);
-
+  // Fork needs no world-state copy: snapshots are keyed by turn_id and the new
+  // branch shares all ancestor turns, so it transparently reads the shared
+  // ancestor snapshot and only writes fresh snapshots for divergent turns.
   await insertTimelineEvent(context.supabase, {
     thread_id: threadId,
     branch_id: branch.id,
