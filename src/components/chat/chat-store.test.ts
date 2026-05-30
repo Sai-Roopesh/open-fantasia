@@ -46,6 +46,7 @@ const seed = (): ChatStoreSeed => ({
   inspectorView: inspector(),
   activeBranch: branch("b1", "turn1"),
   branches: [branch("b1", "turn1")],
+  branchTree: [],
   settings: settings(),
 });
 

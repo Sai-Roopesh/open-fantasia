@@ -16,6 +16,10 @@ export type ActionSheetState =
       kind: "pin";
       messageId: string;
       value: string;
+    }
+  | {
+      kind: "regenerate";
+      value: string;
     };
 
 export type ModelChoiceGroup = {

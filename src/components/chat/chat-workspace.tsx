@@ -5,6 +5,7 @@ import { useConfirmation } from "@/components/ui/confirmation-dialog";
 import { humanizeChatError } from "@/components/chat/chat-workspace-helpers";
 import { MAX_CHAT_TURN_TEXT, buildChatTurnTrimMessage } from "@/lib/chat-limits";
 import type {
+  BranchTreeNode,
   ChatBranchRecord,
   ContinuityInspectorView,
   EditableTurnTarget,
@@ -14,6 +15,7 @@ import type {
   TranscriptControl,
   UserPersonaRecord,
 } from "@/lib/types";
+import { getBranchTranscript } from "@/lib/api/chat-actions";
 import { ChatLayout } from "@/components/chat/chat-workspace-shell";
 import {
   ContinuityBanner,
@@ -42,6 +44,7 @@ type ChatWorkspaceProps = SwitchActions & {
   characterBackgroundUrl?: string | null;
   activeBranch: ChatBranchRecord;
   branches: ChatBranchRecord[];
+  branchTree: BranchTreeNode[];
   personas: UserPersonaRecord[];
   initialMessages: FantasiaUIMessage[];
   controlsByMessageId: Record<string, TranscriptControl>;
@@ -61,6 +64,7 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
         inspectorView: props.inspectorView,
         activeBranch: props.activeBranch,
         branches: props.branches,
+        branchTree: props.branchTree,
         settings: props.settings,
       }}
     >
@@ -70,6 +74,7 @@ export function ChatWorkspace(props: ChatWorkspaceProps) {
 }
 
 function ChatWorkspaceInner({
+  threadId,
   characterName,
   characterBackgroundUrl,
   personas,
@@ -112,7 +117,7 @@ function ChatWorkspaceInner({
     controlsByMessageId,
     inspectorView,
     branches,
-    activeBranch,
+    branchTree,
     displaySettings,
     displayBranchId,
     pendingAction,
@@ -196,7 +201,7 @@ function ChatWorkspaceInner({
     controlsByMessageId,
     pendingAction,
     rewriteBlocked,
-    onRegenerate: () => controller.regenerate(),
+    onRegenerate: async () => setSheet({ kind: "regenerate", value: "" }),
     onOpenEditMessage: (
       messageId: string,
       currentText: string,
@@ -282,7 +287,8 @@ function ChatWorkspaceInner({
         continuityBannerBlock={continuityBannerBlock}
         errorBannerBlock={errorBannerBlock}
         composerProps={composerProps}
-        activeBranch={activeBranch}
+        branchTree={branchTree}
+        onCopyTranscript={() => getBranchTranscript(threadId)}
         activeInspectorTab={activeInspectorTab}
         inspectorView={inspectorView}
         pendingAction={pendingAction}
@@ -304,7 +310,9 @@ function ChatWorkspaceInner({
               ? `branch-${sheet.turnId}`
               : sheet.kind === "edit"
                 ? `edit-${sheet.messageId}`
-                : `pin-${sheet.messageId}`
+                : sheet.kind === "pin"
+                  ? `pin-${sheet.messageId}`
+                  : "regenerate"
           }
           sheet={sheet}
           pendingAction={pendingAction}
@@ -314,6 +322,10 @@ function ChatWorkspaceInner({
               await controller.editMessage(sheet.target, value);
             } else if (sheet.kind === "branch") {
               await controller.createBranch({ sourceTurnId: sheet.turnId, name: value });
+            } else if (sheet.kind === "regenerate") {
+              setSheet(null);
+              await controller.regenerate(value || undefined);
+              return;
             } else {
               const turnId = controlsByMessageId[sheet.messageId]?.turnId;
               if (!turnId) {

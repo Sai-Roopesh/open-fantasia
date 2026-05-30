@@ -4,6 +4,7 @@ import { resolveCharacterPortraitUrl } from "@/lib/data/characters";
 import { requireAllowedUser } from "@/lib/auth";
 import { listConnections } from "@/lib/data/connections";
 import { listPersonas } from "@/lib/data/personas";
+import { buildBranchTree } from "@/lib/domain/branch-tree";
 import { buildInspectorView, buildThreadSettingsSlice } from "@/lib/domain/slice-projections";
 import { buildCanonicalMessages, buildControlsByMessageId } from "@/lib/domain/turn-projections";
 import { loadThreadAssemblyWithSnapshot } from "@/lib/services/thread-reader";
@@ -39,9 +40,7 @@ export default async function ChatThreadPage({
   if (!character) {
     redirect("/app/characters");
   }
-  if (!assembly.thread.persona_id) {
-    redirect("/app/personas?reason=default");
-  }
+  // Persona is optional — a thread can run on the character sheet alone.
   const characterBackgroundUrl = resolveCharacterPortraitUrl(
     supabase,
     character.character.portrait_path,
@@ -50,11 +49,6 @@ export default async function ChatThreadPage({
   const currentConnection = connections.find((c) => c.id === assembly.thread.connection_id);
   if (!currentConnection) {
     redirect("/app/settings/providers?reason=connection");
-  }
-
-  const currentPersona = personas.find((p) => p.id === assembly.thread.persona_id);
-  if (!currentPersona) {
-    redirect("/app/personas?reason=default");
   }
 
   const inspectorView = buildInspectorView(assembly, snapshot);
@@ -68,6 +62,7 @@ export default async function ChatThreadPage({
       characterBackgroundUrl={characterBackgroundUrl}
       activeBranch={assembly.activeBranch}
       branches={assembly.branches}
+      branchTree={buildBranchTree(assembly.branches)}
       personas={personas}
       initialMessages={buildCanonicalMessages(assembly.turns)}
       controlsByMessageId={buildControlsByMessageId(assembly.turns)}

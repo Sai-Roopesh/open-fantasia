@@ -1,16 +1,72 @@
 "use client";
 
-import type { ReactNode } from "react";
-import { CheckCircle2, Sparkles } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { CheckCircle2, Copy, GitBranch, Sparkles } from "lucide-react";
 import { cn, formatLongDateTime } from "@/lib/utils";
-import type {
-  ChatBranchRecord,
-  ContinuityInspectorView,
-} from "@/lib/types";
+import type { BranchTreeNode, ContinuityInspectorView } from "@/lib/types";
 import {
   type InspectorTab,
   inspectorTabs,
 } from "@/components/chat/chat-ui-types";
+
+/**
+ * Recursive git-style branch tree. Each node is a button that switches to that
+ * branch on click; the active branch is highlighted and non-interactive.
+ */
+function BranchTreeView({
+  nodes,
+  depth,
+  activeBranchId,
+  switchPending,
+  onSwitchBranch,
+}: {
+  nodes: BranchTreeNode[];
+  depth: number;
+  activeBranchId: string;
+  switchPending: boolean;
+  onSwitchBranch: (branchId: string) => void;
+}) {
+  return (
+    <ul className={cn(depth > 0 && "ml-3 border-l border-border-subtle pl-2")}>
+      {nodes.map((node) => {
+        const isActive = node.id === activeBranchId;
+        return (
+          <li key={node.id} className="mt-1 first:mt-0">
+            <button
+              type="button"
+              disabled={isActive || switchPending}
+              onClick={() => onSwitchBranch(node.id)}
+              className={cn(
+                "flex w-full items-center gap-1.5 rounded px-2 py-1.5 text-left text-xs",
+                isActive
+                  ? "bg-primary-container/10 text-primary-container"
+                  : "bg-surface-container text-on-surface hover:bg-surface-container-high disabled:opacity-50",
+              )}
+            >
+              <GitBranch className="h-3 w-3 shrink-0" />
+              <span className="flex-1 truncate font-semibold">{node.name}</span>
+              {isActive ? (
+                <span className="inline-flex items-center gap-0.5 text-[10px] uppercase tracking-[0.05em]">
+                  <CheckCircle2 className="h-3 w-3" />
+                  active
+                </span>
+              ) : null}
+            </button>
+            {node.children.length ? (
+              <BranchTreeView
+                nodes={node.children}
+                depth={depth + 1}
+                activeBranchId={activeBranchId}
+                switchPending={switchPending}
+                onSwitchBranch={onSwitchBranch}
+              />
+            ) : null}
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
 
 function EmptyInspectorState({ children }: { children: ReactNode }) {
   return (
@@ -30,22 +86,40 @@ function BranchMetric({ label, value }: { label: string; value: string }) {
 }
 
 export function InspectorPanel({
-  activeBranch,
   activeInspectorTab,
-  branches,
+  branchTree,
+  displayBranchId,
+  switchPending,
   inspectorView,
   onRemovePin,
+  onSwitchBranch,
+  onCopyTranscript,
   onTabChange,
   pendingAction,
 }: {
-  activeBranch: ChatBranchRecord;
   activeInspectorTab: InspectorTab;
-  branches: ChatBranchRecord[];
+  branchTree: BranchTreeNode[];
+  displayBranchId: string;
+  switchPending: boolean;
   inspectorView: ContinuityInspectorView;
   onRemovePin: (pinId: string) => Promise<void>;
+  onSwitchBranch: (branchId: string) => void;
+  onCopyTranscript: () => Promise<string>;
   onTabChange: (tab: InspectorTab) => void;
   pendingAction: string | null;
 }) {
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "error">("idle");
+
+  async function handleCopy() {
+    try {
+      const transcript = await onCopyTranscript();
+      await navigator.clipboard.writeText(transcript);
+      setCopyState("copied");
+    } catch {
+      setCopyState("error");
+    }
+    setTimeout(() => setCopyState("idle"), 2000);
+  }
   return (
     <section className="rounded-lg border border-border-subtle bg-background-front p-4">
       <div className="flex items-center gap-1.5 text-primary-container">
@@ -218,34 +292,35 @@ export function InspectorPanel({
             </div>
 
             <div className="rounded border border-border-subtle bg-surface-container-low p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
-                Available branches
-              </p>
-              <div className="mt-2 space-y-1">
-                {branches.map((branch) => (
-                  <div
-                    key={branch.id}
-                    className={cn(
-                      "rounded border px-3 py-2 text-xs",
-                      branch.id === activeBranch.id
-                        ? "border-primary-container/30 bg-primary-container/10 text-primary-container"
-                        : "border-border-subtle bg-surface-container text-on-surface",
-                    )}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold">{branch.name}</span>
-                      {branch.id === activeBranch.id ? (
-                        <span className="inline-flex items-center gap-0.5 text-[10px] uppercase tracking-[0.05em]">
-                          <CheckCircle2 className="h-3 w-3" />
-                          active
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="mt-0.5 text-[10px] text-muted-foreground">
-                      Updated {formatLongDateTime(branch.updated_at)}
-                    </p>
-                  </div>
-                ))}
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+                  Branch tree
+                </p>
+                <button
+                  type="button"
+                  onClick={() => void handleCopy()}
+                  className="inline-flex items-center gap-1 rounded bg-surface-container-high px-2 py-1 text-[10px] font-semibold text-on-surface-variant"
+                >
+                  <Copy className="h-3 w-3" />
+                  {copyState === "copied"
+                    ? "Copied!"
+                    : copyState === "error"
+                      ? "Copy failed"
+                      : "Copy branch"}
+                </button>
+              </div>
+              <div className="mt-2">
+                {branchTree.length ? (
+                  <BranchTreeView
+                    nodes={branchTree}
+                    depth={0}
+                    activeBranchId={displayBranchId}
+                    switchPending={switchPending}
+                    onSwitchBranch={onSwitchBranch}
+                  />
+                ) : (
+                  <EmptyInspectorState>No branches yet.</EmptyInspectorState>
+                )}
               </div>
             </div>
           </div>

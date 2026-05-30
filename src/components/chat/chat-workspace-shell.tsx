@@ -66,7 +66,8 @@ export function ChatLayout({
   continuityBannerBlock,
   errorBannerBlock,
   composerProps,
-  activeBranch,
+  branchTree,
+  onCopyTranscript,
   activeInspectorTab,
   inspectorView,
   pendingAction,
@@ -107,7 +108,8 @@ export function ChatLayout({
   continuityBannerBlock: ReactNode;
   errorBannerBlock: ReactNode;
   composerProps: ComposerProps;
-  activeBranch: ChatBranchRecord;
+  branchTree: ComponentProps<typeof InspectorPanel>["branchTree"];
+  onCopyTranscript: () => Promise<string>;
   activeInspectorTab: InspectorTab;
   inspectorView: ComponentProps<typeof InspectorPanel>["inspectorView"];
   pendingAction: string | null;
@@ -417,12 +419,15 @@ export function ChatLayout({
             {/* Inspector panel */}
             <div className="flex-1 px-4 py-3">
               <InspectorPanel
-                activeBranch={activeBranch}
                 activeInspectorTab={activeInspectorTab}
-                branches={branches}
+                branchTree={branchTree}
+                displayBranchId={displayBranchId}
+                switchPending={switchPending}
                 inspectorView={inspectorView}
                 pendingAction={pendingAction}
                 onRemovePin={removePin}
+                onSwitchBranch={onBranchSwitch}
+                onCopyTranscript={onCopyTranscript}
                 onTabChange={setActiveInspectorTab}
               />
             </div>

@@ -4,6 +4,61 @@ import { useState, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
 import type { ActionSheetState } from "@/components/chat/chat-ui-types";
 
+type SheetCopy = {
+  eyebrow: string;
+  title: string;
+  description: string;
+  submitLabel: string;
+  /** Whether an empty value may be submitted (regenerate guidance is optional). */
+  allowEmpty: boolean;
+};
+
+function sheetCopy(sheet: ActionSheetState): SheetCopy {
+  switch (sheet.kind) {
+    case "edit":
+      return sheet.target === "assistant"
+        ? {
+            eyebrow: "Edit latest reply",
+            title: "Rewrite the latest reply",
+            description: "Replaces the latest reply and re-runs continuity.",
+            submitLabel: "Rewrite reply",
+            allowEmpty: false,
+          }
+        : {
+            eyebrow: "Edit last user turn",
+            title: "Rewrite the latest turn",
+            description: "Rewrites the user turn and regenerates the reply.",
+            submitLabel: "Rewrite turn",
+            allowEmpty: false,
+          };
+    case "branch":
+      return {
+        eyebrow: "Branch from turn",
+        title: "Name the new branch",
+        description: "Forks a new branch from the selected turn.",
+        submitLabel: "Create branch",
+        allowEmpty: false,
+      };
+    case "pin":
+      return {
+        eyebrow: "Pin fact",
+        title: "Save a branch-local memory",
+        description: "Pinned facts stay local to the active branch.",
+        submitLabel: "Save pin",
+        allowEmpty: false,
+      };
+    case "regenerate":
+      return {
+        eyebrow: "Regenerate reply",
+        title: "Steer the new reply (optional)",
+        description:
+          "Describe how the regenerated reply should differ. Leave blank to simply regenerate from the same turn.",
+        submitLabel: "Regenerate",
+        allowEmpty: true,
+      };
+  }
+}
+
 export function ActionSheet({
   sheet,
   pendingAction,
@@ -16,6 +71,7 @@ export function ActionSheet({
   onSubmit: (value: string) => Promise<void>;
 }) {
   const [value, setValue] = useState(sheet.value);
+  const copy = sheetCopy(sheet);
 
   return (
     <div className="fixed inset-0 z-50">
@@ -30,37 +86,15 @@ export function ActionSheet({
           onSubmit={async (event) => {
             event.preventDefault();
             const trimmed = value.trim();
-            if (!trimmed) return;
+            if (!trimmed && !copy.allowEmpty) return;
             await onSubmit(trimmed);
           }}
         >
           <p className="text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
-            {sheet.kind === "edit"
-              ? sheet.target === "assistant"
-                ? "Edit latest reply"
-                : "Edit last user turn"
-              : sheet.kind === "branch"
-                ? "Branch from turn"
-                : "Pin fact"}
+            {copy.eyebrow}
           </p>
-          <h3 className="mt-1 text-sm font-semibold text-on-surface">
-            {sheet.kind === "edit"
-              ? sheet.target === "assistant"
-                ? "Rewrite the latest reply"
-                : "Rewrite the latest turn"
-              : sheet.kind === "branch"
-                ? "Name the new branch"
-                : "Save a branch-local memory"}
-          </h3>
-          <p className="mt-1 text-xs leading-4 text-muted-foreground">
-            {sheet.kind === "edit"
-              ? sheet.target === "assistant"
-                ? "Replaces the latest reply and re-runs continuity."
-                : "Rewrites the user turn and regenerates the reply."
-              : sheet.kind === "branch"
-                ? "Forks a new branch from the selected turn."
-                : "Pinned facts stay local to the active branch."}
-          </p>
+          <h3 className="mt-1 text-sm font-semibold text-on-surface">{copy.title}</h3>
+          <p className="mt-1 text-xs leading-4 text-muted-foreground">{copy.description}</p>
 
           {sheet.kind === "branch" ? (
             <input
@@ -74,6 +108,7 @@ export function ActionSheet({
               rows={sheet.kind === "edit" ? 5 : 4}
               value={value}
               onChange={(event) => setValue(event.target.value)}
+              autoFocus={sheet.kind === "regenerate"}
               className="mt-3 w-full rounded border-b-2 border-border-subtle bg-surface-container px-3 py-2 text-sm leading-6 text-on-surface outline-none focus:border-primary-container"
             />
           )}
@@ -91,15 +126,7 @@ export function ActionSheet({
               disabled={pendingAction !== null}
               className="rounded bg-primary-container px-3 py-1.5 text-xs font-semibold text-on-primary-container disabled:opacity-50"
             >
-              {pendingAction !== null
-                ? "Working..."
-                : sheet.kind === "edit"
-                  ? sheet.target === "assistant"
-                    ? "Rewrite reply"
-                    : "Rewrite turn"
-                  : sheet.kind === "branch"
-                    ? "Create branch"
-                    : "Save pin"}
+              {pendingAction !== null ? "Working..." : copy.submitLabel}
             </button>
           </div>
         </form>

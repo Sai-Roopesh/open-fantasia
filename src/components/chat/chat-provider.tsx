@@ -81,6 +81,7 @@ export function ChatProvider({
                 expectedHeadTurnId: body?.expectedHeadTurnId,
                 mode: body?.mode ?? "new",
                 text: latestUserMessage ? getTextFromMessage(latestUserMessage) : "",
+                guidance: body?.guidance,
               },
             };
           },
