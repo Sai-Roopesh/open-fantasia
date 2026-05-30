@@ -15,6 +15,9 @@ const chatRouteRequestSchema = z
     expectedHeadTurnId: chatTurnRequestSchema.shape.expectedHeadTurnId,
     text: z.string().trim().max(MAX_CHAT_TURN_TEXT, buildChatTurnLimitMessage()).optional(),
     mode: z.enum(["new", "regenerate", "user"]).optional(),
+    // Optional one-shot steering for a regenerate/user rewrite. Hidden from the
+    // transcript and not persisted — it only shapes this regeneration.
+    guidance: z.string().trim().max(MAX_CHAT_TURN_TEXT).optional(),
   })
   .refine(
     (data) => {
@@ -49,7 +52,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { branchId, expectedHeadTurnId, text, threadId, mode = "new" } = parsedBody.data;
+  const { branchId, expectedHeadTurnId, text, threadId, mode = "new", guidance } = parsedBody.data;
 
   try {
     if (mode === "new") {
@@ -71,6 +74,7 @@ export async function POST(request: Request) {
       expectedHeadTurnId: expectedHeadTurnId!,
       text,
       mode,
+      guidance,
     });
   } catch (error) {
     return toThreadGenerationErrorResponse(error);

@@ -32,6 +32,59 @@ function toRouteError(error: unknown): Response {
   return Response.json({ error: "Fantasia could not start that turn." }, { status: 409 });
 }
 
+/**
+ * Commits a streamed turn, then materializes its continuity snapshot.
+ *
+ * These are deliberately separated: if the commit fails the turn never landed,
+ * so we fail it and rethrow. But once the commit succeeds the assistant text is
+ * persisted and already delivered to the client — a subsequent materialization
+ * failure must NOT fail the committed turn (which would corrupt the thread into
+ * a blocked state). It is logged and left for the next generation/page load,
+ * where loadGenerationRuntime re-materializes any missing head snapshot.
+ */
+async function commitThenMaterialize(args: {
+  supabase: DatabaseClient;
+  userId: string;
+  threadId: string;
+  branchId: string;
+  turnId: string;
+  runtime: GenerationRuntime;
+  commit: Parameters<typeof commitTurn>[1];
+}): Promise<void> {
+  const { supabase, userId, threadId, branchId, turnId, runtime, commit } = args;
+
+  try {
+    await commitTurn(supabase, commit);
+  } catch (error) {
+    await failTurn(supabase, {
+      branchId,
+      turnId,
+      failureCode: "commit_error",
+      failureMessage:
+        error instanceof Error ? error.message : "Fantasia could not persist the completed turn.",
+    }).catch(() => undefined);
+    throw error;
+  }
+
+  try {
+    await materializeSnapshotForTurn({
+      supabase,
+      userId,
+      threadId,
+      turnId,
+      connection: runtime.brainConnection,
+      modelId: runtime.brainModelId,
+      character: runtime.character.character,
+    });
+  } catch (error) {
+    console.error("[HCE] Post-commit materialization failed; will retry on next load.", {
+      threadId,
+      turnId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
 export async function streamNewTurn(args: {
   supabase: DatabaseClient;
   userId: string;
@@ -126,8 +179,14 @@ export async function streamNewTurn(args: {
       onFinish: async (event) => {
         if (turnSettled) return;
         turnSettled = true;
-        try {
-          await commitTurn(supabase, {
+        await commitThenMaterialize({
+          supabase,
+          userId,
+          threadId,
+          branchId,
+          turnId: reservedTurn.id,
+          runtime,
+          commit: {
             branchId,
             turnId: reservedTurn.id,
             assistantText: event.text,
@@ -138,28 +197,8 @@ export async function streamNewTurn(args: {
             totalTokens: event.totalUsage.totalTokens ?? null,
             promptTokens: event.totalUsage.inputTokens ?? null,
             completionTokens: event.totalUsage.outputTokens ?? null,
-          });
-          await materializeSnapshotForTurn({
-            supabase,
-            userId,
-            threadId,
-            turnId: reservedTurn.id,
-            connection: runtime.brainConnection,
-            modelId: runtime.brainModelId,
-            character: runtime.character.character,
-          });
-        } catch (error) {
-          await failTurn(supabase, {
-            branchId,
-            turnId: reservedTurn.id,
-            failureCode: "commit_error",
-            failureMessage:
-              error instanceof Error
-                ? error.message
-                : "Fantasia could not persist the completed turn.",
-          }).catch(() => undefined);
-          throw error;
-        }
+          },
+        });
       },
     });
   } catch (error) {
@@ -202,8 +241,9 @@ export async function streamRewriteTurn(args: {
   expectedHeadTurnId: string;
   text?: string;
   mode: "regenerate" | "user";
+  guidance?: string;
 }): Promise<Response> {
-  const { supabase, userId, threadId, branchId, expectedHeadTurnId, text, mode } = args;
+  const { supabase, userId, threadId, branchId, expectedHeadTurnId, text, mode, guidance } = args;
 
   let runtime: GenerationRuntime;
   try {
@@ -276,10 +316,18 @@ export async function streamRewriteTurn(args: {
     });
 
     const contextTurns = runtime.assembly.turns.slice(0, -1);
+    const guidanceText = guidance?.trim();
+    const pendingMessages = guidanceText
+      ? [rewrittenUserMessage, createTextMessage({
+          role: "user",
+          text: buildRegenerationGuidancePrompt(guidanceText),
+          metadata: { hiddenFromTranscript: true },
+        })]
+      : [rewrittenUserMessage];
     messages = await convertToModelMessages(
       buildGenerationMessages({
         recentSceneMessages: buildRecentSceneMessages(contextTurns),
-        pendingMessages: [rewrittenUserMessage],
+        pendingMessages,
       }),
     );
   } catch (error) {
@@ -312,8 +360,14 @@ export async function streamRewriteTurn(args: {
       onFinish: async (event) => {
         if (turnSettled) return;
         turnSettled = true;
-        try {
-          await commitTurn(supabase, {
+        await commitThenMaterialize({
+          supabase,
+          userId,
+          threadId,
+          branchId,
+          turnId: reservedTurn.id,
+          runtime,
+          commit: {
             branchId,
             turnId: reservedTurn.id,
             assistantText: event.text,
@@ -327,28 +381,8 @@ export async function streamRewriteTurn(args: {
             // Replace the prior head turn: delete it (and its snapshot) so the
             // rewrite leaves no orphan.
             replaceTurnId: latestTurn.id,
-          });
-          await materializeSnapshotForTurn({
-            supabase,
-            userId,
-            threadId,
-            turnId: reservedTurn.id,
-            connection: runtime.brainConnection,
-            modelId: runtime.brainModelId,
-            character: runtime.character.character,
-          });
-        } catch (error) {
-          await failTurn(supabase, {
-            branchId,
-            turnId: reservedTurn.id,
-            failureCode: "commit_error",
-            failureMessage:
-              error instanceof Error
-                ? error.message
-                : "Fantasia could not persist the completed turn.",
-          }).catch(() => undefined);
-          throw error;
-        }
+          },
+        });
       },
     });
   } catch (error) {
@@ -560,6 +594,16 @@ export async function rewriteLatestTurn(args: {
     }
     return toThreadGenerationErrorResponse(error);
   }
+}
+
+function buildRegenerationGuidancePrompt(guidance: string): string {
+  return [
+    "Hidden direction for how to regenerate your previous reply.",
+    "This is out-of-character instruction from the user, not dialogue — do not quote it or acknowledge it in the scene.",
+    "Rewrite your reply to the latest exchange so that it follows this direction while staying in character and consistent with the established state.",
+    "",
+    `Direction: ${guidance}`,
+  ].join("\n");
 }
 
 function buildStarterSeedPrompt(starter: string): string {

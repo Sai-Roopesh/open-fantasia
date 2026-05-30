@@ -140,6 +140,31 @@ export function buildCanonicalMessages(turns: ChatTurnRecord[]): FantasiaUIMessa
   return turns.flatMap((turn) => toTranscriptMessages(turn));
 }
 
+/**
+ * Renders the visible transcript of a branch path as plain text for copy/export.
+ * Hidden turns (starter seeds, guidance) are omitted, matching the displayed
+ * transcript. Each turn becomes a `User:` / `<character>:` exchange.
+ */
+export function buildPlainTextTranscript(
+  turns: ChatTurnRecord[],
+  characterName: string,
+): string {
+  const speaker = characterName.trim() || "Character";
+  const blocks: string[] = [];
+
+  for (const turn of turns) {
+    if (turn.generation_status !== "committed") continue;
+    if (!turn.user_input_hidden && turn.user_input_text.trim()) {
+      blocks.push(`User: ${turn.user_input_text.trim()}`);
+    }
+    if (turn.assistant_output_text?.trim()) {
+      blocks.push(`${speaker}: ${turn.assistant_output_text.trim()}`);
+    }
+  }
+
+  return blocks.join("\n\n");
+}
+
 export function buildRecentSceneMessages(
   turns: ChatTurnRecord[],
   turnWindow = RECENT_SCENE_TURN_WINDOW,

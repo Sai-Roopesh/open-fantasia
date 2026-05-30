@@ -48,7 +48,8 @@ export async function listWorldSnapshots(
     .from("world_snapshots")
     .select("*")
     .eq("thread_id", threadId)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
 
   if (error) throw error;
   return (data ?? []) as unknown as WorldSnapshotRecord[];

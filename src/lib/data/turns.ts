@@ -78,7 +78,8 @@ export async function listTurnsForThread(
     .from("chat_turns")
     .select(turnSelect)
     .eq("thread_id", threadId)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
 
   if (error) {
     throw error;

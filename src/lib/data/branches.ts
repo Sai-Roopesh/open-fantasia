@@ -26,7 +26,8 @@ export async function listBranches(
     .from("chat_branches")
     .select(branchSelect)
     .eq("thread_id", threadId)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
 
   if (error) {
     throw error;
