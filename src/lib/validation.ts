@@ -147,7 +147,7 @@ export const personaCommandSchema = z.object({
   personaId: z.string().uuid(),
 });
 
-export const characterDeleteCommandSchema = z.object({
+export const characterIdCommandSchema = z.object({
   characterId: z.string().uuid(),
 });
 

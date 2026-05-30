@@ -29,7 +29,8 @@ If those docs conflict with the code, trust the code and update the docs as part
 
 - `/app` is private. Access is gated through `src/proxy.ts` plus a `profiles.is_allowed` check.
 - Magic-link auth is Supabase-backed. `ALLOWED_EMAILS` only bootstraps first access; ongoing authorization is profile-backed.
-- Every live thread must carry an explicit `character_id`, `connection_id`, `model_id`, and `persona_id`.
+- Every live thread must carry an explicit `character_id`, `connection_id`, and `model_id`. `persona_id` is optional — a thread can run on the character sheet alone (the no-inherent-assumptions philosophy).
+- World state is a single `DurableMemorySnapshot` JSONB blob per turn on `world_snapshots`, keyed by `turn_id`. There are no normalized `world_*` tables. A turn's continuity write is one atomic `upsert_world_snapshot` RPC; the pure reducer is `src/lib/domain/world-state-reducer.ts`.
 - Every thread has exactly one active branch.
 - Branch generation is serialized with `generation_locked` and `locked_by_turn_id`.
 - New turns, rewrites, and regenerations all end by materializing a continuity snapshot inline with `materializeSnapshotForTurn(...)`.
@@ -65,9 +66,35 @@ If those docs conflict with the code, trust the code and update the docs as part
 
 ### Domain and data layer
 
-- `src/lib/ai/*`: provider wiring, prompts, continuity, generation runtime
-- `src/lib/data/*`: Supabase reads and writes
-- `src/lib/threads/read-model.ts`: thread graph assembly and transcript context building
+The codebase has four internal library layers with a strict dependency direction (routes → services → domain/AI → data):
+
+**Data layer** (`src/lib/data/*`) — thin Supabase wrappers, no orchestration:
+- `src/lib/data/turns.ts`, `branches.ts`, `threads.ts`, `characters.ts`, `connections.ts`, `personas.ts`, `pins.ts`, `world-state.ts`, `timeline.ts`, `jobs.ts`
+
+**AI layer** (`src/lib/ai/*`) — pure AI functions, zero DB writes:
+- `src/lib/ai/continuity.ts`: `runContinuityExtraction` (pure extraction orchestrator)
+- `src/lib/ai/generation-helpers.ts`: guard functions, error types, prompt building
+- `src/lib/ai/state-extraction.ts`, `state-validator.ts`, `state-reflector.ts`, `state-materializer.ts`
+- `src/lib/ai/roleplay-prompt.ts`, `provider-factory.ts`, `catalog.ts`, `generation-settings.ts`
+
+**Domain layer** (`src/lib/domain/*`) — pure assembly and projection, no I/O:
+- `src/lib/domain/thread-assembly.ts`: `ThreadAssembly` type, `buildThreadAssembly`
+- `src/lib/domain/turn-projections.ts`: `buildTurnPath`, `buildCanonicalMessages`, `buildRecentSceneMessages`, `buildControlsByMessageId`
+- `src/lib/domain/slice-projections.ts`: `buildInspectorView`, `buildThreadSettingsSlice`, `buildTurnSlicePatch`
+- `src/lib/domain/message-factory.ts`: `createTextMessage`
+- `src/lib/domain/character-portraits.ts`: `planCharacterPortraitState`, `buildCharacterPortraitPrompt`, `buildCharacterPortraitSourceHash`, `buildCharacterPortraitObjectPath`
+
+**Services layer** (`src/lib/services/*`) — orchestration and all DB writes:
+- `src/lib/services/thread-reader.ts`: `loadThreadAssembly`, `loadThreadAssemblyWithSnapshot`
+- `src/lib/services/slice-service.ts`: `buildSliceResponse`, `buildSlicePatch`
+- `src/lib/services/continuity-service.ts`: `materializeSnapshotForTurn`
+- `src/lib/services/generation-runtime.ts`: `GenerationRuntime` type, `loadGenerationRuntime`
+- `src/lib/services/generation-service.ts`: `streamNewTurn`, `streamRewriteTurn`, `rewriteLatestTurn`, `generateStarterTurn`, `generateReply`
+- `src/lib/services/connections.ts`: `testConnectionHealth`, `refreshConnectionModels`, `saveConnectionWithValidation`, `deleteConnectionSafely`
+- `src/lib/services/characters.ts`: `saveCharacterWithPortrait`, `regenerateCharacterPortrait`, `startThread`
+- `src/lib/services/thread-settings-service.ts`: settings mutation orchestration
+
+**Support modules:**
 - `src/lib/jobs/*`: task draining and background scheduling
 - `src/lib/characters/portraits.ts`: portrait planning and Pollinations fetch
 - `src/lib/auth.ts`, `src/lib/env.ts`, `src/lib/crypto.ts`: auth/env/secret handling
@@ -90,10 +117,11 @@ If those docs conflict with the code, trust the code and update the docs as part
 Read:
 
 1. `src/app/api/chat/route.ts`
-2. `src/lib/ai/thread-generation-service.ts`
-3. `src/lib/threads/read-model.ts`
-4. `src/lib/ai/continuity.ts`
-5. `docs/architecture.md`
+2. `src/lib/services/generation-service.ts`
+3. `src/lib/services/generation-runtime.ts`
+4. `src/lib/services/continuity-service.ts`
+5. `src/lib/ai/continuity.ts`
+6. `docs/architecture.md`
 
 ### If you are changing branching, rewrites, or rewind
 
@@ -103,7 +131,8 @@ Read:
 2. `src/app/api/chats/[threadId]/rewrite/route.ts`
 3. `src/app/api/chats/[threadId]/turns/[turnId]/rewind/route.ts`
 4. `src/lib/data/branches.ts`
-5. `docs/workflows.md`
+5. `src/lib/services/generation-service.ts` (for streaming rewrites)
+6. `docs/workflows.md`
 
 ### If you are changing providers or model discovery
 
@@ -140,6 +169,15 @@ Read:
 - `next dev --webpack` and `next build --webpack` are used by the current scripts.
 - `.env.example` still includes `ENABLE_LOCAL_DEV_AUTH_BYPASS`, but the current application code does not read it.
 - Continuity snapshots are generated inline after commit. `turn_reconcile_tasks` no longer exists in the baseline schema; portrait draining is the only background task queue.
+- There is no `src/lib/threads/` directory. The old `read-model.ts` god module has been replaced by `src/lib/domain/thread-assembly.ts`, `src/lib/domain/slice-projections.ts`, and `src/lib/services/thread-reader.ts`.
+- There is no `src/lib/ai/thread-generation-service.ts`. Generation is handled by `src/lib/services/generation-service.ts` and `src/lib/services/generation-runtime.ts`. Pure helper functions and error types live in `src/lib/ai/generation-helpers.ts`.
+- There is no `src/lib/characters/portraits.ts`. Portrait pure logic is in `src/lib/domain/character-portraits.ts`, portrait URL resolution is in `src/lib/data/characters.ts`, and the external Pollinations fetch is in `src/lib/jobs/portrait-fetch.ts`.
+- `src/lib/ai/continuity.ts` is now a pure extraction orchestrator (no DB writes). All HCE persistence is in `src/lib/services/continuity-service.ts`.
+- World state is JSONB, not normalized tables. `src/lib/ai/state-materializer.ts` is gone; snapshot reads are a pure blob parse in `src/lib/domain/world-snapshot.ts` (`parseWorldSnapshot`), and mutations apply in memory via `src/lib/domain/world-state-reducer.ts` before one atomic `upsert_world_snapshot` RPC. Migrations `0005`–`0007` add the `world_state` column, the RPCs (`upsert_world_snapshot`, `create_thread_with_branch`, `commit_turn(p_replace_turn_id)`), and drop the legacy `world_*` tables.
+- Pure utilities shared across layers live in `src/lib/utils/` (`message-text.ts`, `url-safety.ts`). Route logic for branch/pin/rewind/rating lives in dedicated services (`branch-service.ts`, `pin-service.ts`, `rewind-service.ts`, `rating-service.ts`).
+- Note: `src/lib/supabase/database.types.ts` is hand-maintained, not freshly generated. The current `supabase gen types` CLI build emits over-strict (non-null) types for nullable RPC params, which breaks the `?? null` RPC call sites. The committed file matches the live schema (only `world_snapshots` under `world_*`, JSONB `world_state`, the new RPCs) with correct nullability. If you regenerate, re-apply the nullable-RPC-param fixups.
+- `src/lib/data/connections.ts` contains only thin Supabase wrappers. `testConnectionHealth()` and `refreshConnectionModels()` live in `src/lib/services/connections.ts`.
+- Cheap mutations (rate, rewind, pin, settings) use `loadThreadAssembly` — they do not trigger snapshot materialization. Only generation, page renders, and the continuity polling slice use `loadThreadAssemblyWithSnapshot`.
 
 ## Documentation Upkeep
 

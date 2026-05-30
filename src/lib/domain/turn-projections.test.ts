@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildControlsByMessageId } from "@/lib/threads/read-model";
+import { buildControlsByMessageId } from "@/lib/domain/turn-projections";
 import type { ChatTurnRecord } from "@/lib/types";
 
 function makeTurn(

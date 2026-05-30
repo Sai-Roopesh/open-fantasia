@@ -1,15 +1,9 @@
 import { createHash, randomInt } from "node:crypto";
-import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "@/lib/supabase/database.types";
 import type { CharacterRecord } from "@/lib/types";
 
-export const CHARACTER_PORTRAITS_BUCKET = "character-portraits";
 export const CHARACTER_PORTRAIT_SIZE = 768;
 
-type CharacterPortraitInput = Pick<
-  CharacterRecord,
-  "name" | "appearance" | "core_persona"
->;
+type CharacterPortraitInput = Pick<CharacterRecord, "name" | "appearance" | "core_persona">;
 
 type CharacterPortraitState = Pick<
   CharacterRecord,
@@ -65,18 +59,6 @@ export function buildCharacterPortraitObjectPath(args: {
   return `${args.userId}/${args.characterId}/${args.sourceHash}-${args.seed}.jpg`;
 }
 
-export function resolveCharacterPortraitUrl(
-  supabase: SupabaseClient<Database>,
-  path: string | null | undefined,
-) {
-  const normalized = path?.trim();
-  if (!normalized) return null;
-
-  return supabase.storage
-    .from(CHARACTER_PORTRAITS_BUCKET)
-    .getPublicUrl(normalized).data.publicUrl;
-}
-
 export function planCharacterPortraitState(args: {
   existing: CharacterRecord | null;
   input: CharacterPortraitInput;
@@ -106,8 +88,7 @@ export function planCharacterPortraitState(args: {
   const sourceHash = buildCharacterPortraitSourceHash(args.input);
   const sourceChanged = args.existing?.portrait_source_hash !== sourceHash;
   const needsPortrait =
-    !args.existing?.portrait_path &&
-    args.existing?.portrait_status !== "pending";
+    !args.existing?.portrait_path && args.existing?.portrait_status !== "pending";
   const shouldEnqueue = Boolean(
     args.forceRegenerate || sourceChanged || needsPortrait || !args.existing,
   );
@@ -148,59 +129,3 @@ export function planCharacterPortraitState(args: {
     },
   };
 }
-
-export async function fetchCharacterPortraitFromPollinations(args: {
-  prompt: string;
-  seed: number;
-}) {
-  const url = new URL(
-    `https://image.pollinations.ai/prompt/${encodeURIComponent(args.prompt)}`,
-  );
-  url.searchParams.set("model", "sana");
-  url.searchParams.set("width", String(CHARACTER_PORTRAIT_SIZE));
-  url.searchParams.set("height", String(CHARACTER_PORTRAIT_SIZE));
-  url.searchParams.set("seed", String(args.seed));
-  url.searchParams.set("safe", "true");
-  url.searchParams.set("private", "true");
-  url.searchParams.set("nofeed", "true");
-  url.searchParams.set("enhance", "false");
-  url.searchParams.set("nologo", "true");
-
-  const response = await fetch(url, {
-    signal: AbortSignal.timeout(60_000),
-  });
-
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    const detail = body.trim() ? ` ${body.trim()}` : "";
-    throw new Error(
-      `Pollinations image request failed with ${response.status}.${detail}`.trim(),
-    );
-  }
-
-  const contentType = response.headers.get("content-type") ?? "image/jpeg";
-  if (!contentType.startsWith("image/")) {
-    throw new Error(
-      `Pollinations returned an unexpected content-type: ${contentType}`,
-    );
-  }
-
-  const MAX_PORTRAIT_BYTES = 10 * 1024 * 1024; // 10 MB
-  const arrayBuffer = await response.arrayBuffer();
-  if (!arrayBuffer.byteLength) {
-    throw new Error("Pollinations returned an empty image payload.");
-  }
-  if (arrayBuffer.byteLength > MAX_PORTRAIT_BYTES) {
-    throw new Error(
-      `Portrait image exceeds maximum allowed size (${MAX_PORTRAIT_BYTES} bytes).`,
-    );
-  }
-
-  return {
-    contentType,
-    buffer: Buffer.from(arrayBuffer),
-  };
-}
-
-// Re-export from the canonical module to avoid duplicate implementations.
-export { buildCharacterPortraitStatusCopy } from "@/lib/characters/portrait-status";

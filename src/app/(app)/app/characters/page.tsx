@@ -2,7 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Plus } from "lucide-react";
 import { requireAllowedUser } from "@/lib/auth";
-import { resolveCharacterPortraitUrl } from "@/lib/characters/portraits";
+import { resolveCharacterPortraitUrl } from "@/lib/data/characters";
 import { CharacterStudioForm } from "@/components/characters/character-studio-form";
 import { getCharacterBundle, listCharacters } from "@/lib/data/characters";
 import { listConnections } from "@/lib/data/connections";

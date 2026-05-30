@@ -1,68 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { hasSupabaseEnv, requireSupabasePublicEnv } from "@/lib/env";
-import { isAllowedEmail } from "@/lib/auth";
+import { ensureProfileForClient } from "@/lib/auth";
 import type { Database } from "@/lib/supabase/database.types";
-
-/**
- * Ensures a profile row exists for the authenticated user. Called on every
- * protected request — issues a SELECT on each invocation and early-exits when
- * the stored email matches. This is acceptable for a single-user personal app
- * but would benefit from a short-lived edge cache or cookie-based session flag
- * to skip the DB round-trip when the session is fresh at higher scale.
- */
-async function ensureProfileInProxy(
-  supabase: ReturnType<typeof createServerClient<Database>>,
-  user: { id: string; email?: string | null },
-) {
-  const { data: existing, error: loadError } = await supabase
-    .from("profiles")
-    .select("id, email, is_allowed")
-    .eq("id", user.id)
-    .maybeSingle();
-
-  if (loadError) {
-    throw loadError;
-  }
-
-  if (existing) {
-    if (existing.email !== (user.email ?? "")) {
-      const { data: updated, error: updateError } = await supabase
-        .from("profiles")
-        .update({
-          email: user.email ?? "",
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", user.id)
-        .select("id, email, is_allowed")
-        .single();
-
-      if (updateError) {
-        throw updateError;
-      }
-
-      return updated;
-    }
-
-    return existing;
-  }
-
-  const { data, error } = await supabase
-    .from("profiles")
-    .insert({
-      id: user.id,
-      email: user.email ?? "",
-      is_allowed: isAllowedEmail(user.email),
-    })
-    .select("id, email, is_allowed")
-    .single();
-
-  if (error) {
-    throw error;
-  }
-
-  return data;
-}
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -92,7 +32,7 @@ export async function proxy(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const profile = user ? await ensureProfileInProxy(supabase, user) : null;
+  const profile = user ? await ensureProfileForClient(supabase, user) : null;
   const isAppRoute = pathname.startsWith("/app");
   const isLoginRoute = pathname === "/login";
 

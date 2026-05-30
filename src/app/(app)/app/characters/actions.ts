@@ -3,49 +3,17 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAllowedUser } from "@/lib/auth";
-import { planCharacterPortraitState } from "@/lib/characters/portraits";
+import { deleteCharacter } from "@/lib/data/characters";
 import {
-  deleteCharacter,
-  getCharacter,
-  getCharacterBundle,
-  updateCharacterPortrait,
-  upsertCharacterBundle,
-} from "@/lib/data/characters";
-import { getConnection, listConnections } from "@/lib/data/connections";
-import { enqueueGenerateCharacterPortraitTask } from "@/lib/data/jobs";
-import { scheduleTaskDrain } from "@/lib/jobs/schedule-task-drain";
-import { getDefaultPersona, getPersona } from "@/lib/data/personas";
-import { createThread } from "@/lib/data/threads";
+  saveCharacterWithPortrait,
+  regenerateCharacterPortrait,
+  startThread,
+} from "@/lib/services/characters";
 import {
-  characterDeleteCommandSchema,
+  characterIdCommandSchema,
   saveCharacterCommandSchema,
   startThreadCommandSchema,
 } from "@/lib/validation";
-
-async function enqueuePortraitJobIfNeeded(args: {
-  shouldEnqueue: boolean;
-  userId: string;
-  characterId: string;
-  prompt: string | null;
-  seed: number | null;
-  sourceHash: string;
-  supabase: Awaited<ReturnType<typeof requireAllowedUser>>["supabase"];
-}) {
-  if (!args.shouldEnqueue || !args.prompt || args.seed === null || !args.sourceHash) {
-    return;
-  }
-
-  await enqueueGenerateCharacterPortraitTask(args.supabase, {
-    userId: args.userId,
-    details: {
-      characterId: args.characterId,
-      prompt: args.prompt,
-      seed: args.seed,
-      sourceHash: args.sourceHash,
-    },
-  });
-  scheduleTaskDrain("character-portrait-enqueue", 2);
-}
 
 export async function saveCharacterAction(formData: FormData) {
   const { supabase, user } = await requireAllowedUser();
@@ -76,9 +44,7 @@ export async function saveCharacterAction(formData: FormData) {
   });
 
   if (!parsed.success) {
-    // Log only field paths — Zod messages may echo submitted values.
     const fields = parsed.error.issues.map((i) => i.path.join(".")).join(", ");
-    console.error("[saveCharacterAction] validation failed:", fields);
     const reason = parsed.error.issues.some((i) => i.path[0] === "name")
       ? "name"
       : encodeURIComponent(fields);
@@ -87,94 +53,40 @@ export async function saveCharacterAction(formData: FormData) {
 
   let character;
   try {
-    const existing = parsed.data.id
-      ? await getCharacterBundle(supabase, user.id, parsed.data.id)
-      : null;
-    const portraitPlan = planCharacterPortraitState({
-      existing: existing?.character ?? null,
-      input: {
-        name: parsed.data.name,
-        appearance: parsed.data.appearance,
-        core_persona: parsed.data.core_persona,
-      },
-    });
-
-    character = await upsertCharacterBundle(supabase, user.id, {
-      ...parsed.data,
-      ...portraitPlan.nextPortrait,
-    });
-
-    await enqueuePortraitJobIfNeeded({
-      shouldEnqueue: portraitPlan.shouldEnqueue,
-      userId: user.id,
-      characterId: character.character.id,
-      prompt: portraitPlan.prompt,
-      seed: portraitPlan.seed,
-      sourceHash: portraitPlan.sourceHash,
-      supabase,
-    });
+    const bundle = await saveCharacterWithPortrait(supabase, user.id, parsed.data);
+    character = bundle.character;
   } catch (error: unknown) {
-    // Re-throw Next.js internal errors (redirect, notFound, etc.)
     if (error && typeof error === "object" && "digest" in error) throw error;
-    // Handle PostgrestError or other objects with a message property
     const message =
       error instanceof Error
         ? error.message
-        : (error && typeof error === "object" && "message" in error)
-          ? String(error.message)
+        : error && typeof error === "object" && "message" in error
+          ? String((error as { message: unknown }).message)
           : "Unknown error";
-    console.error("[saveCharacterAction] post-validation error:", message, error);
     redirect(`/app/characters?reason=${encodeURIComponent(message)}`);
   }
 
   revalidatePath("/app/characters");
-  redirect(`/app/characters?edit=${character.character.id}&saved=1`);
+  redirect(`/app/characters?edit=${character.id}&saved=1`);
 }
 
 export async function regenerateCharacterPortraitAction(formData: FormData) {
   const { supabase, user } = await requireAllowedUser();
-  const parsed = characterDeleteCommandSchema.safeParse({
+  const parsed = characterIdCommandSchema.safeParse({
     characterId: String(formData.get("id") ?? "").trim(),
   });
 
-  if (!parsed.success) {
-    redirect("/app/characters");
-  }
+  if (!parsed.success) redirect("/app/characters");
 
-  const existing = await getCharacterBundle(supabase, user.id, parsed.data.characterId);
-  if (!existing) {
-    redirect("/app/characters");
-  }
-
-  const portraitPlan = planCharacterPortraitState({
-    existing: existing.character,
-    input: {
-      name: existing.character.name,
-      appearance: existing.character.appearance,
-      core_persona: existing.character.core_persona,
-    },
-    forceRegenerate: true,
-  });
-
-  await updateCharacterPortrait(
+  const result = await regenerateCharacterPortrait(
     supabase,
     user.id,
-    existing.character.id,
-    portraitPlan.nextPortrait,
+    parsed.data.characterId,
   );
-
-  await enqueuePortraitJobIfNeeded({
-    shouldEnqueue: portraitPlan.shouldEnqueue,
-    userId: user.id,
-    characterId: existing.character.id,
-    prompt: portraitPlan.prompt,
-    seed: portraitPlan.seed,
-    sourceHash: portraitPlan.sourceHash,
-    supabase,
-  });
+  if (!result) redirect("/app/characters");
 
   revalidatePath("/app/characters");
-  redirect(`/app/characters?edit=${existing.character.id}`);
+  redirect(`/app/characters?edit=${result.character.id}`);
 }
 
 export async function startThreadAction(formData: FormData) {
@@ -207,92 +119,32 @@ export async function startThreadAction(formData: FormData) {
     brainConnectionId: brainConnectionId || null,
     brainModelId: brainModelId || null,
   });
-  if (!parsed.success) {
-    redirect("/app/characters?reason=character");
-  }
+  if (!parsed.success) redirect("/app/characters?reason=character");
 
-  const [persona, character] = await Promise.all([
-    parsed.data.personaId
-      ? getPersona(supabase, user.id, parsed.data.personaId)
-      : getDefaultPersona(supabase, user.id),
-    getCharacter(supabase, user.id, parsed.data.characterId),
-  ]);
-  const connections = await listConnections(supabase, user.id);
-  const requestedConnection = parsed.data.connectionId
-    ? await getConnection(supabase, user.id, parsed.data.connectionId)
-    : null;
-  const usableConnection =
-    requestedConnection ??
-    connections.find(
-      (connection) =>
-        connection.enabled &&
-        Boolean(connection.default_model_id) &&
-        connection.model_cache.some((model) => model.id === connection.default_model_id),
-    ) ??
-    null;
+  const result = await startThread(supabase, user.id, {
+    ...parsed.data,
+    brainConnectionId: parsed.data.brainConnectionId ?? null,
+    brainModelId: parsed.data.brainModelId ?? null,
+  });
 
-  if (!character) {
-    redirect("/app/characters?reason=character");
-  }
-
-  if (!persona) {
-    redirect("/app/personas?reason=default");
-  }
-
-  if (!usableConnection) {
-    redirect("/app/settings/providers?reason=connection");
-  }
-
-  const resolvedModelId =
-    parsed.data.modelId ??
-    usableConnection.default_model_id;
-  if (
-    !resolvedModelId ||
-    !usableConnection.model_cache.some((model) => model.id === resolvedModelId)
-  ) {
+  if (!result.ok) {
+    if (result.error === "character") redirect("/app/characters?reason=character");
+    if (result.error === "persona") redirect("/app/personas?reason=default");
+    if (result.error === "connection") redirect("/app/settings/providers?reason=connection");
     redirect("/app/settings/providers?reason=model");
   }
 
-  let finalBrainConnectionId = parsed.data.brainConnectionId;
-  let finalBrainModelId = parsed.data.brainModelId;
-  if (finalBrainConnectionId) {
-    const brainConn = await getConnection(supabase, user.id, finalBrainConnectionId);
-    if (!brainConn) {
-      finalBrainConnectionId = null;
-      finalBrainModelId = null;
-    } else if (finalBrainModelId) {
-      const supportsBrainModel = brainConn.model_cache.some((m) => m.id === finalBrainModelId);
-      if (!supportsBrainModel) {
-        finalBrainModelId = brainConn.default_model_id;
-      }
-    } else {
-      finalBrainModelId = brainConn.default_model_id;
-    }
-  }
-
-  const thread = await createThread(supabase, user.id, {
-    characterId: parsed.data.characterId,
-    connection: usableConnection,
-    modelId: resolvedModelId,
-    personaId: persona.id,
-    brainConnectionId: finalBrainConnectionId,
-    brainModelId: finalBrainModelId,
-    title: `Scene with ${character.name}`,
-  });
-
   revalidatePath("/app");
-  redirect(`/app/chats/${thread.id}`);
+  redirect(`/app/chats/${result.threadId}`);
 }
 
 export async function deleteCharacterAction(formData: FormData) {
   const { supabase, user } = await requireAllowedUser();
-  const parsed = characterDeleteCommandSchema.safeParse({
+  const parsed = characterIdCommandSchema.safeParse({
     characterId: String(formData.get("characterId") ?? "").trim(),
   });
 
-  if (!parsed.success) {
-    redirect("/app/characters");
-  }
+  if (!parsed.success) redirect("/app/characters");
 
   await deleteCharacter(supabase, user.id, parsed.data.characterId);
 

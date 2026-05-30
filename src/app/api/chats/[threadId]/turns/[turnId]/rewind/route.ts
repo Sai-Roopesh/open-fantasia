@@ -1,7 +1,5 @@
 import { getCurrentUser } from "@/lib/auth";
-import { rewindBranchToTurn } from "@/lib/data/branches";
-import { getThreadGraphView } from "@/lib/threads/read-model";
-import { buildSliceResponse } from "@/lib/threads/slice-response";
+import { rewindToTurn } from "@/lib/services/rewind-service";
 
 export async function POST(
   _request: Request,
@@ -13,20 +11,5 @@ export async function POST(
   }
 
   const { threadId, turnId } = await params;
-  const threadView = await getThreadGraphView(context.supabase, context.user.id, threadId);
-  if (!threadView) {
-    return Response.json({ error: "Thread not found." }, { status: 404 });
-  }
-
-  if (!threadView.turns.some((turn) => turn.id === turnId)) {
-    return Response.json({ error: "Turn not found on the active branch." }, { status: 404 });
-  }
-
-  await rewindBranchToTurn(context.supabase, {
-    branchId: threadView.activeBranch.id,
-    targetTurnId: turnId,
-    expectedHeadTurnId: threadView.activeBranch.head_turn_id,
-  });
-
-  return buildSliceResponse(context.supabase, context.user.id, threadId);
+  return rewindToTurn(context.supabase, context.user.id, { threadId, turnId });
 }

@@ -1,4 +1,5 @@
 import type {
+  BranchTreeNode,
   ChatBranchRecord,
   ContinuityInspectorView,
   ThreadSettingsSlice,
@@ -22,6 +23,7 @@ export type ChatStoreState = {
   inspectorView: ContinuityInspectorView;
   activeBranch: ChatBranchRecord;
   branches: ChatBranchRecord[];
+  branchTree: BranchTreeNode[];
   settings: ThreadSettingsSlice;
   /** Optimistic branch selection shown until the slice confirms it. */
   optimisticBranchId: string | null;
@@ -41,6 +43,7 @@ export type ChatStoreSeed = {
   inspectorView: ContinuityInspectorView;
   activeBranch: ChatBranchRecord;
   branches: ChatBranchRecord[];
+  branchTree: BranchTreeNode[];
   settings: ThreadSettingsSlice;
 };
 
@@ -64,6 +67,7 @@ export function initChatStore(seed: ChatStoreSeed): ChatStoreState {
     inspectorView: seed.inspectorView,
     activeBranch: seed.activeBranch,
     branches: seed.branches,
+    branchTree: seed.branchTree,
     settings: seed.settings,
     optimisticBranchId: null,
     optimisticSettings: null,
@@ -88,6 +92,7 @@ export function chatStoreReducer(
         inspectorView: action.slice.inspectorView,
         activeBranch: action.slice.activeBranch,
         branches: action.slice.branches,
+        branchTree: action.slice.branchTree,
         settings: action.slice.settings,
         optimisticBranchId: null,
         optimisticSettings: null,

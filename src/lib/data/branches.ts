@@ -26,13 +26,36 @@ export async function listBranches(
     .from("chat_branches")
     .select(branchSelect)
     .eq("thread_id", threadId)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: true })
+    .order("id", { ascending: true });
 
   if (error) {
     throw error;
   }
 
   return parseRows(data ?? [], branchRecordSchema, "Branches") as ChatBranchRecord[];
+}
+
+/**
+ * Lightweight fetch of a thread's active branch id + head, scoped to the owner.
+ * Used by cheap mutations that need the branch reference for a timeline event
+ * without paying for a full thread assembly load.
+ */
+export async function getActiveBranch(
+  supabase: DatabaseClient,
+  userId: string,
+  threadId: string,
+): Promise<{ id: string; head_turn_id: string | null } | null> {
+  const { data, error } = await supabase
+    .from("chat_branches")
+    .select("id, head_turn_id, chat_threads!inner(user_id)")
+    .eq("thread_id", threadId)
+    .eq("is_active", true)
+    .eq("chat_threads.user_id", userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data ? { id: data.id, head_turn_id: data.head_turn_id } : null;
 }
 
 export async function createBranchFromTurn(

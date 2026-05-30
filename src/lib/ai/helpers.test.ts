@@ -1,4 +1,4 @@
-import { getTextFromMessageParts } from "@/lib/ai/message-text";
+import { getTextFromMessageParts } from "@/lib/utils/message-text";
 import { normalizeOllamaApiBaseUrl } from "@/lib/ai/ollama-url";
 
 describe("AI utility helpers", () => {

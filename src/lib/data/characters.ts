@@ -1,5 +1,7 @@
 import { z } from "zod";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseRow, parseRows, type DatabaseClient } from "@/lib/data/shared";
+import type { Database } from "@/lib/supabase/database.types";
 import type {
   CharacterExampleConversation,
   CharacterRecord,
@@ -240,4 +242,18 @@ export async function deleteCharacter(
   if (error) {
     throw error;
   }
+}
+
+export const CHARACTER_PORTRAITS_BUCKET = "character-portraits";
+
+export function resolveCharacterPortraitUrl(
+  supabase: SupabaseClient<Database>,
+  path: string | null | undefined,
+) {
+  const normalized = path?.trim();
+  if (!normalized) return null;
+
+  return supabase.storage
+    .from(CHARACTER_PORTRAITS_BUCKET)
+    .getPublicUrl(normalized).data.publicUrl;
 }

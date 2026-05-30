@@ -3,21 +3,15 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAllowedUser } from "@/lib/auth";
-import type { DatabaseClient } from "@/lib/data/shared";
-import { getConnection, listConnections } from "@/lib/data/connections";
-import { getPersona } from "@/lib/data/personas";
+import { getThread, deleteThread } from "@/lib/data/threads";
 import type { MutationResult } from "@/lib/types";
 import {
-  deleteThread,
-  getThread,
-  switchActiveBranch,
-  updateThreadModel,
-  updateThreadPersona,
-  updateThreadBrainModel,
-  updateThreadTokens,
-} from "@/lib/data/threads";
-import { insertTimelineEvent } from "@/lib/data/timeline";
-import { buildTurnSlicePatch, getThreadGraphView } from "@/lib/threads/read-model";
+  switchThreadModel,
+  switchThreadBrainModel,
+  switchThreadPersona,
+  switchThreadTokens,
+  switchThreadBranch,
+} from "@/lib/services/thread-settings-service";
 import {
   switchThreadBranchSchema,
   switchThreadModelSchema,
@@ -27,25 +21,6 @@ import {
   updateThreadTokensSchema,
 } from "@/lib/validation";
 
-/**
- * Rebuild the authoritative thread slice after a settings mutation so the client
- * can apply read-your-writes without a blind router.refresh().
- */
-async function buildSliceResult(
-  supabase: DatabaseClient,
-  userId: string,
-  threadId: string,
-): Promise<MutationResult> {
-  const [view, connections] = await Promise.all([
-    getThreadGraphView(supabase, userId, threadId),
-    listConnections(supabase, userId),
-  ]);
-  if (!view) {
-    return { ok: false, error: "Thread not found." };
-  }
-  return { ok: true, slice: buildTurnSlicePatch(view, connections) };
-}
-
 export async function switchThreadModelAction(input: {
   threadId: string;
   connectionId: string;
@@ -53,39 +28,12 @@ export async function switchThreadModelAction(input: {
 }): Promise<MutationResult> {
   const parsed = switchThreadModelSchema.parse(input);
   const { supabase, user } = await requireAllowedUser();
-  const view = await getThreadGraphView(supabase, user.id, parsed.threadId);
-  if (!view) {
-    throw new Error("Thread not found.");
+  const result = await switchThreadModel(supabase, user.id, parsed);
+  if (result.ok) {
+    revalidatePath(`/app/chats/${parsed.threadId}`);
+    revalidatePath("/app");
   }
-
-  const connection = await getConnection(supabase, user.id, parsed.connectionId);
-  if (!connection) {
-    throw new Error("Connection not found.");
-  }
-
-  const supportsModel = connection.model_cache.some(
-    (model) => model.id === parsed.modelId,
-  );
-  if (!supportsModel) {
-    throw new Error("The selected model is not cached on that connection.");
-  }
-
-  await updateThreadModel(supabase, user.id, parsed);
-  await insertTimelineEvent(supabase, {
-    thread_id: parsed.threadId,
-    branch_id: view.activeBranch.id,
-    turn_id: view.activeBranch.head_turn_id ?? null,
-    title: "Model switched",
-    detail: `Switched to ${connection.label} using ${parsed.modelId}.`,
-    importance: 2,
-    event_type: "beat",
-    affected_entity_ids: [],
-    affected_relationship_ids: [],
-  });
-
-  revalidatePath(`/app/chats/${parsed.threadId}`);
-  revalidatePath("/app");
-  return buildSliceResult(supabase, user.id, parsed.threadId);
+  return result;
 }
 
 export async function switchThreadBrainModelAction(input: {
@@ -95,50 +43,12 @@ export async function switchThreadBrainModelAction(input: {
 }): Promise<MutationResult> {
   const parsed = switchThreadBrainModelSchema.parse(input);
   const { supabase, user } = await requireAllowedUser();
-  const view = await getThreadGraphView(supabase, user.id, parsed.threadId);
-  if (!view) {
-    throw new Error("Thread not found.");
+  const result = await switchThreadBrainModel(supabase, user.id, parsed);
+  if (result.ok) {
+    revalidatePath(`/app/chats/${parsed.threadId}`);
+    revalidatePath("/app");
   }
-
-  let connectionLabel = "Default Chat Provider";
-  if (parsed.connectionId) {
-    const connection = await getConnection(supabase, user.id, parsed.connectionId);
-    if (!connection) {
-      throw new Error("Connection not found.");
-    }
-    if (parsed.modelId) {
-      const supportsModel = connection.model_cache.some(
-        (model) => model.id === parsed.modelId,
-      );
-      if (!supportsModel) {
-        throw new Error("The selected model is not cached on that connection.");
-      }
-    }
-    connectionLabel = connection.label;
-  }
-
-  await updateThreadBrainModel(supabase, user.id, {
-    threadId: parsed.threadId,
-    brainConnectionId: parsed.connectionId,
-    brainModelId: parsed.modelId,
-  });
-  await insertTimelineEvent(supabase, {
-    thread_id: parsed.threadId,
-    branch_id: view.activeBranch.id,
-    turn_id: view.activeBranch.head_turn_id ?? null,
-    title: "Brain model switched",
-    detail: parsed.connectionId
-      ? `Switched HCE brain to ${connectionLabel} using ${parsed.modelId}.`
-      : "Reset HCE brain to inherit default chat model.",
-    importance: 2,
-    event_type: "beat",
-    affected_entity_ids: [],
-    affected_relationship_ids: [],
-  });
-
-  revalidatePath(`/app/chats/${parsed.threadId}`);
-  revalidatePath("/app");
-  return buildSliceResult(supabase, user.id, parsed.threadId);
+  return result;
 }
 
 export async function switchThreadTokensAction(input: {
@@ -147,27 +57,12 @@ export async function switchThreadTokensAction(input: {
 }): Promise<MutationResult> {
   const parsed = updateThreadTokensSchema.parse(input);
   const { supabase, user } = await requireAllowedUser();
-  const view = await getThreadGraphView(supabase, user.id, parsed.threadId);
-  if (!view) {
-    throw new Error("Thread not found.");
+  const result = await switchThreadTokens(supabase, user.id, parsed);
+  if (result.ok) {
+    revalidatePath(`/app/chats/${parsed.threadId}`);
+    revalidatePath("/app");
   }
-
-  await updateThreadTokens(supabase, user.id, parsed);
-  await insertTimelineEvent(supabase, {
-    thread_id: parsed.threadId,
-    branch_id: view.activeBranch.id,
-    turn_id: view.activeBranch.head_turn_id ?? null,
-    title: "Response length limit updated",
-    detail: `Updated response limit to ${parsed.maxOutputTokens} tokens.`,
-    importance: 2,
-    event_type: "beat",
-    affected_entity_ids: [],
-    affected_relationship_ids: [],
-  });
-
-  revalidatePath(`/app/chats/${parsed.threadId}`);
-  revalidatePath("/app");
-  return buildSliceResult(supabase, user.id, parsed.threadId);
+  return result;
 }
 
 export async function switchThreadPersonaAction(input: {
@@ -176,31 +71,11 @@ export async function switchThreadPersonaAction(input: {
 }): Promise<MutationResult> {
   const parsed = switchThreadPersonaSchema.parse(input);
   const { supabase, user } = await requireAllowedUser();
-  const view = await getThreadGraphView(supabase, user.id, parsed.threadId);
-  if (!view) {
-    throw new Error("Thread not found.");
+  const result = await switchThreadPersona(supabase, user.id, parsed);
+  if (result.ok) {
+    revalidatePath(`/app/chats/${parsed.threadId}`);
   }
-
-  const persona = await getPersona(supabase, user.id, parsed.personaId);
-  if (!persona) {
-    throw new Error("Persona not found.");
-  }
-
-  await updateThreadPersona(supabase, user.id, parsed);
-  await insertTimelineEvent(supabase, {
-    thread_id: parsed.threadId,
-    branch_id: view.activeBranch.id,
-    turn_id: view.activeBranch.head_turn_id ?? null,
-    title: "Persona switched",
-    detail: `Switched the active persona to ${persona.name}.`,
-    importance: 2,
-    event_type: "beat",
-    affected_entity_ids: [],
-    affected_relationship_ids: [],
-  });
-
-  revalidatePath(`/app/chats/${parsed.threadId}`);
-  return buildSliceResult(supabase, user.id, parsed.threadId);
+  return result;
 }
 
 export async function switchThreadBranchAction(input: {
@@ -209,15 +84,11 @@ export async function switchThreadBranchAction(input: {
 }): Promise<MutationResult> {
   const parsed = switchThreadBranchSchema.parse(input);
   const { supabase, user } = await requireAllowedUser();
-  const thread = await getThread(supabase, user.id, parsed.threadId);
-  if (!thread) {
-    throw new Error("Thread not found.");
+  const result = await switchThreadBranch(supabase, user.id, parsed);
+  if (result.ok) {
+    revalidatePath(`/app/chats/${parsed.threadId}`);
   }
-
-  await switchActiveBranch(supabase, user.id, parsed);
-
-  revalidatePath(`/app/chats/${parsed.threadId}`);
-  return buildSliceResult(supabase, user.id, parsed.threadId);
+  return result;
 }
 
 export async function deleteThreadAction(formData: FormData) {

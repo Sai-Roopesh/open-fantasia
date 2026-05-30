@@ -158,6 +158,21 @@ export type ThreadSettingsSlice = {
 };
 
 /**
+ * A node in the branch tree (git-style). Children are branches forked from this
+ * branch (parent_branch_id), ordered by creation. Powers the sidebar tree.
+ */
+export type BranchTreeNode = {
+  id: string;
+  name: string;
+  parentBranchId: string | null;
+  forkTurnId: string | null;
+  headTurnId: string | null;
+  isActive: boolean;
+  createdAt: string;
+  children: BranchTreeNode[];
+};
+
+/**
  * The authoritative slice of reconcilable chat state returned by every mutation
  * (read-your-writes). The client applies this directly to its store so the UI
  * updates instantly without a blind router.refresh().
@@ -168,6 +183,7 @@ export type TurnSlicePatch = {
   controlsByMessageId: Record<string, TranscriptControl>;
   activeBranch: ChatBranchRecord;
   branches: ChatBranchRecord[];
+  branchTree: BranchTreeNode[];
   inspectorView: ContinuityInspectorView;
   settings: ThreadSettingsSlice;
 };
@@ -238,120 +254,11 @@ export type WorldSnapshotRecord = {
   thread_id: string;
   branch_id: string;
   based_on_turn_id: string | null;
-  story_summary: string;
-  scene_summary: string;
-  last_turn_beat: string;
-  narrative_timestamp: string;
-  transition_type: TransitionType;
+  world_state: DurableMemorySnapshot;
   version: number;
   is_full_materialization: boolean;
   created_at: string;
   updated_at: string;
-};
-
-export type WorldEntityRecord = {
-  id: string;
-  thread_id: string;
-  branch_id: string;
-  canonical_name: string;
-  entity_type: EntityType;
-  aliases: string[];
-  character_id: string | null;
-  is_present: boolean;
-  primary_emotion: string;
-  emotion_intensity: number;
-  emotion_catalyst: string;
-  valid_from_turn_id: string;
-  invalidated_at_turn_id: string | null;
-  t_created: string;
-  t_expired: string | null;
-  created_at: string;
-  updated_at: string;
-};
-
-export type WorldEntityFactRecord = {
-  id: string;
-  entity_id: string;
-  thread_id: string;
-  branch_id: string;
-  fact_type: FactType;
-  body: string;
-  valid_from_turn_id: string;
-  invalidated_at_turn_id: string | null;
-  t_created: string;
-  t_expired: string | null;
-  created_at: string;
-};
-
-export type WorldRelationshipRecord = {
-  id: string;
-  thread_id: string;
-  branch_id: string;
-  source_entity_id: string;
-  target_entity_id: string;
-  relationship_type: RelationshipType;
-  dynamic_status: string;
-  valid_from_turn_id: string;
-  invalidated_at_turn_id: string | null;
-  t_created: string;
-  t_expired: string | null;
-  created_at: string;
-};
-
-export type WorldLocationRecord = {
-  id: string;
-  thread_id: string;
-  branch_id: string;
-  canonical_name: string;
-  description: string;
-  environmental_modifiers: string[];
-  valid_from_turn_id: string;
-  invalidated_at_turn_id: string | null;
-  t_created: string;
-  t_expired: string | null;
-  created_at: string;
-};
-
-export type WorldLocationEdgeRecord = {
-  id: string;
-  thread_id: string;
-  branch_id: string;
-  from_location_id: string;
-  to_location_id: string;
-  is_bidirectional: boolean;
-  valid_from_turn_id: string;
-  invalidated_at_turn_id: string | null;
-  t_created: string;
-  t_expired: string | null;
-  created_at: string;
-};
-
-export type WorldEntityPlacementRecord = {
-  id: string;
-  thread_id: string;
-  branch_id: string;
-  entity_id: string;
-  location_id: string;
-  micro_position: string;
-  valid_from_turn_id: string;
-  invalidated_at_turn_id: string | null;
-  t_created: string;
-  t_expired: string | null;
-  created_at: string;
-};
-
-export type WorldNarrativeThreadRecord = {
-  id: string;
-  thread_id: string;
-  branch_id: string;
-  objective: string;
-  status: NarrativeThreadStatus;
-  dependency_ids: string[];
-  valid_from_turn_id: string;
-  invalidated_at_turn_id: string | null;
-  t_created: string;
-  t_expired: string | null;
-  created_at: string;
 };
 
 export type DurableMemorySnapshot = {
@@ -486,4 +393,11 @@ export type CharacterPortraitPayload = {
   prompt: string;
   seed: number;
   sourceHash: string;
+};
+
+export type SnapshotResolution = {
+  snapshot: DurableMemorySnapshot | null;
+  isPending: boolean;
+  isFailed: boolean;
+  failureMessage: string | null;
 };

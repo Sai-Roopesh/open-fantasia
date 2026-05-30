@@ -1,5 +1,6 @@
 import { getCurrentUser } from "@/lib/auth";
-import { getConnection, refreshConnectionModels } from "@/lib/data/connections";
+import { getConnection } from "@/lib/data/connections";
+import { refreshConnectionModels } from "@/lib/services/connections";
 import { connectionRequestSchema } from "@/lib/validation";
 
 export async function POST(request: Request) {

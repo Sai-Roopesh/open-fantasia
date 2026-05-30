@@ -752,625 +752,39 @@ export type Database = {
           },
         ]
       }
-      world_entities: {
-        Row: {
-          aliases: string[]
-          branch_id: string
-          canonical_name: string
-          character_id: string | null
-          created_at: string
-          emotion_catalyst: string
-          emotion_intensity: number
-          entity_type: string
-          id: string
-          invalidated_at_turn_id: string | null
-          is_present: boolean
-          primary_emotion: string
-          t_created: string
-          t_expired: string | null
-          thread_id: string
-          updated_at: string
-          valid_from_turn_id: string
-        }
-        Insert: {
-          aliases?: string[]
-          branch_id: string
-          canonical_name: string
-          character_id?: string | null
-          created_at?: string
-          emotion_catalyst?: string
-          emotion_intensity?: number
-          entity_type: string
-          id?: string
-          invalidated_at_turn_id?: string | null
-          is_present?: boolean
-          primary_emotion?: string
-          t_created?: string
-          t_expired?: string | null
-          thread_id: string
-          updated_at?: string
-          valid_from_turn_id: string
-        }
-        Update: {
-          aliases?: string[]
-          branch_id?: string
-          canonical_name?: string
-          character_id?: string | null
-          created_at?: string
-          emotion_catalyst?: string
-          emotion_intensity?: number
-          entity_type?: string
-          id?: string
-          invalidated_at_turn_id?: string | null
-          is_present?: boolean
-          primary_emotion?: string
-          t_created?: string
-          t_expired?: string | null
-          thread_id?: string
-          updated_at?: string
-          valid_from_turn_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "world_entities_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "chat_branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "world_entities_character_id_fkey"
-            columns: ["character_id"]
-            isOneToOne: false
-            referencedRelation: "characters"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "world_entities_invalidated_at_turn_id_fkey"
-            columns: ["invalidated_at_turn_id"]
-            isOneToOne: false
-            referencedRelation: "chat_turns"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "world_entities_thread_id_fkey"
-            columns: ["thread_id"]
-            isOneToOne: false
-            referencedRelation: "chat_threads"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "world_entities_valid_from_turn_id_fkey"
-            columns: ["valid_from_turn_id"]
-            isOneToOne: false
-            referencedRelation: "chat_turns"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      world_entity_facts: {
-        Row: {
-          body: string
-          branch_id: string
-          created_at: string
-          entity_id: string
-          fact_type: string
-          id: string
-          invalidated_at_turn_id: string | null
-          t_created: string
-          t_expired: string | null
-          thread_id: string
-          valid_from_turn_id: string
-        }
-        Insert: {
-          body: string
-          branch_id: string
-          created_at?: string
-          entity_id: string
-          fact_type: string
-          id?: string
-          invalidated_at_turn_id?: string | null
-          t_created?: string
-          t_expired?: string | null
-          thread_id: string
-          valid_from_turn_id: string
-        }
-        Update: {
-          body?: string
-          branch_id?: string
-          created_at?: string
-          entity_id?: string
-          fact_type?: string
-          id?: string
-          invalidated_at_turn_id?: string | null
-          t_created?: string
-          t_expired?: string | null
-          thread_id?: string
-          valid_from_turn_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "world_entity_facts_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "chat_branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "world_entity_facts_entity_id_fkey"
-            columns: ["entity_id"]
-            isOneToOne: false
-            referencedRelation: "world_entities"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "world_entity_facts_invalidated_at_turn_id_fkey"
-            columns: ["invalidated_at_turn_id"]
-            isOneToOne: false
-            referencedRelation: "chat_turns"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "world_entity_facts_thread_id_fkey"
-            columns: ["thread_id"]
-            isOneToOne: false
-            referencedRelation: "chat_threads"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "world_entity_facts_valid_from_turn_id_fkey"
-            columns: ["valid_from_turn_id"]
-            isOneToOne: false
-            referencedRelation: "chat_turns"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      world_entity_placements: {
-        Row: {
-          branch_id: string
-          created_at: string
-          entity_id: string
-          id: string
-          invalidated_at_turn_id: string | null
-          location_id: string
-          micro_position: string
-          t_created: string
-          t_expired: string | null
-          thread_id: string
-          valid_from_turn_id: string
-        }
-        Insert: {
-          branch_id: string
-          created_at?: string
-          entity_id: string
-          id?: string
-          invalidated_at_turn_id?: string | null
-          location_id: string
-          micro_position?: string
-          t_created?: string
-          t_expired?: string | null
-          thread_id: string
-          valid_from_turn_id: string
-        }
-        Update: {
-          branch_id?: string
-          created_at?: string
-          entity_id?: string
-          id?: string
-          invalidated_at_turn_id?: string | null
-          location_id?: string
-          micro_position?: string
-          t_created?: string
-          t_expired?: string | null
-          thread_id?: string
-          valid_from_turn_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "world_entity_placements_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "chat_branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "world_entity_placements_entity_id_fkey"
-            columns: ["entity_id"]
-            isOneToOne: false
-            referencedRelation: "world_entities"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "world_entity_placements_invalidated_at_turn_id_fkey"
-            columns: ["invalidated_at_turn_id"]
-            isOneToOne: false
-            referencedRelation: "chat_turns"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "world_entity_placements_location_id_fkey"
-            columns: ["location_id"]
-            isOneToOne: false
-            referencedRelation: "world_locations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "world_entity_placements_thread_id_fkey"
-            columns: ["thread_id"]
-            isOneToOne: false
-            referencedRelation: "chat_threads"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "world_entity_placements_valid_from_turn_id_fkey"
-            columns: ["valid_from_turn_id"]
-            isOneToOne: false
-            referencedRelation: "chat_turns"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      world_location_edges: {
-        Row: {
-          branch_id: string
-          created_at: string
-          from_location_id: string
-          id: string
-          invalidated_at_turn_id: string | null
-          is_bidirectional: boolean
-          t_created: string
-          t_expired: string | null
-          thread_id: string
-          to_location_id: string
-          valid_from_turn_id: string
-        }
-        Insert: {
-          branch_id: string
-          created_at?: string
-          from_location_id: string
-          id?: string
-          invalidated_at_turn_id?: string | null
-          is_bidirectional?: boolean
-          t_created?: string
-          t_expired?: string | null
-          thread_id: string
-          to_location_id: string
-          valid_from_turn_id: string
-        }
-        Update: {
-          branch_id?: string
-          created_at?: string
-          from_location_id?: string
-          id?: string
-          invalidated_at_turn_id?: string | null
-          is_bidirectional?: boolean
-          t_created?: string
-          t_expired?: string | null
-          thread_id?: string
-          to_location_id?: string
-          valid_from_turn_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "world_location_edges_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "chat_branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "world_location_edges_from_location_id_fkey"
-            columns: ["from_location_id"]
-            isOneToOne: false
-            referencedRelation: "world_locations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "world_location_edges_invalidated_at_turn_id_fkey"
-            columns: ["invalidated_at_turn_id"]
-            isOneToOne: false
-            referencedRelation: "chat_turns"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "world_location_edges_thread_id_fkey"
-            columns: ["thread_id"]
-            isOneToOne: false
-            referencedRelation: "chat_threads"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "world_location_edges_to_location_id_fkey"
-            columns: ["to_location_id"]
-            isOneToOne: false
-            referencedRelation: "world_locations"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "world_location_edges_valid_from_turn_id_fkey"
-            columns: ["valid_from_turn_id"]
-            isOneToOne: false
-            referencedRelation: "chat_turns"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      world_locations: {
-        Row: {
-          branch_id: string
-          canonical_name: string
-          created_at: string
-          description: string
-          environmental_modifiers: string[]
-          id: string
-          invalidated_at_turn_id: string | null
-          t_created: string
-          t_expired: string | null
-          thread_id: string
-          valid_from_turn_id: string
-        }
-        Insert: {
-          branch_id: string
-          canonical_name: string
-          created_at?: string
-          description?: string
-          environmental_modifiers?: string[]
-          id?: string
-          invalidated_at_turn_id?: string | null
-          t_created?: string
-          t_expired?: string | null
-          thread_id: string
-          valid_from_turn_id: string
-        }
-        Update: {
-          branch_id?: string
-          canonical_name?: string
-          created_at?: string
-          description?: string
-          environmental_modifiers?: string[]
-          id?: string
-          invalidated_at_turn_id?: string | null
-          t_created?: string
-          t_expired?: string | null
-          thread_id?: string
-          valid_from_turn_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "world_locations_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "chat_branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "world_locations_invalidated_at_turn_id_fkey"
-            columns: ["invalidated_at_turn_id"]
-            isOneToOne: false
-            referencedRelation: "chat_turns"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "world_locations_thread_id_fkey"
-            columns: ["thread_id"]
-            isOneToOne: false
-            referencedRelation: "chat_threads"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "world_locations_valid_from_turn_id_fkey"
-            columns: ["valid_from_turn_id"]
-            isOneToOne: false
-            referencedRelation: "chat_turns"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      world_narrative_threads: {
-        Row: {
-          branch_id: string
-          created_at: string
-          dependency_ids: string[]
-          id: string
-          invalidated_at_turn_id: string | null
-          objective: string
-          status: string
-          t_created: string
-          t_expired: string | null
-          thread_id: string
-          valid_from_turn_id: string
-        }
-        Insert: {
-          branch_id: string
-          created_at?: string
-          dependency_ids?: string[]
-          id?: string
-          invalidated_at_turn_id?: string | null
-          objective: string
-          status?: string
-          t_created?: string
-          t_expired?: string | null
-          thread_id: string
-          valid_from_turn_id: string
-        }
-        Update: {
-          branch_id?: string
-          created_at?: string
-          dependency_ids?: string[]
-          id?: string
-          invalidated_at_turn_id?: string | null
-          objective?: string
-          status?: string
-          t_created?: string
-          t_expired?: string | null
-          thread_id?: string
-          valid_from_turn_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "world_narrative_threads_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "chat_branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "world_narrative_threads_invalidated_at_turn_id_fkey"
-            columns: ["invalidated_at_turn_id"]
-            isOneToOne: false
-            referencedRelation: "chat_turns"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "world_narrative_threads_thread_id_fkey"
-            columns: ["thread_id"]
-            isOneToOne: false
-            referencedRelation: "chat_threads"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "world_narrative_threads_valid_from_turn_id_fkey"
-            columns: ["valid_from_turn_id"]
-            isOneToOne: false
-            referencedRelation: "chat_turns"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      world_relationships: {
-        Row: {
-          branch_id: string
-          created_at: string
-          dynamic_status: string
-          id: string
-          invalidated_at_turn_id: string | null
-          relationship_type: string
-          source_entity_id: string
-          t_created: string
-          t_expired: string | null
-          target_entity_id: string
-          thread_id: string
-          valid_from_turn_id: string
-        }
-        Insert: {
-          branch_id: string
-          created_at?: string
-          dynamic_status?: string
-          id?: string
-          invalidated_at_turn_id?: string | null
-          relationship_type: string
-          source_entity_id: string
-          t_created?: string
-          t_expired?: string | null
-          target_entity_id: string
-          thread_id: string
-          valid_from_turn_id: string
-        }
-        Update: {
-          branch_id?: string
-          created_at?: string
-          dynamic_status?: string
-          id?: string
-          invalidated_at_turn_id?: string | null
-          relationship_type?: string
-          source_entity_id?: string
-          t_created?: string
-          t_expired?: string | null
-          target_entity_id?: string
-          thread_id?: string
-          valid_from_turn_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "world_relationships_branch_id_fkey"
-            columns: ["branch_id"]
-            isOneToOne: false
-            referencedRelation: "chat_branches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "world_relationships_invalidated_at_turn_id_fkey"
-            columns: ["invalidated_at_turn_id"]
-            isOneToOne: false
-            referencedRelation: "chat_turns"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "world_relationships_source_entity_id_fkey"
-            columns: ["source_entity_id"]
-            isOneToOne: false
-            referencedRelation: "world_entities"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "world_relationships_target_entity_id_fkey"
-            columns: ["target_entity_id"]
-            isOneToOne: false
-            referencedRelation: "world_entities"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "world_relationships_thread_id_fkey"
-            columns: ["thread_id"]
-            isOneToOne: false
-            referencedRelation: "chat_threads"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "world_relationships_valid_from_turn_id_fkey"
-            columns: ["valid_from_turn_id"]
-            isOneToOne: false
-            referencedRelation: "chat_turns"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       world_snapshots: {
         Row: {
           based_on_turn_id: string | null
           branch_id: string
           created_at: string
           is_full_materialization: boolean
-          last_turn_beat: string
-          narrative_timestamp: string
-          scene_summary: string
-          story_summary: string
           thread_id: string
-          transition_type: string
           turn_id: string
           updated_at: string
           version: number
+          world_state: Json
         }
         Insert: {
           based_on_turn_id?: string | null
           branch_id: string
           created_at?: string
           is_full_materialization?: boolean
-          last_turn_beat?: string
-          narrative_timestamp?: string
-          scene_summary?: string
-          story_summary?: string
           thread_id: string
-          transition_type?: string
           turn_id: string
           updated_at?: string
           version?: number
+          world_state?: Json
         }
         Update: {
           based_on_turn_id?: string | null
           branch_id?: string
           created_at?: string
           is_full_materialization?: boolean
-          last_turn_beat?: string
-          narrative_timestamp?: string
-          scene_summary?: string
-          story_summary?: string
           thread_id?: string
-          transition_type?: string
           turn_id?: string
           updated_at?: string
           version?: number
+          world_state?: Json
         }
         Relationships: [
           {
@@ -1507,6 +921,58 @@ export type Database = {
         Args: { p_stale_before?: string }
         Returns: number
       }
+      upsert_world_snapshot: {
+        Args: {
+          p_turn_id: string
+          p_thread_id: string
+          p_branch_id: string
+          p_based_on_turn_id: string | null
+          p_world_state: Json
+          p_version: number
+          p_is_full_materialization: boolean
+        }
+        Returns: {
+          based_on_turn_id: string | null
+          branch_id: string
+          created_at: string
+          is_full_materialization: boolean
+          thread_id: string
+          turn_id: string
+          updated_at: string
+          version: number
+          world_state: Json
+        }
+      }
+      create_thread_with_branch: {
+        Args: {
+          p_character_id: string
+          p_connection_id: string
+          p_model_id: string
+          p_persona_id: string | null
+          p_brain_connection_id: string | null
+          p_brain_model_id: string | null
+          p_max_output_tokens: number
+          p_title: string
+        }
+        Returns: {
+          archived_at: string | null
+          brain_connection_id: string | null
+          brain_model_id: string | null
+          character_id: string
+          connection_id: string
+          created_at: string
+          id: string
+          is_title_autogenerated: boolean
+          max_output_tokens: number
+          model_id: string
+          persona_id: string | null
+          pinned_at: string | null
+          status: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+      }
       commit_turn: {
         Args: {
           p_assistant_connection_label: string | null
@@ -1518,6 +984,7 @@ export type Database = {
           p_completion_tokens: number | null
           p_finish_reason: string | null
           p_prompt_tokens: number | null
+          p_replace_turn_id?: string | null
           p_total_tokens: number | null
           p_turn_id: string
         }

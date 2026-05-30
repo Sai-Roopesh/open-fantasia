@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildEmptyDurableSnapshot } from "@/lib/ai/state-materializer";
+import { buildEmptyDurableSnapshot } from "@/lib/domain/world-snapshot";
 
 describe("HCE continuity", () => {
   it("builds an empty durable snapshot with correct defaults", () => {

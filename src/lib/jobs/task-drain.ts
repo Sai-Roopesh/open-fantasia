@@ -1,8 +1,8 @@
+import { buildCharacterPortraitObjectPath } from "@/lib/domain/character-portraits";
 import {
-  buildCharacterPortraitObjectPath,
   CHARACTER_PORTRAITS_BUCKET,
   fetchCharacterPortraitFromPollinations,
-} from "@/lib/characters/portraits";
+} from "@/lib/jobs/portrait-fetch";
 import {
   getCharacter,
   updateCharacterPortrait,

@@ -106,7 +106,8 @@ Only one persona can be the default per user. That rule is enforced both in data
 ### Key files
 
 - `src/app/(app)/app/characters/actions.ts`
-- `src/lib/characters/portraits.ts`
+- `src/lib/domain/character-portraits.ts` (pure planning)
+- `src/lib/jobs/portrait-fetch.ts` (external Pollinations fetch)
 - `src/lib/data/characters.ts`
 - `src/lib/data/jobs.ts`
 - `src/lib/jobs/task-drain.ts`
@@ -165,7 +166,9 @@ Before the first visible turn, the user can seed the opening scene with hidden g
 
 - `src/components/chat/chat-workspace.tsx`
 - `src/app/api/chat/route.ts`
-- `src/lib/ai/thread-generation-service.ts`
+- `src/lib/services/generation-service.ts`
+- `src/lib/services/generation-runtime.ts`
+- `src/lib/services/continuity-service.ts`
 - `src/lib/ai/continuity.ts`
 
 ## 9. Rewriting the Latest Turn
@@ -317,7 +320,8 @@ Inspect:
 Inspect:
 
 - chat page continuity status
-- `src/lib/ai/continuity.ts`
+- `src/lib/services/continuity-service.ts` (DB write pipeline)
+- `src/lib/ai/continuity.ts` (extraction logic)
 - whether the latest committed turn has a reachable snapshot
 - branch lock state in `chat_branches`
 

@@ -161,7 +161,11 @@ export function useChatController(switchActions: SwitchActions) {
           dispatch({ type: "mutationError", error: result.error });
           return;
         }
-        applySlice(result.slice, options.syncMessages);
+        // Lightweight mutations (e.g. rate) ack without a read-your-writes slice;
+        // there is nothing to reconcile, so only apply when a slice is present.
+        if (result.slice) {
+          applySlice(result.slice, options.syncMessages);
+        }
         options.onSuccess?.();
       } catch (nextError) {
         dispatch({ type: "mutationError", error: messageFromError(nextError) });
@@ -193,25 +197,29 @@ export function useChatController(switchActions: SwitchActions) {
     [sendMessage, displayBranchId, headTurnId, dispatch],
   );
 
-  const regenerateTurn = useCallback(async () => {
-    if (!headTurnId) {
-      dispatch({ type: "setError", error: "There is no committed turn to regenerate." });
-      return;
-    }
-    dispatch({ type: "mutationStart", label: "regenerate" });
-    setMessages((prev) => prev.slice(0, -1));
-    try {
-      await regenerate({
-        body: {
-          branchId: activeBranchId,
-          expectedHeadTurnId: headTurnId,
-          mode: "regenerate",
-        },
-      });
-    } catch (nextError) {
-      dispatch({ type: "mutationError", error: messageFromError(nextError) });
-    }
-  }, [headTurnId, activeBranchId, regenerate, setMessages, dispatch]);
+  const regenerateTurn = useCallback(
+    async (guidance?: string) => {
+      if (!headTurnId) {
+        dispatch({ type: "setError", error: "There is no committed turn to regenerate." });
+        return;
+      }
+      dispatch({ type: "mutationStart", label: "regenerate" });
+      setMessages((prev) => prev.slice(0, -1));
+      try {
+        await regenerate({
+          body: {
+            branchId: activeBranchId,
+            expectedHeadTurnId: headTurnId,
+            mode: "regenerate",
+            guidance: guidance?.trim() || undefined,
+          },
+        });
+      } catch (nextError) {
+        dispatch({ type: "mutationError", error: messageFromError(nextError) });
+      }
+    },
+    [headTurnId, activeBranchId, regenerate, setMessages, dispatch],
+  );
 
   const editMessage = useCallback(
     async (target: EditableTurnTarget, content: string) => {
@@ -397,6 +405,7 @@ export function useChatController(switchActions: SwitchActions) {
       controlsByMessageId: state.controlsByMessageId,
       inspectorView: state.inspectorView,
       branches: state.branches,
+      branchTree: state.branchTree,
       activeBranch: state.activeBranch,
       // derived display
       displaySettings,
@@ -430,6 +439,7 @@ export function useChatController(switchActions: SwitchActions) {
       state.controlsByMessageId,
       state.inspectorView,
       state.branches,
+      state.branchTree,
       state.activeBranch,
       displaySettings,
       displayBranchId,

@@ -34,6 +34,20 @@ export async function getSlice(threadId: string): Promise<MutationResult> {
   return parseMutationResult(response);
 }
 
+/** Fetches the active branch's visible transcript as plain text (copy/export). */
+export async function getBranchTranscript(threadId: string): Promise<string> {
+  const response = await fetch(`/api/chats/${threadId}/transcript`, { method: "GET" });
+  await throwIfFailed(response);
+  const body = (await response.json().catch(() => null)) as
+    | { ok: true; transcript: string }
+    | { ok: false; error: string }
+    | null;
+  if (!body || body.ok !== true) {
+    throw new Error(body && body.ok === false ? body.error : "Could not load the transcript.");
+  }
+  return body.transcript;
+}
+
 export async function rewindTurn(threadId: string, turnId: string): Promise<MutationResult> {
   const response = await fetch(`/api/chats/${threadId}/turns/${turnId}/rewind`, {
     method: "POST",

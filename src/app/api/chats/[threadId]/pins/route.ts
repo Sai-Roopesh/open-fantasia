@@ -1,7 +1,5 @@
 import { getCurrentUser } from "@/lib/auth";
-import { createPin } from "@/lib/data/pins";
-import { getThreadGraphView } from "@/lib/threads/read-model";
-import { buildSliceResponse } from "@/lib/threads/slice-response";
+import { createPinForTurn } from "@/lib/services/pin-service";
 import { createPinRequestSchema } from "@/lib/validation";
 
 export async function POST(
@@ -19,26 +17,9 @@ export async function POST(
     return Response.json({ error: "Pin body is required." }, { status: 400 });
   }
 
-  const threadView = await getThreadGraphView(context.supabase, context.user.id, threadId);
-  if (!threadView) {
-    return Response.json({ error: "Thread not found." }, { status: 404 });
-  }
-
-  const sourceTurn = threadView.turns.find((turn) => turn.id === parsedBody.data.turnId);
-  if (!sourceTurn) {
-    return Response.json(
-      { error: "Pins can only be created from a visible turn on the active path." },
-      { status: 400 },
-    );
-  }
-
-  await createPin(context.supabase, context.user.id, {
-    thread_id: threadId,
-    branch_id: threadView.activeBranch.id,
-    turn_id: sourceTurn.id,
+  return createPinForTurn(context.supabase, context.user.id, {
+    threadId,
+    turnId: parsedBody.data.turnId,
     body: parsedBody.data.body,
-    status: "active",
   });
-
-  return buildSliceResponse(context.supabase, context.user.id, threadId);
 }
