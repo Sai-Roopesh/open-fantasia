@@ -48,8 +48,10 @@ export async function listWorldSnapshots(
     .from("world_snapshots")
     .select("*")
     .eq("thread_id", threadId)
+    // world_snapshots is keyed by turn_id (no `id` column); use it as the stable
+    // secondary sort.
     .order("created_at", { ascending: true })
-    .order("id", { ascending: true });
+    .order("turn_id", { ascending: true });
 
   if (error) throw error;
   return (data ?? []) as unknown as WorldSnapshotRecord[];
