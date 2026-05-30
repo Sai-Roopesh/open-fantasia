@@ -161,7 +161,11 @@ export function useChatController(switchActions: SwitchActions) {
           dispatch({ type: "mutationError", error: result.error });
           return;
         }
-        applySlice(result.slice, options.syncMessages);
+        // Lightweight mutations (e.g. rate) ack without a read-your-writes slice;
+        // there is nothing to reconcile, so only apply when a slice is present.
+        if (result.slice) {
+          applySlice(result.slice, options.syncMessages);
+        }
         options.onSuccess?.();
       } catch (nextError) {
         dispatch({ type: "mutationError", error: messageFromError(nextError) });

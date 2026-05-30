@@ -1,8 +1,5 @@
 import { getCurrentUser } from "@/lib/auth";
-import { createBranchFromTurn } from "@/lib/data/branches";
-import { insertTimelineEvent } from "@/lib/data/timeline";
-import { loadThreadAssembly } from "@/lib/services/thread-reader";
-import { buildSliceResponse } from "@/lib/services/slice-service";
+import { createBranch } from "@/lib/services/branch-service";
 import { createBranchRequestSchema } from "@/lib/validation";
 
 export async function POST(
@@ -20,42 +17,10 @@ export async function POST(
     return Response.json({ error: "Invalid branch payload." }, { status: 400 });
   }
 
-  const threadView = await loadThreadAssembly(context.supabase, context.user.id, threadId);
-  if (!threadView) {
-    return Response.json({ error: "Thread not found." }, { status: 404 });
-  }
-
-  const sourceTurn = threadView.turns.find(
-    (turn) => turn.id === parsedBody.data.sourceTurnId,
-  );
-  if (!sourceTurn) {
-    return Response.json(
-      { error: "Branches can only be created from a visible turn on the active path." },
-      { status: 404 },
-    );
-  }
-
-  const branch = await createBranchFromTurn(context.supabase, {
-    sourceBranchId: threadView.activeBranch.id,
-    sourceTurnId: sourceTurn.id,
+  return createBranch(context.supabase, context.user.id, {
+    threadId,
+    sourceTurnId: parsedBody.data.sourceTurnId,
     name: parsedBody.data.name,
     makeActive: parsedBody.data.makeActive,
   });
-
-  // Fork needs no world-state copy: snapshots are keyed by turn_id and the new
-  // branch shares all ancestor turns, so it transparently reads the shared
-  // ancestor snapshot and only writes fresh snapshots for divergent turns.
-  await insertTimelineEvent(context.supabase, {
-    thread_id: threadId,
-    branch_id: branch.id,
-    turn_id: sourceTurn.id,
-    title: "Branch created",
-    detail: `Created ${branch.name} from this turn.`,
-    importance: 2,
-    event_type: "scene_change",
-    affected_entity_ids: [],
-    affected_relationship_ids: [],
-  });
-
-  return buildSliceResponse(context.supabase, context.user.id, threadId);
 }
