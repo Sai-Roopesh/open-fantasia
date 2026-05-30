@@ -324,6 +324,9 @@ export async function streamRewriteTurn(args: {
             totalTokens: event.totalUsage.totalTokens ?? null,
             promptTokens: event.totalUsage.inputTokens ?? null,
             completionTokens: event.totalUsage.outputTokens ?? null,
+            // Replace the prior head turn: delete it (and its snapshot) so the
+            // rewrite leaves no orphan.
+            replaceTurnId: latestTurn.id,
           });
           await materializeSnapshotForTurn({
             supabase,
@@ -487,6 +490,7 @@ export async function rewriteLatestTurn(args: {
         totalTokens: null,
         promptTokens: null,
         completionTokens: null,
+        replaceTurnId: latestTurn.id,
       });
     } else {
       const contextTurns = runtime.assembly.turns.slice(0, -1);
@@ -528,6 +532,7 @@ export async function rewriteLatestTurn(args: {
         totalTokens: result.usage.totalTokens ?? null,
         promptTokens: result.usage.inputTokens ?? null,
         completionTokens: result.usage.outputTokens ?? null,
+        replaceTurnId: latestTurn.id,
       });
     }
 

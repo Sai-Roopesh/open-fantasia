@@ -179,6 +179,12 @@ export async function commitTurn(
     totalTokens: number | null;
     promptTokens: number | null;
     completionTokens: number | null;
+    /**
+     * When committing a rewrite/regenerate, the id of the head turn being
+     * replaced. The RPC deletes it (and its snapshot, via cascade) after moving
+     * the head, preventing orphaned turns.
+     */
+    replaceTurnId?: string | null;
   },
 ) {
   const { data, error } = await supabase.rpc("commit_turn", {
@@ -198,6 +204,7 @@ export async function commitTurn(
     p_total_tokens: args.totalTokens ?? null,
     p_prompt_tokens: args.promptTokens ?? null,
     p_completion_tokens: args.completionTokens ?? null,
+    p_replace_turn_id: args.replaceTurnId ?? null,
   });
 
   if (error) {
