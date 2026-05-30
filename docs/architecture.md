@@ -9,14 +9,15 @@ Open-Fantasia is a private Next.js App Router application with a Supabase-backed
 The codebase is organized into five explicit layers with a strict dependency direction:
 
 ```
+src/lib/utils/       — zero-dependency pure utilities (text extraction, URL safety)
 src/lib/data/        — thin Supabase wrappers, no domain logic
-src/lib/ai/          — pure AI: prompt building, state extraction, validation, reflection, provider factory (zero DB writes)
-src/lib/domain/      — pure assembly and projection (no I/O, no HTTP)
+src/lib/ai/          — pure AI: prompt building, state extraction, validation, reflection, provider factory (zero DB)
+src/lib/domain/      — pure assembly, projection, and the world-state reducer (no I/O, no HTTP)
 src/lib/services/    — orchestrates data + AI + domain; only layer that writes to the DB
 src/app/api/         — thin routes: validate input → call service → return response
 ```
 
-Each layer depends only on layers below it. Routes depend on services. Services depend on domain, AI, and data. Domain depends on data for pure transformation helpers. AI depends on nothing internal except types.
+Each layer depends only on layers below it. Routes depend on services. Services depend on domain, AI, and data. Domain depends on data and utils for pure transformation helpers. AI depends only on utils and types. `utils/` exists so that pure helpers needed by both `data/` and `domain/` (e.g. message-text extraction, Ollama URL validation) do not force an illegal upward import into `ai/`.
 
 ## Route Structure
 
@@ -162,8 +163,7 @@ The AI layer contains pure functions with zero DB writes.
 - `src/lib/ai/state-extraction.ts`: LLM-based structured state extraction
 - `src/lib/ai/state-validator.ts`: validates LLM-emitted mutations against the current snapshot
 - `src/lib/ai/state-reflector.ts`: dual-pass reflection for failed extractions
-- `src/lib/ai/state-materializer.ts`: `materializeDurableSnapshot` — assembles a `DurableMemorySnapshot` from the normalized `world_*` DB tables (read-only, 7 parallel queries)
-- `src/lib/ai/roleplay-prompt.ts`: `buildRoleplaySystemPrompt` — pure prompt builder
+- `src/lib/ai/roleplay-prompt.ts`: `buildRoleplaySystemPrompt` — pure prompt builder. Stable character/persona/directives form the prompt prefix; dynamic world-state/pins/timeline are appended last to maximize provider prompt-cache hits. Persona is optional (the `<user_persona>` block is omitted when absent).
 - `src/lib/ai/generation-helpers.ts`: `ThreadGenerationServiceError`, `toThreadGenerationErrorResponse`, `buildGenerationMessages`, `buildGenerationSystemPrompt`, `assertBranchReadyForNewTurn`, `assertBranchReadyForRewrite`, `assertLatestTurnRewriteTarget`
 - `src/lib/ai/generation-settings.ts`: `resolveThreadGenerationSettings`
 - `src/lib/ai/provider-factory.ts`: `createLanguageModel`
@@ -205,32 +205,51 @@ The starter route is only allowed before the first visible turn. It uses `genera
 
 ## Continuity Architecture
 
-Continuity is handled by the Hybrid Continuity Engine (HCE), split cleanly across the AI and services layers:
+Continuity is handled by the Hybrid Continuity Engine (HCE). World state for a
+turn is stored as a single `DurableMemorySnapshot` **JSONB blob** on the
+`world_snapshots` row — the snapshot IS the source of truth. There are no
+normalized `world_*` tables; the previous 7-table bi-temporal model was replaced
+because applying one turn meant ~30 sequential, transaction-less writes.
 
-**AI layer (pure, no DB writes):**
-- `src/lib/ai/continuity.ts`: `runContinuityExtraction` — extraction → validation → optional reflection → strip invalid mutations → return clean `ExtractionOutput`
-- `src/lib/ai/state-extraction.ts`: LLM-based structured state extraction
-- `src/lib/ai/state-validator.ts`: validates mutations against the current world state
-- `src/lib/ai/state-reflector.ts`: dual-pass reflection for failed extractions
-- `src/lib/ai/state-materializer.ts`: read-only snapshot assembly from `world_*` tables
+Snapshots are keyed by `turn_id` (not `turn_id + branch_id`). Because branches
+share their ancestor turns, a forked branch transparently reads the shared
+ancestor snapshot and only writes fresh snapshots for its own divergent turns —
+fork isolation with no copy step.
+
+**AI layer (pure, no DB):**
+- `src/lib/ai/continuity.ts`: `runContinuityExtraction` — extraction → validation → optional reflection → strip invalid mutations → clean `ExtractionOutput`
+- `src/lib/ai/state-extraction.ts`, `state-validator.ts`, `state-reflector.ts`
+
+**Domain layer (pure transforms):**
+- `src/lib/domain/world-state-reducer.ts`: `applyExtractionToSnapshot` — pure `(previous snapshot, extraction) → next snapshot`. Replaces the old `applyMutationsToDb`.
+- `src/lib/domain/world-snapshot.ts`: `parseWorldSnapshot` (reads the blob off a row), `buildEmptyDurableSnapshot`
 
 **Services layer (DB writes):**
-- `src/lib/services/continuity-service.ts`: `materializeSnapshotForTurn` — the full persistence pipeline
+- `src/lib/services/continuity-service.ts`: `materializeSnapshotForTurn`
 
 For a committed turn, `materializeSnapshotForTurn` does:
 
 1. Load all turns for the thread and build the reachable path
-2. Walk backwards to find the nearest ancestor snapshot
-3. Materialize the previous snapshot (or build an empty one)
-4. Call `runContinuityExtraction` (AI layer) to produce a validated `ExtractionOutput`
-5. Apply the mutations to the `world_*` tables via `applyMutationsToDb`
-6. Persist the world snapshot record
-7. Re-materialize and return the new `DurableMemorySnapshot`
+2. Find the nearest ancestor snapshot in a single `turn_id = ANY(...)` query
+3. Parse the previous snapshot blob (or build an empty one)
+4. Call `runContinuityExtraction` (AI layer) → validated `ExtractionOutput`
+5. Apply it in memory via `applyExtractionToSnapshot` (domain)
+6. Persist with one atomic `upsert_world_snapshot` RPC call
+7. Insert any timeline events (resolving `NEW:` entity refs)
 8. Every 10 committed turns, run a full re-materialization (defragmentation) pass
 
-If extraction fails completely, the system falls back to a deterministic snapshot carrying forward the previous state.
+If extraction fails, the fallback carries the previous snapshot forward via a
+single atomic upsert — no partial state is ever possible.
 
-**Note on atomicity**: `applyMutationsToDb` applies 8 mutation categories with sequential awaits and no wrapping transaction. If the process crashes mid-apply, world state will be partially written. The service structure isolates this to a single function in one file, making a Postgres RPC transaction a single-site change when ready.
+**Atomicity**: a turn's entire world-state change is one JSONB upsert, so a crash
+mid-apply can no longer leave world state partially written. Snapshot reads are a
+pure blob parse and cannot partially fail, so there is no materialization-error
+state to surface in the UI.
+
+**Turn replacement**: on rewrite/regenerate the new turn re-parents to the
+replaced turn's parent and `commit_turn(p_replace_turn_id)` deletes the replaced
+turn; its snapshot cascades away (`ON DELETE CASCADE`), so replacements leave no
+orphaned turns or snapshots.
 
 ## Branching, Rewind, and Destructive Semantics
 

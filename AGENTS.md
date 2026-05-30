@@ -29,7 +29,8 @@ If those docs conflict with the code, trust the code and update the docs as part
 
 - `/app` is private. Access is gated through `src/proxy.ts` plus a `profiles.is_allowed` check.
 - Magic-link auth is Supabase-backed. `ALLOWED_EMAILS` only bootstraps first access; ongoing authorization is profile-backed.
-- Every live thread must carry an explicit `character_id`, `connection_id`, `model_id`, and `persona_id`.
+- Every live thread must carry an explicit `character_id`, `connection_id`, and `model_id`. `persona_id` is optional — a thread can run on the character sheet alone (the no-inherent-assumptions philosophy).
+- World state is a single `DurableMemorySnapshot` JSONB blob per turn on `world_snapshots`, keyed by `turn_id`. There are no normalized `world_*` tables. A turn's continuity write is one atomic `upsert_world_snapshot` RPC; the pure reducer is `src/lib/domain/world-state-reducer.ts`.
 - Every thread has exactly one active branch.
 - Branch generation is serialized with `generation_locked` and `locked_by_turn_id`.
 - New turns, rewrites, and regenerations all end by materializing a continuity snapshot inline with `materializeSnapshotForTurn(...)`.
@@ -172,6 +173,9 @@ Read:
 - There is no `src/lib/ai/thread-generation-service.ts`. Generation is handled by `src/lib/services/generation-service.ts` and `src/lib/services/generation-runtime.ts`. Pure helper functions and error types live in `src/lib/ai/generation-helpers.ts`.
 - There is no `src/lib/characters/portraits.ts`. Portrait pure logic is in `src/lib/domain/character-portraits.ts`, portrait URL resolution is in `src/lib/data/characters.ts`, and the external Pollinations fetch is in `src/lib/jobs/portrait-fetch.ts`.
 - `src/lib/ai/continuity.ts` is now a pure extraction orchestrator (no DB writes). All HCE persistence is in `src/lib/services/continuity-service.ts`.
+- World state is JSONB, not normalized tables. `src/lib/ai/state-materializer.ts` is gone; snapshot reads are a pure blob parse in `src/lib/domain/world-snapshot.ts` (`parseWorldSnapshot`), and mutations apply in memory via `src/lib/domain/world-state-reducer.ts` before one atomic `upsert_world_snapshot` RPC. Migrations `0005`–`0007` add the `world_state` column, the RPCs (`upsert_world_snapshot`, `create_thread_with_branch`, `commit_turn(p_replace_turn_id)`), and drop the legacy `world_*` tables.
+- Pure utilities shared across layers live in `src/lib/utils/` (`message-text.ts`, `url-safety.ts`). Route logic for branch/pin/rewind/rating lives in dedicated services (`branch-service.ts`, `pin-service.ts`, `rewind-service.ts`, `rating-service.ts`).
+- Note: `src/lib/supabase/database.types.ts` is hand-maintained for the world-state/RPC additions because the current `supabase gen types` CLI build emits over-strict (non-null) types for nullable RPC params. It still describes the dropped `world_*` tables/columns (cosmetically stale, unreferenced by code) until a clean regen with a fixed CLI.
 - `src/lib/data/connections.ts` contains only thin Supabase wrappers. `testConnectionHealth()` and `refreshConnectionModels()` live in `src/lib/services/connections.ts`.
 - Cheap mutations (rate, rewind, pin, settings) use `loadThreadAssembly` — they do not trigger snapshot materialization. Only generation, page renders, and the continuity polling slice use `loadThreadAssemblyWithSnapshot`.
 

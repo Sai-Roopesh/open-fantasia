@@ -106,7 +106,8 @@ Only one persona can be the default per user. That rule is enforced both in data
 ### Key files
 
 - `src/app/(app)/app/characters/actions.ts`
-- `src/lib/characters/portraits.ts`
+- `src/lib/domain/character-portraits.ts` (pure planning)
+- `src/lib/jobs/portrait-fetch.ts` (external Pollinations fetch)
 - `src/lib/data/characters.ts`
 - `src/lib/data/jobs.ts`
 - `src/lib/jobs/task-drain.ts`
