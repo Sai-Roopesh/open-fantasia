@@ -270,6 +270,19 @@ textarea {
 }
 
 /* ============================================================
+   Typing indicator (assistant "is typing" dots)
+   ============================================================ */
+
+.typing-dot {
+  animation: typing-bounce 1.3s infinite ease-in-out both;
+}
+
+@keyframes typing-bounce {
+  0%, 70%, 100% { transform: translateY(0); opacity: 0.35; }
+  35% { transform: translateY(-3px); opacity: 1; }
+}
+
+/* ============================================================
    Tailwind base layer
    ============================================================ */
 

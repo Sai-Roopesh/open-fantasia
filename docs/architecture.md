@@ -24,8 +24,7 @@ Each layer depends only on layers below it. Routes depend on services. Services 
 ### Public routes
 
 - `/`: marketing / entry page
-- `/login`: magic-link request UI
-- `/auth/callback`: Supabase auth completion
+- `/login`: username/password sign-in UI
 - `/auth/signout`: session clear path
 
 ### Protected app routes
@@ -62,16 +61,13 @@ All protected routes live under `src/app/(app)/app/` and are wrapped by the prot
 
 Its responsibilities are:
 
-- hydrate a Supabase server client from cookies
-- resolve the current user
-- ensure a `profiles` row exists
-- seed `profiles.is_allowed` from `ALLOWED_EMAILS` for first-time users
-- redirect unauthorized access to `/login`
-- redirect already-authorized users away from `/login` and into `/app`
+- read the signed session cookie and verify it with `verifySessionToken` (`src/lib/session.ts`)
+- redirect unauthenticated access to `/login`
+- redirect already-authenticated users away from `/login` and into `/app`
 
 ### In-route protection
 
-Protected route segments and server actions use `requireAllowedUser()` from `src/lib/auth.ts`. That gives code a server client, the authenticated user, and a hard redirect if the user is not allowed.
+Protected route segments and server actions use `requireAllowedUser()` from `src/lib/auth.ts`. That gives code the service-role admin client, the synthetic single user, and a hard redirect to `/login` if there is no valid session.
 
 ## UI Composition
 

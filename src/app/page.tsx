@@ -17,7 +17,7 @@ const featureCopy = [
   },
   {
     title: "Private first",
-    body: "Single-user, allowlisted auth, BYOK provider secrets, encrypted at rest.",
+    body: "Single-user, hardcoded login, BYOK provider secrets, encrypted at rest.",
     icon: ShieldCheck,
   },
 ];

@@ -27,8 +27,8 @@ If those docs conflict with the code, trust the code and update the docs as part
 
 ## Important Invariants
 
-- `/app` is private. Access is gated through `src/proxy.ts` plus a `profiles.is_allowed` check.
-- Magic-link auth is Supabase-backed. `ALLOWED_EMAILS` only bootstraps first access; ongoing authorization is profile-backed.
+- `/app` is private. Access is gated through `src/proxy.ts`, which verifies a signed session cookie (`src/lib/session.ts`).
+- Auth is a single hardcoded credential (`src/lib/auth-config.ts`); there is no Supabase Auth and no sign-up. The lone user is synthetic (`FIXED_USER_ID`) and app data is read/written through the service-role admin client, which bypasses RLS. `auth.uid()` RLS policies remain but are no longer the gate.
 - Every live thread must carry an explicit `character_id`, `connection_id`, and `model_id`. `persona_id` is optional — a thread can run on the character sheet alone (the no-inherent-assumptions philosophy).
 - World state is a single `DurableMemorySnapshot` JSONB blob per turn on `world_snapshots`, keyed by `turn_id`. There are no normalized `world_*` tables. A turn's continuity write is one atomic `upsert_world_snapshot` RPC; the pure reducer is `src/lib/domain/world-state-reducer.ts`.
 - Every thread has exactly one active branch.
@@ -44,8 +44,8 @@ If those docs conflict with the code, trust the code and update the docs as part
 ### UI and routing
 
 - `src/app/page.tsx`: public landing page
-- `src/app/login/*`: magic-link login flow
-- `src/app/auth/*`: auth callback and sign-out
+- `src/app/login/*`: username/password login flow
+- `src/app/auth/signout/*`: session clear path
 - `src/app/(app)/app/*`: protected dashboard, personas, characters, threads, providers, chat pages
 - `src/components/*`: reusable UI, chat workspace, forms, shell
 

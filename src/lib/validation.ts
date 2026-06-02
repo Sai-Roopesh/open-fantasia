@@ -86,8 +86,9 @@ export const saveConnectionCommandSchema = z.object({
   defaultModelId: z.string().trim().min(1).nullish(),
 });
 
-export const loginRequestSchema = z.object({
-  email: z.string().trim().email(),
+export const loginCredentialsSchema = z.object({
+  username: z.string().trim().min(1),
+  password: z.string().min(1),
 });
 
 export const savePersonaCommandSchema = z.object({

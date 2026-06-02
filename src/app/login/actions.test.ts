@@ -1,72 +1,75 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
-  createSupabaseServerClientMock,
+  cookieSetMock,
   redirectMock,
-  signInWithOtpMock,
-} = vi.hoisted(() => {
-  const redirect = vi.fn((url: string) => {
+  checkCredentialsMock,
+  createSessionTokenMock,
+} = vi.hoisted(() => ({
+  cookieSetMock: vi.fn(),
+  redirectMock: vi.fn((url: string) => {
     throw new Error(`REDIRECT:${url}`);
-  });
-  const signInWithOtp = vi.fn();
-
-  return {
-    redirectMock: redirect,
-    signInWithOtpMock: signInWithOtp,
-    createSupabaseServerClientMock: vi.fn(async () => ({
-      auth: {
-        signInWithOtp,
-      },
-    })),
-  };
-});
+  }),
+  checkCredentialsMock: vi.fn(),
+  createSessionTokenMock: vi.fn(async () => "signed-session-token"),
+}));
 
 vi.mock("next/navigation", () => ({
   redirect: redirectMock,
 }));
 
-vi.mock("@/lib/supabase/server", () => ({
-  createSupabaseServerClient: createSupabaseServerClientMock,
+vi.mock("next/headers", () => ({
+  cookies: vi.fn(async () => ({ set: cookieSetMock })),
 }));
 
-vi.mock("@/lib/env", () => ({
-  requirePublicSiteUrl: vi.fn(() => "http://localhost:3000"),
+vi.mock("@/lib/session", () => ({
+  checkCredentials: checkCredentialsMock,
+  createSessionToken: createSessionTokenMock,
 }));
 
-import { requestMagicLink } from "@/app/login/actions";
+import { signIn } from "@/app/login/actions";
+import { SESSION_COOKIE } from "@/lib/auth-config";
 
-describe("requestMagicLink", () => {
+function credentials(username: string, password: string) {
+  const formData = new FormData();
+  formData.set("username", username);
+  formData.set("password", password);
+  return formData;
+}
+
+describe("signIn", () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
-  it("sends a normal magic link and redirects to the sent state", async () => {
-    signInWithOtpMock.mockResolvedValue({ error: null });
+  it("sets the session cookie and redirects to the app on valid credentials", async () => {
+    checkCredentialsMock.mockReturnValue(true);
 
-    const formData = new FormData();
-    formData.set("email", "writer@example.com");
-
-    await expect(requestMagicLink(formData)).rejects.toThrow(
-      "REDIRECT:/login?sent=1",
+    await expect(signIn(credentials("roops21", "chinnu21$"))).rejects.toThrow(
+      "REDIRECT:/app",
     );
-    expect(signInWithOtpMock).toHaveBeenCalledWith({
-      email: "writer@example.com",
-      options: {
-        emailRedirectTo: "http://localhost:3000/auth/callback",
-      },
-    });
+
+    expect(checkCredentialsMock).toHaveBeenCalledWith("roops21", "chinnu21$");
+    expect(cookieSetMock).toHaveBeenCalledWith(
+      SESSION_COOKIE,
+      "signed-session-token",
+      expect.objectContaining({ httpOnly: true, sameSite: "lax", path: "/" }),
+    );
   });
 
-  it("redirects with the provider error when sign-in fails", async () => {
-    signInWithOtpMock.mockResolvedValue({
-      error: new Error("Rate limit reached"),
-    });
+  it("redirects back with an invalid reason on bad credentials", async () => {
+    checkCredentialsMock.mockReturnValue(false);
 
-    const formData = new FormData();
-    formData.set("email", "writer@example.com");
-
-    await expect(requestMagicLink(formData)).rejects.toThrow(
-      "REDIRECT:/login?reason=Rate%20limit%20reached",
+    await expect(signIn(credentials("roops21", "wrong"))).rejects.toThrow(
+      "REDIRECT:/login?reason=invalid",
     );
+    expect(cookieSetMock).not.toHaveBeenCalled();
+  });
+
+  it("redirects back with an invalid reason when fields are missing", async () => {
+    await expect(signIn(credentials("", ""))).rejects.toThrow(
+      "REDIRECT:/login?reason=invalid",
+    );
+    expect(checkCredentialsMock).not.toHaveBeenCalled();
   });
 });

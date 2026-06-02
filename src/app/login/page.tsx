@@ -4,13 +4,12 @@ import { BrandMark } from "@/components/brand-mark";
 import { SubmitButton } from "@/components/forms/submit-button";
 import { isConfigured } from "@/lib/env";
 import { getCurrentUser } from "@/lib/auth";
-import { requestMagicLink } from "@/app/login/actions";
+import { signIn } from "@/app/login/actions";
 
 function humanizeLoginReason(reason: string | null) {
   if (!reason) return null;
   if (reason === "signin") return "Sign in to continue.";
-  if (reason === "invalid") return "Enter your allowlisted email.";
-  if (reason.toLowerCase().includes("email")) return "That email couldn't be used. Check the address and allowlist.";
+  if (reason === "invalid") return "Incorrect username or password.";
   return "Sign-in didn't complete. Try again.";
 }
 
@@ -20,7 +19,6 @@ async function LoginCard({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const params = await searchParams;
-  const sent = params.sent === "1";
   const reason = typeof params.reason === "string" ? params.reason : null;
   const configured = isConfigured();
   const { user, isAllowed } = configured
@@ -37,7 +35,7 @@ async function LoginCard({
         Sign in
       </h1>
       <p className="mt-2 text-xs leading-5 text-on-surface-variant">
-        Use your allowlisted email to receive a magic link.
+        Enter your username and password to continue.
       </p>
 
       {!configured && (
@@ -46,16 +44,7 @@ async function LoginCard({
         </div>
       )}
 
-      {sent && (
-        <div
-          aria-live="polite"
-          className="mt-4 rounded border border-status-success/30 bg-status-success/10 px-3 py-2 text-xs text-status-success"
-        >
-          Magic link sent. Check your email.
-        </div>
-      )}
-
-      {reasonMessage && !sent && (
+      {reasonMessage && (
         <div
           aria-live="polite"
           className="mt-4 rounded border border-status-warning/30 bg-status-warning/10 px-3 py-2 text-xs text-status-warning"
@@ -77,20 +66,33 @@ async function LoginCard({
           </Link>
         </div>
       ) : (
-        <form action={requestMagicLink} className="mt-4 space-y-3" data-testid="login-form">
+        <form action={signIn} className="mt-4 space-y-3" data-testid="login-form">
           <label className="block">
-            <span className="mb-1 block text-xs font-medium text-on-surface">Email</span>
+            <span className="mb-1 block text-xs font-medium text-on-surface">Username</span>
             <input
-              type="email"
-              name="email"
+              type="text"
+              name="username"
               required
-              placeholder="you@example.com"
+              autoComplete="username"
+              placeholder="username"
               className="w-full rounded border-b-2 border-border-subtle bg-input px-3 py-2 text-sm text-on-surface placeholder:text-muted-foreground outline-none focus:border-primary-container"
-              data-testid="login-email-input"
+              data-testid="login-username-input"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-xs font-medium text-on-surface">Password</span>
+            <input
+              type="password"
+              name="password"
+              required
+              autoComplete="current-password"
+              placeholder="••••••••"
+              className="w-full rounded border-b-2 border-border-subtle bg-input px-3 py-2 text-sm text-on-surface placeholder:text-muted-foreground outline-none focus:border-primary-container"
+              data-testid="login-password-input"
             />
           </label>
           <SubmitButton className="w-full rounded bg-primary-container px-4 py-2 text-sm font-semibold text-on-primary-container" data-testid="login-submit-button">
-            Send magic link
+            Sign in
           </SubmitButton>
         </form>
       )}
