@@ -61,6 +61,7 @@ export async function getActiveBranch(
 export async function createBranchFromTurn(
   supabase: DatabaseClient,
   args: {
+    userId: string;
     sourceBranchId: string;
     sourceTurnId: string;
     name: string;
@@ -68,6 +69,7 @@ export async function createBranchFromTurn(
   },
 ) {
   const { data, error } = await supabase.rpc("create_branch_from_turn", {
+    p_user_id: args.userId,
     p_source_branch_id: args.sourceBranchId,
     p_source_turn_id: args.sourceTurnId,
     p_name: args.name,
@@ -84,12 +86,14 @@ export async function createBranchFromTurn(
 export async function rewindBranchToTurn(
   supabase: DatabaseClient,
   args: {
+    userId: string;
     branchId: string;
     targetTurnId: string;
     expectedHeadTurnId?: string | null;
   },
 ) {
   const { data, error } = await supabase.rpc("rewind_branch_to_turn", {
+    p_user_id: args.userId,
     p_branch_id: args.branchId,
     p_target_turn_id: args.targetTurnId,
     p_expected_head_turn_id: args.expectedHeadTurnId ?? null,

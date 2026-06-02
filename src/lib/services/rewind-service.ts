@@ -28,6 +28,7 @@ export async function rewindToTurn(
   }
 
   await rewindBranchToTurn(supabase, {
+    userId,
     branchId: assembly.activeBranch.id,
     targetTurnId: args.turnId,
     expectedHeadTurnId: assembly.activeBranch.head_turn_id,

@@ -31,6 +31,7 @@ describe("persona data helpers", () => {
     const result = await setDefaultPersona(supabase, persona.user_id, persona.id);
 
     expect(rpc).toHaveBeenCalledWith("set_default_persona", {
+      p_user_id: persona.user_id,
       target_persona_id: persona.id,
     });
     expect(result.is_default).toBe(true);

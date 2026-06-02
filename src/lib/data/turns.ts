@@ -133,6 +133,7 @@ export async function markTurnStreaming(
 export async function beginTurn(
   supabase: DatabaseClient,
   args: {
+    userId: string;
     branchId: string;
     expectedHeadTurnId?: string | null;
     text: string;
@@ -144,6 +145,7 @@ export async function beginTurn(
   },
 ) {
   const { data, error } = await supabase.rpc("begin_turn", {
+    p_user_id: args.userId,
     p_branch_id: args.branchId,
     p_expected_head_turn_id: args.expectedHeadTurnId ?? null,
     p_user_input_text: args.text,
@@ -169,6 +171,7 @@ export async function beginTurn(
 export async function commitTurn(
   supabase: DatabaseClient,
   args: {
+    userId: string;
     branchId: string;
     turnId: string;
     assistantText: string;
@@ -189,6 +192,7 @@ export async function commitTurn(
   },
 ) {
   const { data, error } = await supabase.rpc("commit_turn", {
+    p_user_id: args.userId,
     p_branch_id: args.branchId,
     p_turn_id: args.turnId,
     p_assistant_output_text: args.assistantText,
@@ -218,6 +222,7 @@ export async function commitTurn(
 export async function failTurn(
   supabase: DatabaseClient,
   args: {
+    userId: string;
     branchId: string;
     turnId: string;
     failureCode: string;
@@ -225,6 +230,7 @@ export async function failTurn(
   },
 ) {
   const { data, error } = await supabase.rpc("fail_turn", {
+    p_user_id: args.userId,
     p_branch_id: args.branchId,
     p_turn_id: args.turnId,
     p_failure_code: args.failureCode,

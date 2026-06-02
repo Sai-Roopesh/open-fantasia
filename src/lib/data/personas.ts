@@ -135,10 +135,11 @@ export async function upsertPersona(
 
 export async function setDefaultPersona(
   supabase: DatabaseClient,
-  _userId: string,
+  userId: string,
   personaId: string,
 ) {
   const { data, error } = await supabase.rpc("set_default_persona", {
+    p_user_id: userId,
     target_persona_id: personaId,
   });
 
