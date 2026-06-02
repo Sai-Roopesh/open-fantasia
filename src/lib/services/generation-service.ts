@@ -57,6 +57,7 @@ async function commitThenMaterialize(args: {
     await commitTurn(supabase, commit);
   } catch (error) {
     await failTurn(supabase, {
+      userId,
       branchId,
       turnId,
       failureCode: "commit_error",
@@ -115,6 +116,7 @@ export async function streamNewTurn(args: {
   let messages: Awaited<ReturnType<typeof convertToModelMessages>>;
   try {
     reservedTurn = await beginTurn(supabase, {
+      userId,
       branchId,
       expectedHeadTurnId,
       text,
@@ -162,6 +164,7 @@ export async function streamNewTurn(args: {
         if (turnSettled) return;
         turnSettled = true;
         await failTurn(supabase, {
+          userId,
           branchId,
           turnId: reservedTurn.id,
           failureCode: "generation_error",
@@ -187,6 +190,7 @@ export async function streamNewTurn(args: {
           turnId: reservedTurn.id,
           runtime,
           commit: {
+            userId,
             branchId,
             turnId: reservedTurn.id,
             assistantText: event.text,
@@ -205,6 +209,7 @@ export async function streamNewTurn(args: {
     if (!turnSettled) {
       turnSettled = true;
       await failTurn(supabase, {
+        userId,
         branchId,
         turnId: reservedTurn!.id,
         failureCode: "generation_error",
@@ -276,6 +281,7 @@ export async function streamRewriteTurn(args: {
   let messages: Awaited<ReturnType<typeof convertToModelMessages>>;
   try {
     reservedTurn = await beginTurn(supabase, {
+      userId,
       branchId,
       expectedHeadTurnId,
       text: userText,
@@ -350,6 +356,7 @@ export async function streamRewriteTurn(args: {
         if (turnSettled) return;
         turnSettled = true;
         await failTurn(supabase, {
+          userId,
           branchId,
           turnId: reservedTurn.id,
           failureCode: "generation_error",
@@ -368,6 +375,7 @@ export async function streamRewriteTurn(args: {
           turnId: reservedTurn.id,
           runtime,
           commit: {
+            userId,
             branchId,
             turnId: reservedTurn.id,
             assistantText: event.text,
@@ -389,6 +397,7 @@ export async function streamRewriteTurn(args: {
     if (!turnSettled) {
       turnSettled = true;
       await failTurn(supabase, {
+        userId,
         branchId,
         turnId: reservedTurn!.id,
         failureCode: "generation_error",
@@ -502,6 +511,7 @@ export async function rewriteLatestTurn(args: {
   let reservedTurn: Awaited<ReturnType<typeof beginTurn>> | undefined;
   try {
     reservedTurn = await beginTurn(supabase, {
+      userId,
       branchId,
       expectedHeadTurnId,
       text: userText,
@@ -514,6 +524,7 @@ export async function rewriteLatestTurn(args: {
 
     if (mode === "assistant") {
       await commitTurn(supabase, {
+        userId,
         branchId,
         turnId: reservedTurn.id,
         assistantText: text!,
@@ -556,6 +567,7 @@ export async function rewriteLatestTurn(args: {
       });
 
       await commitTurn(supabase, {
+        userId,
         branchId,
         turnId: reservedTurn.id,
         assistantText: getTextFromMessage(assistantMessage),
@@ -585,6 +597,7 @@ export async function rewriteLatestTurn(args: {
   } catch (error) {
     if (reservedTurn) {
       await failTurn(supabase, {
+        userId,
         branchId,
         turnId: reservedTurn.id,
         failureCode: "LATEST_TURN_REWRITE_FAILED",
@@ -647,6 +660,7 @@ export async function generateStarterTurn(args: {
   let reservedTurn: Awaited<ReturnType<typeof beginTurn>> | undefined;
   try {
     reservedTurn = await beginTurn(supabase, {
+      userId,
       branchId: runtime.assembly.activeBranch.id,
       expectedHeadTurnId: runtime.assembly.activeBranch.head_turn_id,
       text: starterText,
@@ -675,6 +689,7 @@ export async function generateStarterTurn(args: {
     });
 
     await commitTurn(supabase, {
+      userId,
       branchId: runtime.assembly.activeBranch.id,
       turnId: reservedTurn.id,
       assistantText: getTextFromMessage(assistantMessage),
@@ -714,6 +729,7 @@ export async function generateStarterTurn(args: {
   } catch (error) {
     if (reservedTurn) {
       await failTurn(supabase, {
+        userId,
         branchId: runtime.assembly.activeBranch.id,
         turnId: reservedTurn.id,
         failureCode: "GENERATION_FAILED",

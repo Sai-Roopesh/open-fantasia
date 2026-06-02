@@ -31,6 +31,7 @@ export async function createBranch(
   }
 
   const branch = await createBranchFromTurn(supabase, {
+    userId,
     sourceBranchId: assembly.activeBranch.id,
     sourceTurnId: sourceTurn.id,
     name: args.name,

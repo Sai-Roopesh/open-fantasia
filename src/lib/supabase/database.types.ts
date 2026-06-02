@@ -823,7 +823,7 @@ export type Database = {
     }
     Functions: {
       activate_branch: {
-        Args: { p_branch_id: string; p_thread_id: string }
+        Args: { p_user_id: string; p_branch_id: string; p_thread_id: string }
         Returns: {
           created_at: string
           created_by: string
@@ -848,6 +848,7 @@ export type Database = {
       }
       begin_turn: {
         Args: {
+          p_user_id: string
           p_branch_id: string
           p_expected_head_turn_id: string | null
           p_force_parent_override?: boolean
@@ -945,6 +946,7 @@ export type Database = {
       }
       create_thread_with_branch: {
         Args: {
+          p_user_id: string
           p_character_id: string
           p_connection_id: string
           p_model_id: string
@@ -975,6 +977,7 @@ export type Database = {
       }
       commit_turn: {
         Args: {
+          p_user_id: string
           p_assistant_connection_label: string | null
           p_assistant_model: string | null
           p_assistant_output_payload: Json
@@ -1025,6 +1028,7 @@ export type Database = {
       }
       create_branch_from_turn: {
         Args: {
+          p_user_id: string
           p_make_active?: boolean
           p_name: string
           p_source_branch_id: string
@@ -1054,6 +1058,7 @@ export type Database = {
       }
       fail_turn: {
         Args: {
+          p_user_id: string
           p_branch_id: string
           p_failure_code: string
           p_failure_message: string
@@ -1097,6 +1102,7 @@ export type Database = {
       owns_thread: { Args: { target_thread_id: string }; Returns: boolean }
       rewind_branch_to_turn: {
         Args: {
+          p_user_id: string
           p_branch_id: string
           p_expected_head_turn_id?: string | null
           p_target_turn_id: string
@@ -1124,7 +1130,7 @@ export type Database = {
         }
       }
       set_default_persona: {
-        Args: { target_persona_id: string }
+        Args: { p_user_id: string; target_persona_id: string }
         Returns: {
           backstory: string
           boundaries: string

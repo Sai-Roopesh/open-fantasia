@@ -195,6 +195,7 @@ export async function createThread(
   // compensating-delete, which could orphan a thread if the branch insert and
   // the cleanup both failed. Persona is optional.
   const { data, error } = await supabase.rpc("create_thread_with_branch", {
+    p_user_id: userId,
     p_character_id: args.characterId,
     p_connection_id: args.connection.id,
     p_model_id: args.modelId,
@@ -312,6 +313,7 @@ export async function switchActiveBranch(
   args: { threadId: string; branchId: string },
 ) {
   const { error } = await supabase.rpc("activate_branch", {
+    p_user_id: userId,
     p_thread_id: args.threadId,
     p_branch_id: args.branchId,
   });
