@@ -3,49 +3,7 @@ type SupabasePublicEnv = {
   supabasePublishableKey: string | null;
 };
 
-type PublicEnv = SupabasePublicEnv & {
-  siteUrl: string | null;
-};
-
 const ENCRYPTION_KEY_HEX_RE = /^[0-9a-fA-F]{64}$/;
-
-function normalizeUrl(value: string | null | undefined) {
-  if (!value) {
-    return null;
-  }
-
-  const trimmed = value.trim();
-  if (!trimmed) {
-    return null;
-  }
-
-  const normalized = /^https?:\/\//.test(trimmed) ? trimmed : `https://${trimmed}`;
-  return normalized.endsWith("/") ? normalized.slice(0, -1) : normalized;
-}
-
-function getResolvedSiteUrl() {
-  const explicitSiteUrl = normalizeUrl(process.env.NEXT_PUBLIC_SITE_URL);
-  if (explicitSiteUrl) {
-    return explicitSiteUrl;
-  }
-
-  if (process.env.VERCEL === "1") {
-    if (process.env.VERCEL_ENV === "production") {
-      return (
-        normalizeUrl(process.env.VERCEL_PROJECT_PRODUCTION_URL) ??
-        normalizeUrl(process.env.VERCEL_URL)
-      );
-    }
-
-    return (
-      normalizeUrl(process.env.VERCEL_BRANCH_URL) ??
-      normalizeUrl(process.env.VERCEL_URL) ??
-      normalizeUrl(process.env.VERCEL_PROJECT_PRODUCTION_URL)
-    );
-  }
-
-  return process.env.NODE_ENV === "development" ? "http://localhost:3000" : null;
-}
 
 export function getSupabasePublicEnv(): SupabasePublicEnv {
   return {
@@ -68,43 +26,9 @@ export function requireSupabasePublicEnv() {
   };
 }
 
-export function getPublicEnv(): PublicEnv {
-  const siteUrl = getResolvedSiteUrl();
-
-  return {
-    ...getSupabasePublicEnv(),
-    siteUrl,
-  };
-}
-
-export function requirePublicSiteUrl() {
-  const siteUrl = getResolvedSiteUrl();
-  if (!siteUrl) {
-    throw new Error(
-      "Missing public site URL. Set NEXT_PUBLIC_SITE_URL outside localhost development or enable Vercel system environment variables.",
-    );
-  }
-  return siteUrl;
-}
-
-export function requirePublicEnv() {
-  return {
-    ...requireSupabasePublicEnv(),
-    siteUrl: requirePublicSiteUrl(),
-  };
-}
-
 export function hasSupabaseEnv() {
   const { supabaseUrl, supabasePublishableKey } = getSupabasePublicEnv();
   return Boolean(supabaseUrl && supabasePublishableKey);
-}
-
-export function getAllowedEmails() {
-  const raw = process.env.ALLOWED_EMAILS ?? "";
-  return raw
-    .split(",")
-    .map((email) => email.trim().toLowerCase())
-    .filter(Boolean);
 }
 
 export function getEncryptionKeySecret() {
@@ -149,5 +73,5 @@ export function requireCronSecret() {
 }
 
 export function isConfigured() {
-  return hasSupabaseEnv() && Boolean(getEncryptionKeySecret()) && getAllowedEmails().length > 0;
+  return hasSupabaseEnv() && Boolean(getEncryptionKeySecret());
 }

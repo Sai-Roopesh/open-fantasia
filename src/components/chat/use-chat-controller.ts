@@ -43,6 +43,16 @@ type SwitchActions = {
 
 const FALLBACK_ERROR = "That action failed.";
 
+// The turn is committed to the DB inside the model stream's `onFinish`, which is
+// not awaited before the HTTP stream closes. So a read fired the instant the
+// stream settles can race the commit; we poll briefly until it lands.
+const RECONCILE_MAX_ATTEMPTS = 10;
+const RECONCILE_RETRY_MS = 250;
+
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function messageFromError(error: unknown, fallback = FALLBACK_ERROR) {
   return error instanceof Error ? humanizeChatError(error.message) : fallback;
 }
@@ -84,22 +94,46 @@ export function useChatController(switchActions: SwitchActions) {
   );
 
   // Read-your-writes reconcile after a streaming turn finishes.
+  //
+  // The streamed assistant message already carries its committed id
+  // (`${turnId}:assistant`, set server-side). Because the DB commit happens in the
+  // stream's `onFinish` — which is not awaited before the HTTP stream closes — a
+  // slice read fired the instant `status` flips to `ready` can come back BEFORE the
+  // commit is visible, returning the previous transcript. Applying that via
+  // `setMessages` would blank the reply we just streamed (it would only reappear on
+  // a manual refresh). So we poll until the slice echoes back the streamed turn,
+  // then swap to server truth. The streamed message stays on screen throughout.
   const reconcileAfterStream = useCallback(async () => {
-    try {
-      const result = await actions.getSlice(threadId);
-      if (result.ok) {
-        attemptedDraftRef.current = null;
-        applySlice(result.slice, true);
-        dispatch({ type: "setFailedDraft", draft: null });
-      } else {
-        dispatch({ type: "clearPending" });
+    const streamedAssistantId =
+      [...chat.messages].reverse().find((message) => message.role === "assistant")?.id ??
+      null;
+
+    for (let attempt = 0; attempt < RECONCILE_MAX_ATTEMPTS; attempt += 1) {
+      try {
+        const result = await actions.getSlice(threadId);
+        if (result.ok) {
+          const sliceHasStreamedTurn =
+            streamedAssistantId === null ||
+            result.slice.messages.some((message) => message.id === streamedAssistantId);
+          if (sliceHasStreamedTurn) {
+            attemptedDraftRef.current = null;
+            applySlice(result.slice, true);
+            dispatch({ type: "setFailedDraft", draft: null });
+            return;
+          }
+        }
+      } catch {
+        // Transient read failure — retry. The streamed message is still on screen.
       }
-    } catch {
-      // The turn committed server-side; only the reconcile read failed. Clear the
-      // pending flag so the UI is usable — the streamed message is already shown.
-      dispatch({ type: "clearPending" });
+      if (attempt < RECONCILE_MAX_ATTEMPTS - 1) {
+        await delay(RECONCILE_RETRY_MS);
+      }
     }
-  }, [threadId, applySlice, dispatch]);
+
+    // The commit never became visible within the retry budget. The streamed
+    // message is already shown, so just release the pending flag — never blank it.
+    dispatch({ type: "clearPending" });
+  }, [threadId, chat, applySlice, dispatch]);
 
   // Fire the reconcile exactly once per stream, on streaming/submitted -> ready.
   const prevStatusRef = useRef(status);

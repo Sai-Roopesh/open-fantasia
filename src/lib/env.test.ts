@@ -1,13 +1,11 @@
+import { afterEach, describe, expect, it } from "vitest";
 import {
-  getAllowedEmails,
-  getPublicEnv,
   getCronSecret,
   getSupabasePublicEnv,
   getSupabaseServiceRoleKey,
   hasSupabaseEnv,
+  isConfigured,
   requireCronSecret,
-  requirePublicSiteUrl,
-  requirePublicEnv,
   requireSupabaseServiceRoleKey,
   requireSupabasePublicEnv,
 } from "@/lib/env";
@@ -22,33 +20,16 @@ describe("env helpers", () => {
   it("reads the current Supabase publishable key contract", () => {
     process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_example";
-    process.env.NEXT_PUBLIC_SITE_URL = "http://localhost:3000";
 
     expect(getSupabasePublicEnv()).toEqual({
       supabaseUrl: "https://example.supabase.co",
       supabasePublishableKey: "sb_publishable_example",
-    });
-    expect(getPublicEnv()).toEqual({
-      supabaseUrl: "https://example.supabase.co",
-      supabasePublishableKey: "sb_publishable_example",
-      siteUrl: "http://localhost:3000",
     });
     expect(hasSupabaseEnv()).toBe(true);
     expect(requireSupabasePublicEnv()).toEqual({
       supabaseUrl: "https://example.supabase.co",
       supabasePublishableKey: "sb_publishable_example",
     });
-    expect(requirePublicEnv()).toEqual({
-      supabaseUrl: "https://example.supabase.co",
-      supabasePublishableKey: "sb_publishable_example",
-      siteUrl: "http://localhost:3000",
-    });
-  });
-
-  it("normalizes and filters allowed emails", () => {
-    process.env.ALLOWED_EMAILS = " Alice@example.com, ,bob@example.com ";
-
-    expect(getAllowedEmails()).toEqual(["alice@example.com", "bob@example.com"]);
   });
 
   it("requires the service role key and cron secret explicitly", () => {
@@ -69,42 +50,16 @@ describe("env helpers", () => {
     expect(() => requireCronSecret()).toThrow("Missing CRON_SECRET");
   });
 
-  it("only falls back to localhost siteUrl during development", () => {
+  it("reports configured only with Supabase env and an encryption key", () => {
     process.env = {
-      ...process.env,
-      NODE_ENV: "development",
+      ...originalEnv,
       NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_example",
     };
+    delete process.env.APP_ENCRYPTION_KEY;
+    expect(isConfigured()).toBe(false);
 
-    expect(getPublicEnv().siteUrl).toBe("http://localhost:3000");
-    expect(requirePublicSiteUrl()).toBe("http://localhost:3000");
-
-    process.env = {
-      ...process.env,
-      NODE_ENV: "production",
-    };
-
-    expect(getPublicEnv().siteUrl).toBeNull();
-    expect(requireSupabasePublicEnv()).toEqual({
-      supabaseUrl: "https://example.supabase.co",
-      supabasePublishableKey: "sb_publishable_example",
-    });
-    expect(() => requirePublicSiteUrl()).toThrow("Missing public site URL");
-  });
-
-  it("resolves the current Vercel host when no explicit site URL is configured", () => {
-    process.env = {
-      ...process.env,
-      NODE_ENV: "production",
-      VERCEL: "1",
-      VERCEL_ENV: "preview",
-      VERCEL_URL: "open-fantasia-preview.vercel.app",
-      NEXT_PUBLIC_SUPABASE_URL: "https://example.supabase.co",
-      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_example",
-    };
-
-    expect(getPublicEnv().siteUrl).toBe("https://open-fantasia-preview.vercel.app");
-    expect(requirePublicSiteUrl()).toBe("https://open-fantasia-preview.vercel.app");
+    process.env.APP_ENCRYPTION_KEY = "a".repeat(64);
+    expect(isConfigured()).toBe(true);
   });
 });

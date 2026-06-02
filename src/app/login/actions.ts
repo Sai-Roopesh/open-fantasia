@@ -1,31 +1,33 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { requirePublicSiteUrl } from "@/lib/env";
-import { loginRequestSchema } from "@/lib/validation";
+import { SESSION_COOKIE } from "@/lib/auth-config";
+import { checkCredentials, createSessionToken } from "@/lib/session";
+import { loginCredentialsSchema } from "@/lib/validation";
 
-export async function requestMagicLink(formData: FormData) {
-  const parsed = loginRequestSchema.safeParse({
-    email: String(formData.get("email") ?? "").trim().toLowerCase(),
+export async function signIn(formData: FormData) {
+  const parsed = loginCredentialsSchema.safeParse({
+    username: String(formData.get("username") ?? "").trim(),
+    password: String(formData.get("password") ?? ""),
   });
+
   if (!parsed.success) {
     redirect("/login?reason=invalid");
   }
 
-  const supabase = await createSupabaseServerClient();
-  const siteUrl = requirePublicSiteUrl();
-
-  const { error } = await supabase.auth.signInWithOtp({
-    email: parsed.data.email,
-    options: {
-      emailRedirectTo: `${siteUrl}/auth/callback`,
-    },
-  });
-
-  if (error) {
-    redirect(`/login?reason=${encodeURIComponent(error.message)}`);
+  if (!checkCredentials(parsed.data.username, parsed.data.password)) {
+    redirect("/login?reason=invalid");
   }
 
-  redirect("/login?sent=1");
+  const cookieStore = await cookies();
+  cookieStore.set(SESSION_COOKIE, await createSessionToken(), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 60 * 24 * 30,
+  });
+
+  redirect("/app");
 }

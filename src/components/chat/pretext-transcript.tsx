@@ -5,6 +5,7 @@ import { ArrowDown } from "lucide-react";
 import type { EditableTurnTarget, FantasiaUIMessage, TranscriptControl } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { PretextMessageRow } from "@/components/chat/pretext-message-row";
+import { TypingIndicator } from "@/components/chat/typing-indicator";
 
 function isNearBottom(element: HTMLDivElement) {
   return element.scrollHeight - element.scrollTop - element.clientHeight < 120;
@@ -15,6 +16,7 @@ export function PretextTranscript({
   assistantLabel,
   controlsByMessageId,
   pendingAction,
+  awaitingReply = false,
   focusMode = false,
   rewriteBlocked = false,
   onRegenerate,
@@ -28,6 +30,7 @@ export function PretextTranscript({
   assistantLabel: string;
   controlsByMessageId: Record<string, TranscriptControl>;
   pendingAction: string | null;
+  awaitingReply?: boolean;
   focusMode?: boolean;
   rewriteBlocked?: boolean;
   onRegenerate: (turnId: string) => Promise<void>;
@@ -164,6 +167,9 @@ export function PretextTranscript({
               onCopy={copyMessage}
             />
           ))}
+          {awaitingReply ? (
+            <TypingIndicator label={assistantLabel} focusMode={focusMode} />
+          ) : null}
         </div>
       </div>
 

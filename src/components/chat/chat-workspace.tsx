@@ -16,6 +16,7 @@ import type {
   UserPersonaRecord,
 } from "@/lib/types";
 import { getBranchTranscript } from "@/lib/api/chat-actions";
+import { getTextFromMessage } from "@/lib/utils/message-text";
 import { ChatLayout } from "@/components/chat/chat-workspace-shell";
 import {
   ContinuityBanner,
@@ -155,6 +156,16 @@ function ChatWorkspaceInner({
     switchPending ||
     composerContinuityBlocked;
 
+  // Show the "is typing" dots from the moment a turn is sent until the first
+  // streamed token lands. Once the assistant message has visible text the live
+  // streaming bubble takes over, so the indicator is hidden.
+  const lastMessage = messages[messages.length - 1];
+  const awaitingReply =
+    (status === "submitted" || status === "streaming") &&
+    (!lastMessage ||
+      lastMessage.role !== "assistant" ||
+      getTextFromMessage(lastMessage).length === 0);
+
   const displayModel = displaySettings.model.modelId;
   const displayConnectionLabel = displaySettings.model.label;
 
@@ -200,6 +211,7 @@ function ChatWorkspaceInner({
     assistantLabel: characterName,
     controlsByMessageId,
     pendingAction,
+    awaitingReply,
     rewriteBlocked,
     onRegenerate: async () => setSheet({ kind: "regenerate", value: "" }),
     onOpenEditMessage: (

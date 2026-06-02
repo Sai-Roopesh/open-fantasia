@@ -1,53 +1,24 @@
 import { NextRequest } from "next/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { createServerClientMock, getUserMock } = vi.hoisted(() => {
-  const getUser = vi.fn();
-  const profileRow = { id: "uid", email: "allowed@example.com", is_allowed: true };
-  const profileQueryChain = {
-    select: vi.fn().mockReturnThis(),
-    eq: vi.fn().mockReturnThis(),
-    maybeSingle: vi.fn().mockResolvedValue({ data: profileRow, error: null }),
-    insert: vi.fn().mockReturnThis(),
-    update: vi.fn().mockReturnThis(),
-    single: vi.fn().mockResolvedValue({ data: profileRow, error: null }),
-  };
-  return {
-    getUserMock: getUser,
-    createServerClientMock: vi.fn(() => ({
-      auth: {
-        getUser,
-      },
-      from: vi.fn(() => profileQueryChain),
-    })),
-  };
-});
-
-vi.mock("@supabase/ssr", () => ({
-  createServerClient: createServerClientMock,
+const { verifySessionTokenMock } = vi.hoisted(() => ({
+  verifySessionTokenMock: vi.fn(),
 }));
 
-vi.mock("@/lib/env", () => ({
-  hasSupabaseEnv: vi.fn(() => true),
-  requireSupabasePublicEnv: vi.fn(() => ({
-    supabaseUrl: "https://example.supabase.co",
-    supabasePublishableKey: "sb_publishable_key",
-  })),
-}));
-
-vi.mock("@/lib/auth", () => ({
-  ensureProfileForClient: vi.fn(
-    async (_client: unknown, user: { id: string; email?: string | null }) => ({
-      id: user.id,
-      email: user.email ?? "",
-      is_allowed: user.email === "allowed@example.com",
-      created_at: "",
-      updated_at: "",
-    }),
-  ),
+vi.mock("@/lib/session", () => ({
+  verifySessionToken: verifySessionTokenMock,
 }));
 
 import { config, proxy } from "@/proxy";
+import { SESSION_COOKIE } from "@/lib/auth-config";
+
+function requestWithSession(url: string, token?: string) {
+  const request = new NextRequest(url);
+  if (token) {
+    request.cookies.set(SESSION_COOKIE, token);
+  }
+  return request;
+}
 
 describe("proxy", () => {
   beforeEach(() => {
@@ -59,31 +30,32 @@ describe("proxy", () => {
   });
 
   it("redirects unauthenticated app requests to login", async () => {
-    getUserMock.mockResolvedValue({
-      data: {
-        user: null,
-      },
-    });
+    verifySessionTokenMock.mockResolvedValue(false);
 
-    const response = await proxy(new NextRequest("http://localhost/app"));
+    const response = await proxy(requestWithSession("http://localhost/app"));
 
     expect(response.headers.get("location")).toBe(
       "http://localhost/login?reason=signin",
     );
   });
 
-  it("redirects authenticated allowed users away from login", async () => {
-    getUserMock.mockResolvedValue({
-      data: {
-        user: {
-          id: "uid",
-          email: "allowed@example.com",
-        },
-      },
-    });
+  it("redirects authenticated users away from login", async () => {
+    verifySessionTokenMock.mockResolvedValue(true);
 
-    const response = await proxy(new NextRequest("http://localhost/login"));
+    const response = await proxy(
+      requestWithSession("http://localhost/login", "valid-token"),
+    );
 
     expect(response.headers.get("location")).toBe("http://localhost/app");
+  });
+
+  it("lets authenticated users through to app routes", async () => {
+    verifySessionTokenMock.mockResolvedValue(true);
+
+    const response = await proxy(
+      requestWithSession("http://localhost/app", "valid-token"),
+    );
+
+    expect(response.headers.get("location")).toBeNull();
   });
 });

@@ -1,116 +1,79 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { getAllowedEmails } from "@/lib/env";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
+import {
+  FIXED_USER_EMAIL,
+  FIXED_USER_ID,
+  SESSION_COOKIE,
+} from "@/lib/auth-config";
+import { verifySessionToken } from "@/lib/session";
+import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { Database } from "@/lib/supabase/database.types";
 import type { ProfileRecord } from "@/lib/types";
 
 type AuthedClient = SupabaseClient<Database>;
 
-export function isAllowedEmail(email?: string | null) {
-  if (!email) {
-    return false;
-  }
+/**
+ * The single user is synthetic: it is not backed by Supabase Auth. Only `.id`
+ * (for data ownership scoping) and `.email` (for the identity label in the UI)
+ * are ever read downstream, so we cast a minimal object to the `User` shape.
+ */
+const SYNTHETIC_USER = {
+  id: FIXED_USER_ID,
+  email: FIXED_USER_EMAIL,
+} as unknown as User;
 
-  const allowed = getAllowedEmails();
-  return allowed.includes(email.trim().toLowerCase());
+function syntheticProfile(): ProfileRecord {
+  const now = new Date().toISOString();
+  return {
+    id: FIXED_USER_ID,
+    email: FIXED_USER_EMAIL,
+    is_allowed: true,
+    created_at: now,
+    updated_at: now,
+  } as ProfileRecord;
 }
 
-const PROFILE_COLUMNS = "id, email, is_allowed, created_at, updated_at";
+type AuthContext = {
+  supabase: AuthedClient | null;
+  user: User | null;
+  profile: ProfileRecord | null;
+  isAllowed: boolean;
+};
 
 /**
- * Ensures a profile row exists for the user and returns it. Shared by both the
- * request-time proxy guard and server-side `getCurrentUser`, so the create /
- * sync logic lives in exactly one place.
+ * Resolves the current request's auth context from the signed session cookie.
  *
- * Creation is race-safe: the upsert with `ignoreDuplicates` is a single atomic
- * `INSERT ... ON CONFLICT DO NOTHING`, so two simultaneous first-time requests
- * can never collide on the primary key. Critically, it never overwrites
- * `is_allowed` for an existing row — runtime authorization is profile-backed and
- * the env allowlist only seeds the value on first insert.
+ * There is no Supabase Auth session anymore, so app data is accessed through the
+ * service-role admin client (which bypasses RLS). Ownership is still enforced in
+ * code via the fixed `user.id` that every query scopes on. When the session
+ * cookie is missing or invalid, returns a fully-null context (callers 401 or
+ * redirect on `!user`).
  */
-export async function ensureProfileForClient(
-  client: AuthedClient,
-  user: Pick<User, "id" | "email">,
-): Promise<ProfileRecord> {
-  const nextEmail = user.email ?? "";
+export async function getCurrentUser(): Promise<AuthContext> {
+  const cookieStore = await cookies();
+  const token = cookieStore.get(SESSION_COOKIE)?.value;
 
-  const { error: seedError } = await client.from("profiles").upsert(
-    {
-      id: user.id,
-      email: nextEmail,
-      is_allowed: isAllowedEmail(user.email),
-    },
-    { onConflict: "id", ignoreDuplicates: true },
-  );
-
-  if (seedError) {
-    throw seedError;
+  if (!(await verifySessionToken(token))) {
+    return { supabase: null, user: null, profile: null, isAllowed: false };
   }
-
-  const { data: existing, error: loadError } = await client
-    .from("profiles")
-    .select(PROFILE_COLUMNS)
-    .eq("id", user.id)
-    .single();
-
-  if (loadError) {
-    throw loadError;
-  }
-
-  const profile = existing as ProfileRecord;
-  if (profile.email === nextEmail) {
-    return profile;
-  }
-
-  const { data: updated, error: updateError } = await client
-    .from("profiles")
-    .update({ email: nextEmail, updated_at: new Date().toISOString() })
-    .eq("id", user.id)
-    .select(PROFILE_COLUMNS)
-    .single();
-
-  if (updateError) {
-    throw updateError;
-  }
-
-  return updated as ProfileRecord;
-}
-
-export async function getCurrentUser() {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return {
-      supabase,
-      user: null,
-      profile: null,
-      isAllowed: false,
-    };
-  }
-
-  const profile = await ensureProfileForClient(supabase, user);
 
   return {
-    supabase,
-    user,
-    profile,
-    isAllowed: profile.is_allowed,
+    supabase: createSupabaseAdminClient(),
+    user: SYNTHETIC_USER,
+    profile: syntheticProfile(),
+    isAllowed: true,
   };
 }
 
 /**
- * Requires an authenticated and authorized user. If the user is not logged in
- * or their profile is not allowed, this function throws via `redirect("/login")`
+ * Requires an authenticated session. If absent, throws via `redirect("/login")`
  * (a Next.js internal error) and never returns. On success it returns a fully
- * narrowed context with a guaranteed `user`, `profile`, and `supabase` client.
+ * narrowed context with a guaranteed `user`, `profile`, and admin `supabase`.
  */
 export async function requireAllowedUser() {
   const context = await getCurrentUser();
-  if (!context.user || !context.profile?.is_allowed) {
+  if (!context.supabase || !context.user || !context.profile) {
     redirect("/login");
   }
 
@@ -120,9 +83,4 @@ export async function requireAllowedUser() {
     profile: context.profile,
     isAllowed: true as const,
   };
-}
-
-export async function syncProfile(user: User) {
-  const supabase = await createSupabaseServerClient();
-  await ensureProfileForClient(supabase, user);
 }

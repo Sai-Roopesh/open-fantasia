@@ -11,7 +11,7 @@ Open-Fantasia is a private roleplay workspace for long-form AI conversations. It
 
 ## Core Capabilities
 
-- Magic-link sign-in with allowlisted access
+- Single-user sign-in with a hardcoded username/password
 - Persona library with a single default persona per user
 - Character studio with starters, examples, generation settings, and portrait generation
 - BYOK provider lanes for Google AI Studio, Groq, Mistral, OpenRouter, and Ollama-compatible endpoints
@@ -63,10 +63,10 @@ Open-Fantasia is a private roleplay workspace for long-form AI conversations. It
 | --- | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Public Supabase project URL |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Yes | Public anon/publishable key |
-| `SUPABASE_SERVICE_ROLE_KEY` | Yes for portraits/jobs | Required by the admin client and the internal job drain |
-| `ALLOWED_EMAILS` | Yes | Comma-separated bootstrapping allowlist |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Required by the admin client used for all app data access |
 | `APP_ENCRYPTION_KEY` | Yes | Must be a 64-character hex string |
-| `NEXT_PUBLIC_SITE_URL` | Yes outside local dev | Used in magic-link redirects; Vercel env fallbacks also exist |
+| `AUTH_USERNAME` / `AUTH_PASSWORD` | Optional | Override the hardcoded login (defaults `roops21` / `chinnu21$`) |
+| `AUTH_SESSION_SECRET` | Optional | Signs the session cookie; falls back to `APP_ENCRYPTION_KEY` then a built-in constant |
 | `CRON_SECRET` | Optional unless calling the internal job route | Protects `/api/internal/jobs/run` |
 
 Generate a valid encryption key with:

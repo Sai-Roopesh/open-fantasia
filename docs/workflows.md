@@ -10,9 +10,9 @@ Get a brand-new user from no data to a usable thread.
 
 ### Expected path
 
-1. User requests a magic link from `/login`.
-2. Supabase callback lands at `/auth/callback`.
-3. `src/proxy.ts` ensures a `profiles` row exists and checks allowlist status.
+1. User signs in with username + password at `/login`.
+2. `signIn(...)` validates the hardcoded credential and sets the signed session cookie.
+3. `src/proxy.ts` verifies the session cookie on each `/app/*` request.
 4. The protected dashboard (`/app`) shows readiness state.
 5. User creates a default persona.
 6. User saves at least one provider connection.
@@ -33,14 +33,14 @@ Get a brand-new user from no data to a usable thread.
 
 ### What happens
 
-- The login form submits to `requestMagicLink(...)`.
-- `NEXT_PUBLIC_SITE_URL` determines the email redirect target.
-- After auth completes, app code creates or updates the `profiles` record.
-- Access to `/app/*` depends on `profiles.is_allowed`.
+- The login form submits to `signIn(...)`.
+- `checkCredentials(...)` compares the input against the hardcoded `AUTH_USERNAME` / `AUTH_PASSWORD`.
+- On success a signed session cookie (`of_session`) is set; on failure the form redirects back with `?reason=invalid`.
+- Access to `/app/*` depends on a valid session cookie, verified in `src/proxy.ts`.
 
 ### Important nuance
 
-`ALLOWED_EMAILS` is only the bootstrap rule used when creating a new profile. Once the row exists, the live source of truth is the `profiles.is_allowed` value in the database.
+There is no Supabase Auth and no sign-up. The single user is synthetic (`FIXED_USER_ID` in `src/lib/auth-config.ts`) and owns every row; app data is accessed through the service-role admin client, which bypasses RLS.
 
 ## 3. Provider Lane Setup
 
