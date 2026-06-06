@@ -38,6 +38,9 @@ yarn-error.log*
 # vercel
 .vercel
 
+# supabase CLI local scratch state (project ref, pooler URL, version caches)
+supabase/.temp/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
@@ -53,4 +56,3 @@ DESIGN.md
 
 deploy.log
 scratch/
-scripts/cleanup-hce-state.ts

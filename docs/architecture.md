@@ -4,7 +4,7 @@ This document describes the current runtime shape of Open-Fantasia as implemente
 
 ## System Overview
 
-Open-Fantasia is a private Next.js App Router application with a Supabase-backed persistence layer and a Vercel AI SDK v6 chat runtime. The product is intentionally single-user in tone and workflow, but the schema still models ownership through `user_id` and RLS throughout.
+Open-Fantasia is a private Next.js App Router application with a Supabase-backed persistence layer and a Vercel AI SDK v6 chat runtime. The product is intentionally single-user: a hardcoded credential gates access and all data flows through the service-role admin client, which bypasses RLS. The schema still carries `user_id` ownership and `auth.uid()` RLS policies, but app-layer scoping on `FIXED_USER_ID` — and explicit `p_user_id` arguments on the ownership RPCs — is the actual gate.
 
 The codebase is organized into five explicit layers with a strict dependency direction:
 
