@@ -78,8 +78,16 @@ describe("buildRoleplaySystemPrompt", () => {
     expect(prompt).toContain("<durable_state>");
     expect(prompt).toContain("No world state has been materialized yet.");
     expect(prompt).toContain("<response_contract>");
-    expect(prompt).toContain("Advance the plot by one concrete beat");
+    expect(prompt).toContain("Advance the plot by at least one concrete, NEW beat");
     expect(prompt).toContain("COMPLETION RULE");
+    // The anti-repetition guidance must stay in the cached prompt prefix, i.e.
+    // before the dynamic durable_state SECTION, so it never breaks cache hits.
+    // (`<durable_state>` also appears as a reference in core_directives, so use
+    // lastIndexOf to anchor on the actual section tag.)
+    expect(prompt).toContain("<continuity_and_variation>");
+    expect(prompt.indexOf("<continuity_and_variation>")).toBeLessThan(
+      prompt.lastIndexOf("<durable_state>"),
+    );
     expect(prompt).not.toContain("Hey there.");
   });
 

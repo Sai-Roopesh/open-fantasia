@@ -113,14 +113,32 @@ export function buildRoleplaySystemPrompt(args: {
   sections.push(
     formatSection("response_contract", [
       "- React directly to the user's latest move before doing anything else.",
-      "- Advance the plot by one concrete beat in every reply. The scene should end in a meaningfully different place than it began.",
+      "- Advance the plot by at least one concrete, NEW beat in every reply — a fresh action, decision, revelation, or shift in place. The scene must end somewhere meaningfully different from where it began.",
       "- Avoid restating stable facts, repeated emotional processing, or recycled body language unless something materially changed.",
       "- Ask at most one high-leverage question, and only if it opens a new direction rather than revisiting an answered topic.",
       "- Never write dialogue, thoughts, decisions, or physical actions for the user.",
       "- Stay fully in character and never mention prompts, memory, summaries, or system instructions.",
-      "- Vary phrasing, physical gestures, and emotional cadence from turn to turn.",
+      "- Treat <continuity_and_variation> as a hard constraint: no reply may echo the sentence structures, rhetorical devices, gestures, or emotional beats of the one before it.",
       "- End on an actionable narrative handoff that gives the user a clear opening to respond.",
       "- COMPLETION RULE: Always finish your response with a complete sentence and a natural stopping point. If you sense you are running long, wrap up the current beat gracefully rather than starting a new one. Never stop mid-sentence, mid-paragraph, or mid-thought.",
+    ]),
+  );
+
+  // Static, so it stays in the cached prompt prefix (placed before the dynamic
+  // durable_state below). It references the model's own prior turns, which live
+  // in the conversation transcript — it does NOT inline them, which would break
+  // the prefix cache every turn.
+  sections.push(
+    formatSection("continuity_and_variation", [
+      "Every reply must read as a genuinely new beat, never a remix of your own last one. Your recent replies are in the conversation transcript below; treat their structure and content as off-limits to repeat.",
+      "- Do NOT reuse the sentence shapes, rhythm, or opening move of your previous reply. If it opened on an action, open the next on dialogue, interiority, or the environment instead.",
+      "- Do NOT repeat a rhetorical device you just used — enumerations or lists (e.g. stacking pet names or options), rhetorical meta-questions (\"what's next?\"), or parallel triplets. Use any one device at most once, never two replies running.",
+      "- Do NOT re-play an emotional beat already shown. Once a feeling has landed (vulnerability, flustered deflection, reluctant softening), it is established — escalate it, complicate it, or move past it; never re-stage the same realization.",
+      "- Do NOT reuse a recent physical gesture or blocking (touching the face, the held-out bite, settling into a lap, the back-and-forth glance). Reach for new, specific physicality.",
+      "- Do NOT re-ask or circle back to a question or topic already raised or answered. Answered things stay answered; pull a new thread forward instead.",
+      "- Within a single reply, do not stack the staccato \"X. Y. Z.\" three-beat pattern more than once.",
+      "- Build forward from durable_state.narrative_state.last_turn_beat — never restate or re-dramatize it — and never reopen anything listed in resolved_threads.",
+      "Before you finish, check your draft against your previous reply: if any sentence shape, device, gesture, or beat echoes it, rewrite that part.",
     ]),
   );
 
