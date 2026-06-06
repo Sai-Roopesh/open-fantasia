@@ -8,6 +8,11 @@ import {
 import { chatTurnRequestSchema, getValidationErrorMessage } from "@/lib/validation";
 import { MAX_CHAT_TURN_TEXT, buildChatTurnLimitMessage } from "@/lib/chat-limits";
 
+// The streaming turn closes as soon as the assistant text is committed; HCE
+// materialization runs in the background via `after()`. This ceiling is headroom
+// for a long generation plus that background pass (Vercel clamps to the plan max).
+export const maxDuration = 60;
+
 const chatRouteRequestSchema = z
   .object({
     threadId: z.string().uuid(),

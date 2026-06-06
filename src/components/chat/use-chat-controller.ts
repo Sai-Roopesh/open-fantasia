@@ -119,6 +119,9 @@ export function useChatController(switchActions: SwitchActions) {
             attemptedDraftRef.current = null;
             applySlice(result.slice, true);
             dispatch({ type: "setFailedDraft", draft: null });
+            // The turn actually landed — clear any error surfaced by an aborted
+            // or timed-out stream so the reply isn't accompanied by a stale banner.
+            dispatch({ type: "setError", error: null });
             return;
           }
         }
@@ -135,12 +138,18 @@ export function useChatController(switchActions: SwitchActions) {
     dispatch({ type: "clearPending" });
   }, [threadId, chat, applySlice, dispatch]);
 
-  // Fire the reconcile exactly once per stream, on streaming/submitted -> ready.
+  // Fire the reconcile exactly once per stream, on streaming/submitted -> ready
+  // OR -> error. Reconciling on error too is what makes the UI self-heal when the
+  // stream is aborted (e.g. a serverless timeout): the turn is already committed,
+  // so the reconcile pulls it in instead of leaving the user to refresh.
   const prevStatusRef = useRef(status);
   useEffect(() => {
     const prev = prevStatusRef.current;
     prevStatusRef.current = status;
-    if ((prev === "streaming" || prev === "submitted") && status === "ready") {
+    if (
+      (prev === "streaming" || prev === "submitted") &&
+      (status === "ready" || status === "error")
+    ) {
       void reconcileAfterStream();
     }
   }, [status, reconcileAfterStream]);

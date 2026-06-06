@@ -2,6 +2,9 @@ import { getCurrentUser } from "@/lib/auth";
 import { generateStarterTurn } from "@/lib/services/generation-service";
 import { starterSeedRequestSchema } from "@/lib/validation";
 
+// Headroom for generation plus the background HCE materialization (`after()`).
+export const maxDuration = 60;
+
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ threadId: string }> },
