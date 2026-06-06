@@ -4,16 +4,14 @@ This document explains the current persisted model for Open-Fantasia, including 
 
 ## Schema Overview
 
-The primary schema lives in `supabase/migrations/0001_baseline.sql`.
-
-The repo intentionally keeps that file as a squashed, live-derived baseline of the linked Supabase project's `public` schema plus required storage bucket configuration. Older intermediate migrations are folded into that baseline instead of being preserved in the repo.
+The schema is a squashed baseline (`supabase/migrations/0001_baseline.sql`) plus incremental migrations (`0002`–`0009`). The baseline is a live-derived snapshot of the linked Supabase project's `public` schema plus required storage bucket configuration; the incrementals layer on top of it and are preserved in the repo. The live schema equals the baseline **plus** those migrations.
 
 The application uses:
 
-- Supabase Auth for identity
+- a single hardcoded credential for identity (no Supabase Auth; see `src/lib/auth-config.ts`)
 - Postgres tables under `public`
 - Supabase Storage for portrait assets
-- row-level security on all application tables
+- row-level security policies on all application tables, retained but **bypassed** by the service-role admin client (ownership is enforced in app code and in RPC `p_user_id` arguments)
 - SQL RPCs for multi-step thread operations
 
 ## Core Entity Groups
@@ -49,16 +47,11 @@ The application uses:
 
 | Table | Purpose | Key columns |
 | --- | --- | --- |
-| `world_snapshots` | per-turn narrative state checkpoint | `turn_id`, `story_summary`, `scene_summary`, `last_turn_beat`, `narrative_timestamp`, `transition_type`, `version`, `is_full_materialization`, `based_on_turn_id` |
-| `world_entities` | tracked characters, NPCs, creatures, objects, and groups | `canonical_name`, `entity_type`, `aliases`, `is_present`, `primary_emotion`, `emotion_intensity`, `emotion_catalyst`, `valid_from_turn_id`, `invalidated_at_turn_id` |
-| `world_entity_facts` | knowledge, traits, goals, secrets, abilities, possessions attached to entities | `entity_id`, `fact_type`, `body`, `valid_from_turn_id`, `invalidated_at_turn_id` |
-| `world_relationships` | dynamic relationships between entities | `source_entity_id`, `target_entity_id`, `relationship_type`, `dynamic_status`, `valid_from_turn_id`, `invalidated_at_turn_id` |
-| `world_locations` | named locations in the spatial DAG | `canonical_name`, `description`, `environmental_modifiers`, `valid_from_turn_id`, `invalidated_at_turn_id` |
-| `world_location_edges` | spatial connections between locations | `from_location_id`, `to_location_id`, `is_bidirectional`, `valid_from_turn_id`, `invalidated_at_turn_id` |
-| `world_entity_placements` | which entity is at which location | `entity_id`, `location_id`, `micro_position`, `valid_from_turn_id`, `invalidated_at_turn_id` |
-| `world_narrative_threads` | active plot threads and objectives | `objective`, `status`, `dependency_ids`, `valid_from_turn_id`, `invalidated_at_turn_id` |
+| `world_snapshots` | per-turn durable world state, stored as one JSONB blob | `turn_id`, `thread_id`, `branch_id`, `based_on_turn_id`, `world_state` (JSONB), `version`, `is_full_materialization` |
 | `chat_timeline_events` | notable moments surfaced in the inspector | `title`, `detail`, `importance`, `event_type`, `turn_id`, `affected_entity_ids`, `affected_relationship_ids` |
 | `chat_pins` | manually pinned facts or reminders | `body`, `status`, `turn_id` |
+
+World state is a single `DurableMemorySnapshot` JSONB blob per turn in `world_snapshots.world_state` (sub-objects: `metadata`, `entity_state`, `relational_state`, `spatial_state`, `narrative_state`). This replaced an earlier normalized model — migrations `0005`–`0007` add the `world_state` column, move all content into it, and **drop** the legacy `world_*` tables (`world_entities`, `world_entity_facts`, `world_relationships`, `world_locations`, `world_location_edges`, `world_entity_placements`, `world_narrative_threads`) and the old scalar columns (`story_summary`, `scene_summary`, `last_turn_beat`, `narrative_timestamp`, `transition_type`). Snapshot reads are a pure blob parse (`src/lib/domain/world-snapshot.ts`); mutations apply in memory via `src/lib/domain/world-state-reducer.ts` before one atomic `upsert_world_snapshot` RPC.
 
 ### Background work
 
@@ -68,7 +61,7 @@ The application uses:
 
 ## Relationship Summary
 
-- `profiles.id` references `auth.users(id)`
+- `profiles.id` is a standalone UUID — the FK to `auth.users` was dropped in `0008`, and the single fixed user (`FIXED_USER_ID`) is seeded directly
 - each `ai_connections`, `user_personas`, and `characters` row belongs to one profile
 - each `chat_thread` belongs to one profile and references one character, connection, and optional persona
 - each `chat_branch` belongs to one thread
@@ -111,16 +104,16 @@ Stored object paths are built as:
 
 ## Key SQL Functions
 
-The schema deliberately pushes several multi-step operations into SQL functions.
+The schema deliberately pushes several multi-step operations into SQL functions. Because the service-role client makes `auth.uid()` NULL inside Postgres, every ownership-gated RPC takes an explicit `p_user_id` (migration `0009`) and enforces ownership against it — never `auth.uid()`.
 
 ### Identity and branch management
 
-- `set_default_persona(target_persona_id uuid)`
+- `set_default_persona(p_user_id uuid, target_persona_id uuid)`
   - clears other defaults for the same user and marks the chosen persona as default
-- `activate_branch(p_thread_id uuid, p_branch_id uuid)`
+- `activate_branch(p_user_id uuid, p_thread_id uuid, p_branch_id uuid)`
   - deactivates the current active branch and activates the chosen branch
 - `owns_thread(target_thread_id uuid)`
-  - security helper used by policies and task checks
+  - legacy `auth.uid()`-based helper retained only for the (now bypassed) RLS policies; not called by app code
 
 ### Turn lifecycle
 
@@ -163,38 +156,30 @@ The claim functions implement `FOR UPDATE SKIP LOCKED` task claiming and increme
 
 ## RLS Model
 
-Every application table has row-level security enabled.
-
-Broadly:
+Every application table has row-level security policies, but they are **not the access gate**: all app data is read and written through the service-role admin client, which bypasses RLS. The policies are kept for defense-in-depth (in case RLS is ever re-enabled), and broadly:
 
 - identity-owned tables use direct `user_id = auth.uid()` checks
 - thread-derived tables use helper checks such as `owns_thread(thread_id)`
-- task tables are scoped so authenticated users can only insert or update work tied to their own thread or user
 
-Future schema changes should preserve the same ownership boundaries unless a multi-user feature is being intentionally introduced.
+Because the service role bypasses RLS, these `auth.uid()` policies currently never fire — `auth.uid()` is NULL under the service-role client. Ownership is instead enforced in application code (every query scopes on `FIXED_USER_ID`) and in the RPCs (explicit `p_user_id`). Any new RPC must take the user id explicitly rather than rely on `auth.uid()`.
 
-## Baseline Source of Truth
+## Source of Truth
 
-### `0001_baseline.sql`
+### `0001_baseline.sql` + incrementals
 
-The baseline now contains the current live schema, including:
+`0001_baseline.sql` captures the `public` schema as of the squash point — all tables, storage bucket, indexes, triggers, the original SQL RPCs and RLS policies, destructive rewind semantics, portrait task RLS hardening, and the removal of the old queued continuity pipeline (`turn_reconcile_tasks` / `claim_turn_reconcile_tasks(...)`).
 
-- all tables
-- storage bucket
-- indexes
-- triggers
-- all current SQL RPCs
-- RLS policies
-- destructive rewind semantics
-- HCE world state tables (`world_snapshots`, `world_entities`, `world_entity_facts`, `world_relationships`, `world_locations`, `world_location_edges`, `world_entity_placements`, `world_narrative_threads`)
-- portrait task RLS hardening
-- removal of the old queued continuity pipeline (`turn_reconcile_tasks` and `claim_turn_reconcile_tasks(...)` are no longer present)
+Migrations `0002`–`0009` then evolve it; the **live schema is the baseline plus those migrations**. Notably:
 
-When the schema is deliberately re-baselined, the expected workflow is:
+- `0005`–`0007` replace the normalized HCE world-state tables with a single `world_state` JSONB column on `world_snapshots` and drop the legacy tables/columns
+- `0008` decouples `profiles` from Supabase Auth and seeds the fixed user
+- `0009` makes the ownership RPCs take an explicit `p_user_id` (since `auth.uid()` is NULL under the service-role client)
+
+The migration files, the `supabase_migrations.schema_migrations` ledger, and the live schema are kept in agreement — that is the single source of truth. When the schema is deliberately re-baselined, the expected workflow is:
 
 - fetch the live schema from Supabase
 - fold required non-schema config such as storage bucket rows back into `0001_baseline.sql`
-- repair remote migration history so the baseline remains the only applied repo migration
+- repair remote migration history so the ledger matches the repo migrations
 
 ## Runtime Invariants That Matter During Changes
 

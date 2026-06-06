@@ -1,6 +1,6 @@
 # Open-Fantasia
 
-Open-Fantasia is a private roleplay workspace for long-form AI conversations. It combines a guarded Supabase-backed app shell, user-managed provider connections, explicit personas and character sheets, threaded branching chat, inline continuity materialization, and asynchronous portrait generation.
+Open-Fantasia is a private roleplay workspace for long-form AI conversations. It combines a guarded single-user app shell, user-managed provider connections, explicit personas and character sheets, threaded branching chat, inline continuity materialization, and asynchronous portrait generation.
 
 ## Documentation Map
 
@@ -27,7 +27,8 @@ Open-Fantasia is a private roleplay workspace for long-form AI conversations. It
 | App framework | Next.js 16 App Router |
 | UI | React 19, Tailwind CSS 4, Base UI, custom primitives |
 | AI | Vercel AI SDK v6 |
-| Auth + data | Supabase |
+| Auth | Hardcoded single-user login + signed session cookie |
+| Data | Supabase (Postgres, RLS, SQL RPCs) |
 | Storage | Supabase Storage (`character-portraits`) |
 | Transcript rendering | `@chenglou/pretext` plus custom markdown-lite parsing |
 | Testing | Vitest, Playwright |
@@ -75,13 +76,11 @@ Generate a valid encryption key with:
 openssl rand -hex 32
 ```
 
-Note: `.env.example` still contains `ENABLE_LOCAL_DEV_AUTH_BYPASS`, but the current codebase does not read it.
+Note: `.env.example` lists only the variables the app actually reads; legacy auth-bypass and allowed-email variables have been removed.
 
 ## Database Setup
 
-The repo intentionally keeps one checked-in migration: `supabase/migrations/0001_baseline.sql`.
-
-That baseline is derived from the linked Supabase project's live `public` schema plus required storage bucket configuration. If schema history is intentionally reset again, regenerate the baseline from Supabase itself and repair the remote migration ledger in the same pass.
+The schema is a squashed baseline (`supabase/migrations/0001_baseline.sql`) plus incremental migrations (`0002`–`0009`). The baseline is derived from the linked Supabase project's live `public` schema plus required storage bucket configuration; the incrementals layer on top of it, and together they reproduce the live schema exactly. If schema history is intentionally reset again, regenerate the baseline from Supabase itself and repair the remote migration ledger in the same pass.
 
 The generated TypeScript bindings are checked in at `src/lib/supabase/database.types.ts`.
 
@@ -113,8 +112,8 @@ pnpm eval:hybrid-memory
 - Route protection is handled by `src/proxy.ts` plus `requireAllowedUser()` checks.
 - Most user mutations are implemented as server actions in route-local `actions.ts` files.
 - The main streaming turn path is `src/app/api/chat/route.ts`.
-- Thread read models are assembled in `src/lib/threads/read-model.ts`.
-- Continuity snapshots are materialized inline through `src/lib/ai/continuity.ts` using durable branch memory plus a short recent-scene window.
+- Thread read models are assembled in `src/lib/domain/thread-assembly.ts` and `src/lib/services/thread-reader.ts`.
+- Continuity snapshots are materialized inline through `src/lib/services/continuity-service.ts` (pure extraction in `src/lib/ai/continuity.ts`) using durable branch memory plus a short recent-scene window.
 - Portrait jobs are queued in `character_portrait_tasks` and drained by `src/lib/jobs/task-drain.ts`.
 
 ## Background Work
@@ -134,6 +133,6 @@ pnpm eval:hybrid-memory
 
 - Auth/access issues: `src/proxy.ts`, `src/lib/auth.ts`, `src/lib/env.ts`
 - Provider/model issues: `src/lib/ai/catalog.ts`, `src/lib/ai/provider-factory.ts`, `src/lib/data/connections.ts`
-- Chat generation issues: `src/app/api/chat/route.ts`, `src/lib/ai/thread-generation-service.ts`, `src/lib/ai/continuity.ts`
+- Chat generation issues: `src/app/api/chat/route.ts`, `src/lib/services/generation-service.ts`, `src/lib/services/continuity-service.ts`, `src/lib/ai/continuity.ts`
 - Branching/rewind issues: `src/lib/data/branches.ts`, chat API routes under `src/app/api/chats/[threadId]/`
 - Persistence/schema issues: `docs/data-model.md` and `supabase/migrations/`
