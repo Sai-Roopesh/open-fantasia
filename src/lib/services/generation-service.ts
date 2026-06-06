@@ -1,5 +1,4 @@
 import { convertToModelMessages, generateText, smoothStream, streamText } from "ai";
-import { after } from "next/server";
 import { getTextFromMessage } from "@/lib/utils/message-text";
 import { createLanguageModel } from "@/lib/ai/provider-factory";
 import { insertTimelineEvent } from "@/lib/data/timeline";
@@ -43,56 +42,6 @@ function toRouteError(error: unknown): Response {
  * a blocked state). It is logged and left for the next generation/page load,
  * where loadGenerationRuntime re-materializes any missing head snapshot.
  */
-/**
- * Schedules HCE materialization to run AFTER the response is sent (via Next's
- * `after`), instead of awaiting it inline.
- *
- * Materialization is a second LLM call (the brain-model extraction). Awaiting it
- * inside a streaming turn's `onFinish` kept the streaming HTTP response open for
- * the whole extraction — on Vercel that ran the function past its timeout and the
- * connection was aborted, so the client never saw a clean stream finish: the
- * reply only appeared after a manual refresh. Deferring it lets the stream close
- * the instant the turn is committed. It is idempotent and is re-materialized on
- * the next load if this background pass does not finish, so deferring is safe.
- */
-function scheduleMaterialization(args: {
-  supabase: DatabaseClient;
-  userId: string;
-  threadId: string;
-  turnId: string;
-  runtime: GenerationRuntime;
-}): void {
-  const { supabase, userId, threadId, turnId, runtime } = args;
-  const run = async () => {
-    try {
-      await materializeSnapshotForTurn({
-        supabase,
-        userId,
-        threadId,
-        turnId,
-        connection: runtime.brainConnection,
-        modelId: runtime.brainModelId,
-        character: runtime.character.character,
-      });
-    } catch (error) {
-      console.error("[HCE] Background materialization failed; will retry on next load.", {
-        threadId,
-        turnId,
-        error: error instanceof Error ? error.message : String(error),
-      });
-    }
-  };
-  try {
-    // Preferred: runs after the response is flushed (kept alive by the platform).
-    after(run);
-  } catch {
-    // `after()` can only be registered inside a live request scope. If we somehow
-    // aren't in one, fall back to fire-and-forget — never let scheduling throw
-    // into the stream's onFinish. The snapshot re-materializes on the next load.
-    void run();
-  }
-}
-
 async function commitThenMaterialize(args: {
   supabase: DatabaseClient;
   userId: string;
@@ -118,8 +67,23 @@ async function commitThenMaterialize(args: {
     throw error;
   }
 
-  // Do NOT await: the stream must close as soon as the turn is committed.
-  scheduleMaterialization({ supabase, userId, threadId, turnId, runtime });
+  try {
+    await materializeSnapshotForTurn({
+      supabase,
+      userId,
+      threadId,
+      turnId,
+      connection: runtime.brainConnection,
+      modelId: runtime.brainModelId,
+      character: runtime.character.character,
+    });
+  } catch (error) {
+    console.error("[HCE] Post-commit materialization failed; will retry on next load.", {
+      threadId,
+      turnId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+  }
 }
 
 export async function streamNewTurn(args: {
@@ -618,7 +582,15 @@ export async function rewriteLatestTurn(args: {
       });
     }
 
-    scheduleMaterialization({ supabase, userId, threadId, turnId: reservedTurn.id, runtime });
+    await materializeSnapshotForTurn({
+      supabase,
+      userId,
+      threadId,
+      turnId: reservedTurn.id,
+      connection: runtime.brainConnection,
+      modelId: runtime.brainModelId,
+      character: runtime.character.character,
+    });
 
     // buildSliceResponse imported at top
     return buildSliceResponse(supabase, userId, threadId);
@@ -742,7 +714,15 @@ export async function generateStarterTurn(args: {
       affected_relationship_ids: [],
     });
 
-    scheduleMaterialization({ supabase, userId, threadId, turnId: reservedTurn.id, runtime });
+    await materializeSnapshotForTurn({
+      supabase,
+      userId,
+      threadId,
+      turnId: reservedTurn.id,
+      connection: runtime.brainConnection,
+      modelId: runtime.brainModelId,
+      character: runtime.character.character,
+    });
 
     // buildSliceResponse imported at top
     return buildSliceResponse(supabase, userId, threadId);
