@@ -113,12 +113,12 @@ pnpm eval:hybrid-memory
 - Most user mutations are implemented as server actions in route-local `actions.ts` files.
 - The main streaming turn path is `src/app/api/chat/route.ts`.
 - Thread read models are assembled in `src/lib/domain/thread-assembly.ts` and `src/lib/services/thread-reader.ts`.
-- Continuity snapshots are materialized inline through `src/lib/services/continuity-service.ts` (pure extraction in `src/lib/ai/continuity.ts`) using durable branch memory plus a short recent-scene window.
+- Continuity snapshots are materialized in the background (scheduled with `after()`, after the turn commits) through `src/lib/services/continuity-service.ts` (pure extraction in `src/lib/ai/continuity.ts`) using durable branch memory plus a short recent-scene window.
 - Portrait jobs are queued in `character_portrait_tasks` and drained by `src/lib/jobs/task-drain.ts`.
 
 ## Background Work
 
-- Continuity is synchronous with turn commit in current runtime behavior.
+- Continuity materializes in the background immediately after turn commit (scheduled with `after()`), so the streaming reply is never blocked on the brain-model extraction.
 - Portrait generation remains asynchronous and is scheduled with `after()` in `src/lib/jobs/schedule-task-drain.ts`.
 - The manual internal worker route remains available at `/api/internal/jobs/run`.
 

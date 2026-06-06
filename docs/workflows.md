@@ -158,9 +158,9 @@ Before the first visible turn, the user can seed the opening scene with hidden g
 2. Server loads the thread runtime and asserts branch readiness.
 3. Server reserves a turn and locks the active branch.
 4. AI SDK streams the assistant reply from the hybrid prompt context: durable branch memory, current-scene memory, filtered pins/timeline, and the last 4 committed turns of exact transcript context plus the new user message.
-5. On finish, the turn is committed.
-6. Continuity is materialized inline from the parent snapshot plus the last 15 committed turns on the active path.
-7. The client refreshes the page state.
+5. On finish, the turn is committed and the streaming response closes immediately.
+6. Continuity then materializes in the background (scheduled with `after()`) from the parent snapshot plus the last 15 committed turns on the active path — it never blocks the stream. It is idempotent and re-runs on the next load if cut short.
+7. The client reconciles to the authoritative slice (read-your-writes); it does not blind-refresh.
 
 ### Files to inspect
 

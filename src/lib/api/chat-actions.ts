@@ -30,7 +30,12 @@ async function parseMutationResult(response: Response): Promise<MutationResult> 
 }
 
 export async function getSlice(threadId: string): Promise<MutationResult> {
-  const response = await fetch(`/api/chats/${threadId}/slice`, { method: "GET" });
+  // no-store: the reconcile read must always see the just-committed turn, never a
+  // cached transcript (a stale read would blank the streamed reply).
+  const response = await fetch(`/api/chats/${threadId}/slice`, {
+    method: "GET",
+    cache: "no-store",
+  });
   return parseMutationResult(response);
 }
 
