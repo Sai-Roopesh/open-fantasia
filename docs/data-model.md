@@ -185,7 +185,7 @@ When the schema is deliberately re-baselined, the workflow is:
 - branch head updates happen through the turn lifecycle functions
 - the active path is the authoritative transcript path for pins, branches, rewind, and ratings
 - committed turns should end with a continuity snapshot or a documented blocking state
-- portrait tasks may safely retry; continuity materialization is expected inline
+- portrait tasks may safely retry; continuity materialization runs in the background (via `after()`) just after commit and is idempotent
 
 ## Type Bindings
 

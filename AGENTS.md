@@ -33,7 +33,7 @@ If those docs conflict with the code, trust the code and update the docs as part
 - World state is a single `DurableMemorySnapshot` JSONB blob per turn on `world_snapshots`, keyed by `turn_id`. There are no normalized `world_*` tables. A turn's continuity write is one atomic `upsert_world_snapshot` RPC; the pure reducer is `src/lib/domain/world-state-reducer.ts`.
 - Every thread has exactly one active branch.
 - Branch generation is serialized with `generation_locked` and `locked_by_turn_id`.
-- New turns, rewrites, and regenerations all end by materializing a continuity snapshot inline with `materializeSnapshotForTurn(...)`.
+- New turns, rewrites, and regenerations commit the turn, then schedule the continuity snapshot to materialize in the background via Next's `after()` (`materializeSnapshotForTurn(...)`). It is NOT awaited inline — a streaming turn must close its HTTP response the instant the turn is committed, never blocking on the brain-model extraction. Materialization is idempotent and is re-run on the next load if the background pass is cut short.
 - If the latest committed turn does not have a usable head snapshot, the chat UI blocks further progress until the branch is repaired.
 - Character portraits are asynchronous and run through `character_portrait_tasks`; continuity snapshots are no longer queued in normal operation.
 - Provider secrets are encrypted with AES-256-GCM via `APP_ENCRYPTION_KEY`, which must be a 64-character hex string.
@@ -167,7 +167,7 @@ Read:
 - The app runs on Next `16.2.2` and React `19.2.4`.
 - `next dev --webpack` and `next build --webpack` are used by the current scripts.
 - `.env.example` lists only the variables the app reads (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `APP_ENCRYPTION_KEY`, `CRON_SECRET`, `AUTH_USERNAME`/`AUTH_PASSWORD`/`AUTH_SESSION_SECRET`). The legacy `ENABLE_LOCAL_DEV_AUTH_BYPASS` and `ALLOWED_EMAILS` vars are gone.
-- Continuity snapshots are generated inline after commit. `turn_reconcile_tasks` no longer exists in the baseline schema; portrait draining is the only background task queue.
+- Continuity snapshots are generated in the background just after commit, scheduled with `after()` so the streaming response never blocks on the brain-model extraction (awaiting it inline kept the Vercel function open past its timeout and aborted the client stream). `turn_reconcile_tasks` no longer exists in the baseline schema.
 - There is no `src/lib/threads/` directory. The old `read-model.ts` god module has been replaced by `src/lib/domain/thread-assembly.ts`, `src/lib/domain/slice-projections.ts`, and `src/lib/services/thread-reader.ts`.
 - There is no `src/lib/ai/thread-generation-service.ts`. Generation is handled by `src/lib/services/generation-service.ts` and `src/lib/services/generation-runtime.ts`. Pure helper functions and error types live in `src/lib/ai/generation-helpers.ts`.
 - There is no `src/lib/characters/portraits.ts`. Portrait pure logic is in `src/lib/domain/character-portraits.ts`, portrait URL resolution is in `src/lib/data/characters.ts`, and the external Pollinations fetch is in `src/lib/jobs/portrait-fetch.ts`.
