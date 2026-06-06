@@ -80,7 +80,7 @@ Note: `.env.example` lists only the variables the app actually reads; legacy aut
 
 ## Database Setup
 
-The schema is a squashed baseline (`supabase/migrations/0001_baseline.sql`) plus incremental migrations (`0002`–`0009`). The baseline is derived from the linked Supabase project's live `public` schema plus required storage bucket configuration; the incrementals layer on top of it, and together they reproduce the live schema exactly. If schema history is intentionally reset again, regenerate the baseline from Supabase itself and repair the remote migration ledger in the same pass.
+The schema lives in a single migration: `supabase/migrations/0001_baseline.sql` — a live-derived snapshot of the linked Supabase project's `public` schema plus the storage bucket and the fixed-user seed. It is the only source of truth, and the remote migration ledger records just this baseline. Future schema changes can land as new incremental migrations; if the schema is re-baselined again, regenerate `0001_baseline.sql` from Supabase and repair the remote ledger in the same pass.
 
 The generated TypeScript bindings are checked in at `src/lib/supabase/database.types.ts`.
 
