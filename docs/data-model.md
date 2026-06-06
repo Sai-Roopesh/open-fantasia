@@ -4,7 +4,7 @@ This document explains the current persisted model for Open-Fantasia, including 
 
 ## Schema Overview
 
-The schema is a squashed baseline (`supabase/migrations/0001_baseline.sql`) plus incremental migrations (`0002`–`0009`). The baseline is a live-derived snapshot of the linked Supabase project's `public` schema plus required storage bucket configuration; the incrementals layer on top of it and are preserved in the repo. The live schema equals the baseline **plus** those migrations.
+The schema lives in a single migration: `supabase/migrations/0001_baseline.sql` — a live-derived snapshot of the linked Supabase project's `public` schema plus the storage bucket and the fixed-user seed. It is the only source of truth; the remote migration ledger records only this baseline, so the migration file, the ledger, and the live schema all agree.
 
 The application uses:
 
@@ -51,7 +51,7 @@ The application uses:
 | `chat_timeline_events` | notable moments surfaced in the inspector | `title`, `detail`, `importance`, `event_type`, `turn_id`, `affected_entity_ids`, `affected_relationship_ids` |
 | `chat_pins` | manually pinned facts or reminders | `body`, `status`, `turn_id` |
 
-World state is a single `DurableMemorySnapshot` JSONB blob per turn in `world_snapshots.world_state` (sub-objects: `metadata`, `entity_state`, `relational_state`, `spatial_state`, `narrative_state`). This replaced an earlier normalized model — migrations `0005`–`0007` add the `world_state` column, move all content into it, and **drop** the legacy `world_*` tables (`world_entities`, `world_entity_facts`, `world_relationships`, `world_locations`, `world_location_edges`, `world_entity_placements`, `world_narrative_threads`) and the old scalar columns (`story_summary`, `scene_summary`, `last_turn_beat`, `narrative_timestamp`, `transition_type`). Snapshot reads are a pure blob parse (`src/lib/domain/world-snapshot.ts`); mutations apply in memory via `src/lib/domain/world-state-reducer.ts` before one atomic `upsert_world_snapshot` RPC.
+World state is a single `DurableMemorySnapshot` JSONB blob per turn in `world_snapshots.world_state` (sub-objects: `metadata`, `entity_state`, `relational_state`, `spatial_state`, `narrative_state`). This replaced an earlier normalized model: the `world_state` column was added, all content moved into it, and the legacy `world_*` tables (`world_entities`, `world_entity_facts`, `world_relationships`, `world_locations`, `world_location_edges`, `world_entity_placements`, `world_narrative_threads`) and old scalar columns (`story_summary`, `scene_summary`, `last_turn_beat`, `narrative_timestamp`, `transition_type`) were dropped. Snapshot reads are a pure blob parse (`src/lib/domain/world-snapshot.ts`); mutations apply in memory via `src/lib/domain/world-state-reducer.ts` before one atomic `upsert_world_snapshot` RPC.
 
 ### Background work
 
@@ -61,7 +61,7 @@ World state is a single `DurableMemorySnapshot` JSONB blob per turn in `world_sn
 
 ## Relationship Summary
 
-- `profiles.id` is a standalone UUID — the FK to `auth.users` was dropped in `0008`, and the single fixed user (`FIXED_USER_ID`) is seeded directly
+- `profiles.id` is a standalone UUID — the FK to `auth.users` was dropped with the single-user auth switch, and the single fixed user (`FIXED_USER_ID`) is seeded directly
 - each `ai_connections`, `user_personas`, and `characters` row belongs to one profile
 - each `chat_thread` belongs to one profile and references one character, connection, and optional persona
 - each `chat_branch` belongs to one thread
@@ -104,7 +104,7 @@ Stored object paths are built as:
 
 ## Key SQL Functions
 
-The schema deliberately pushes several multi-step operations into SQL functions. Because the service-role client makes `auth.uid()` NULL inside Postgres, every ownership-gated RPC takes an explicit `p_user_id` (migration `0009`) and enforces ownership against it — never `auth.uid()`.
+The schema deliberately pushes several multi-step operations into SQL functions. Because the service-role client makes `auth.uid()` NULL inside Postgres, every ownership-gated RPC takes an explicit `p_user_id` and enforces ownership against it — never `auth.uid()`.
 
 ### Identity and branch management
 
@@ -165,21 +165,18 @@ Because the service role bypasses RLS, these `auth.uid()` policies currently nev
 
 ## Source of Truth
 
-### `0001_baseline.sql` + incrementals
+### `0001_baseline.sql` (single consolidated baseline)
 
-`0001_baseline.sql` captures the `public` schema as of the squash point — all tables, storage bucket, indexes, triggers, the original SQL RPCs and RLS policies, destructive rewind semantics, portrait task RLS hardening, and the removal of the old queued continuity pipeline (`turn_reconcile_tasks` / `claim_turn_reconcile_tasks(...)`).
+There is exactly one migration file: `0001_baseline.sql`. It is a live-derived snapshot of the `public` schema — all tables, constraints, indexes, triggers, SQL RPCs (with explicit `p_user_id`), RLS policies, the `world_state` JSONB model, the storage bucket, and the fixed-user seed. Earlier incremental migrations (the JSONB world-state rebuild, the single-user auth switch, the `p_user_id` RPC change) were squashed into it.
 
-Migrations `0002`–`0009` then evolve it; the **live schema is the baseline plus those migrations**. Notably:
+The single migration file, the `supabase_migrations.schema_migrations` ledger (which records only `0001`), and the live schema are all in agreement — that is the single source of truth.
 
-- `0005`–`0007` replace the normalized HCE world-state tables with a single `world_state` JSONB column on `world_snapshots` and drop the legacy tables/columns
-- `0008` decouples `profiles` from Supabase Auth and seeds the fixed user
-- `0009` makes the ownership RPCs take an explicit `p_user_id` (since `auth.uid()` is NULL under the service-role client)
+When the schema is deliberately re-baselined, the workflow is:
 
-The migration files, the `supabase_migrations.schema_migrations` ledger, and the live schema are kept in agreement — that is the single source of truth. When the schema is deliberately re-baselined, the expected workflow is:
-
-- fetch the live schema from Supabase
-- fold required non-schema config such as storage bucket rows back into `0001_baseline.sql`
-- repair remote migration history so the ledger matches the repo migrations
+- regenerate `0001_baseline.sql` from the live Supabase schema (introspect via the access token, or `supabase db dump`)
+- fold required non-schema config (storage bucket rows, the fixed-user seed) back into the file
+- repair the remote migration ledger so it records only the baseline (`supabase migration repair --status reverted` for the squashed versions)
+- smoke-test the regenerated baseline against a throwaway Postgres before committing
 
 ## Runtime Invariants That Matter During Changes
 
