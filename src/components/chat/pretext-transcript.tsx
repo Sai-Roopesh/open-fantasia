@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowDown } from "lucide-react";
 import type { EditableTurnTarget, FantasiaUIMessage, TranscriptControl } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { getTextFromMessage } from "@/lib/utils/message-text";
 import { PretextMessageRow } from "@/components/chat/pretext-message-row";
 import { TypingIndicator } from "@/components/chat/typing-indicator";
 
@@ -121,6 +122,14 @@ export function PretextTranscript({
   const showJumpToLatest = messages.length > 0 && !followOutput;
   const pendingActive = pendingAction !== null;
 
+  // Don't render an assistant turn until it has visible text. A reasoning model
+  // (e.g. DeepSeek) streams its reasoning first with no text yet, which would
+  // otherwise show as an empty bubble; while the reply is still text-less the
+  // TypingIndicator (driven by `awaitingReply`) stands in for it.
+  const renderedMessages = messages.filter(
+    (message) => message.role !== "assistant" || getTextFromMessage(message).length > 0,
+  );
+
   const timestampFormatter = useMemo(
     () =>
       new Intl.DateTimeFormat(undefined, {
@@ -145,7 +154,7 @@ export function PretextTranscript({
           ref={contentRef}
           className={cn("mx-auto flex flex-col gap-5 py-1", focusMode ? "max-w-[65ch]" : "max-w-4xl")}
         >
-          {messages.map((message) => (
+          {renderedMessages.map((message) => (
             <PretextMessageRow
               key={message.id}
               message={message}
