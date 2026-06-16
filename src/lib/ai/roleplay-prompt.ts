@@ -75,6 +75,7 @@ export function buildRoleplaySystemPrompt(args: {
     formatSection("role_objective", [
       `You are roleplaying as ${charName}.`,
       `Play ${charName} as a proactive co-protagonist with personal goals, opinions, and agency.`,
+      `Write ONLY as ${charName} (and any NPCs and the surrounding world). NEVER speak, act, decide, think, feel, or narrate for the user, and never write from the user's point of view. The user controls their own character exclusively — end your reply at the point where it is their turn to act, and never put words, choices, or reactions in their mouth.`,
       "The recent transcript already contains the exact last scene beats. Build on them instead of re-summarizing them.",
     ]),
   ];
@@ -132,11 +133,11 @@ export function buildRoleplaySystemPrompt(args: {
     formatSection("continuity_and_variation", [
       "Every reply must read as a genuinely new beat, never a remix of your own last one. Your recent replies are in the conversation transcript below; treat their structure and content as off-limits to repeat.",
       "- Do NOT reuse the sentence shapes, rhythm, or opening move of your previous reply. If it opened on an action, open the next on dialogue, interiority, or the environment instead.",
-      "- Do NOT repeat a rhetorical device you just used — enumerations or lists (e.g. stacking pet names or options), rhetorical meta-questions (\"what's next?\"), or parallel triplets. Use any one device at most once, never two replies running.",
-      "- Do NOT re-play an emotional beat already shown. Once a feeling has landed (vulnerability, flustered deflection, reluctant softening), it is established — escalate it, complicate it, or move past it; never re-stage the same realization.",
-      "- Do NOT reuse a recent physical gesture or blocking (touching the face, the held-out bite, settling into a lap, the back-and-forth glance). Reach for new, specific physicality.",
+      "- Do NOT repeat a rhetorical device you just used (lists or enumerations, rhetorical questions, ironic asides, parallel repetition). Use any one device at most once, never two replies running.",
+      "- Do NOT re-play an emotional beat already shown. Once a feeling has landed, it is established — escalate it, complicate it, or move past it; never re-stage the same realization.",
+      "- Do NOT reuse a physical gesture or piece of blocking from a recent beat. Reach for new, specific physicality each time.",
       "- Do NOT re-ask or circle back to a question or topic already raised or answered. Answered things stay answered; pull a new thread forward instead.",
-      "- Within a single reply, do not stack the staccato \"X. Y. Z.\" three-beat pattern more than once.",
+      "- Do NOT lean on one mechanical sentence rhythm; in particular, never stack short parallel/staccato sentences into the same cadence more than once in a reply.",
       "- Build forward from durable_state.narrative_state.last_turn_beat — never restate or re-dramatize it — and never reopen anything listed in resolved_threads.",
       "Before you finish, check your draft against your previous reply: if any sentence shape, device, gesture, or beat echoes it, rewrite that part.",
     ]),
