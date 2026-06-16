@@ -14,6 +14,7 @@ import {
   switchThreadPersonaAction,
   switchThreadBrainModelAction,
   switchThreadTokensAction,
+  switchThreadDirectorNotesAction,
 } from "@/app/(app)/app/chats/[threadId]/actions";
 
 export default async function ChatThreadPage({
@@ -82,6 +83,7 @@ export default async function ChatThreadPage({
       switchPersonaAction={switchThreadPersonaAction}
       switchBrainModelAction={switchThreadBrainModelAction}
       switchTokensAction={switchThreadTokensAction}
+      switchDirectorNotesAction={switchThreadDirectorNotesAction}
     />
   );
 }

@@ -80,6 +80,8 @@ export function ChatLayout({
   onBrainModelSwitch,
   maxOutputTokens,
   onTokensSwitch,
+  directorNotes,
+  onDirectorNotesChange,
 }: {
   characterName: string;
   characterBackgroundUrl?: string | null;
@@ -129,8 +131,19 @@ export function ChatLayout({
   ) => Promise<void>;
   maxOutputTokens: number;
   onTokensSwitch: (maxOutputTokens: number) => Promise<void>;
+  directorNotes: string;
+  onDirectorNotesChange: (directorNotes: string) => Promise<void>;
 }) {
   const [rightDrawerOpen, setRightDrawerOpen] = useState(false);
+
+  // Local draft so we save on blur, not per keystroke. Reseed (during render,
+  // no effect) when the saved value changes from elsewhere — e.g. a reconcile.
+  const [directorDraft, setDirectorDraft] = useState(directorNotes);
+  const [lastSavedNotes, setLastSavedNotes] = useState(directorNotes);
+  if (directorNotes !== lastSavedNotes) {
+    setLastSavedNotes(directorNotes);
+    setDirectorDraft(directorNotes);
+  }
 
   const closestPresetIndex = useMemo(() => {
     let closestIdx = 2;
@@ -368,6 +381,30 @@ export function ChatLayout({
                   {PRESETS[closestPresetIndex].description}
                 </p>
               </div>
+            </div>
+
+            {/* Director notes (per-thread instructions) */}
+            <div className="border-b border-border-subtle px-4 py-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.05em] text-muted-foreground">
+                Director notes
+              </p>
+              <textarea
+                value={directorDraft}
+                disabled={switchPending}
+                onChange={(e) => setDirectorDraft(e.target.value)}
+                onBlur={() => {
+                  if (directorDraft !== directorNotes) {
+                    void onDirectorNotesChange(directorDraft);
+                  }
+                }}
+                maxLength={2000}
+                rows={4}
+                placeholder="Per-thread directions for the AI: tone, pacing, reply length, content rules…"
+                className="mt-2 w-full resize-y rounded border border-border-subtle bg-surface-container px-3 py-2 text-sm leading-relaxed text-on-surface outline-none focus:border-primary-container disabled:opacity-50"
+              />
+              <p className="mt-1 text-[10px] leading-relaxed text-muted-foreground">
+                Applies only to this thread; saved when you click away. {directorDraft.length}/2000
+              </p>
             </div>
 
             {/* Branch picker */}

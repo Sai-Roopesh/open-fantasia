@@ -108,6 +108,37 @@ describe("buildRoleplaySystemPrompt", () => {
     expect(prompt).toContain("<character_persona>");
   });
 
+  it("injects per-thread director_notes into the cached prefix when set", () => {
+    const prompt = buildRoleplaySystemPrompt({
+      character: mockCharacter,
+      persona: mockPersona,
+      snapshot: null,
+      pins: [],
+      timeline: [],
+      directorNotes: "Keep replies under 100 words. Darker tone.",
+    });
+
+    expect(prompt).toContain("<director_notes>");
+    expect(prompt).toContain("Keep replies under 100 words. Darker tone.");
+    // Must be in the cached prefix (before the dynamic durable_state section).
+    expect(prompt.indexOf("<director_notes>")).toBeLessThan(
+      prompt.lastIndexOf("<durable_state>"),
+    );
+  });
+
+  it("omits director_notes when blank", () => {
+    const prompt = buildRoleplaySystemPrompt({
+      character: mockCharacter,
+      persona: mockPersona,
+      snapshot: null,
+      pins: [],
+      timeline: [],
+      directorNotes: "   ",
+    });
+
+    expect(prompt).not.toContain("<director_notes>");
+  });
+
   it("includes pre-filtered timeline events in the prompt", () => {
     // toPromptTimeline() is responsible for filtering importance >= 3 and slicing to 5.
     // buildRoleplaySystemPrompt trusts the caller to pass already-filtered events.

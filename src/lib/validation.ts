@@ -179,6 +179,11 @@ export const updateThreadTokensSchema = z.object({
   maxOutputTokens: z.coerce.number().int().positive().max(16_384).default(4_096),
 });
 
+export const updateThreadDirectorNotesSchema = z.object({
+  threadId: z.string().uuid(),
+  directorNotes: z.string().trim().max(2_000).default(""),
+});
+
 export const switchThreadPersonaSchema = z.object({
   threadId: z.string().uuid(),
   personaId: z.string().uuid(),

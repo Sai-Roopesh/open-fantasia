@@ -61,6 +61,7 @@ export function buildGenerationSystemPrompt(args: {
   snapshot: DurableMemorySnapshot | null;
   pins: ChatPinRecord[];
   timeline: TimelineEventRecord[];
+  directorNotes?: string | null;
   // Optionally pass a connection record for logging (unused in prompt building)
   connection?: ConnectionRecord;
 }): string {
@@ -70,6 +71,7 @@ export function buildGenerationSystemPrompt(args: {
     snapshot: args.snapshot,
     pins: args.pins,
     timeline: toPromptTimeline(args.timeline),
+    directorNotes: args.directorNotes,
   });
 }
 

@@ -39,6 +39,10 @@ type SwitchActions = {
     threadId: string;
     maxOutputTokens: number;
   }) => Promise<MutationResult>;
+  switchDirectorNotesAction: (input: {
+    threadId: string;
+    directorNotes: string;
+  }) => Promise<MutationResult>;
 };
 
 const FALLBACK_ERROR = "That action failed.";
@@ -422,6 +426,17 @@ export function useChatController(switchActions: SwitchActions) {
     [dispatch, runSwitch, switchActions, threadId],
   );
 
+  const switchDirectorNotes = useCallback(
+    async (directorNotes: string) => {
+      dispatch({ type: "switchStart", settings: { directorNotes } });
+      await runSwitch(
+        () => switchActions.switchDirectorNotesAction({ threadId, directorNotes }),
+        false,
+      );
+    },
+    [dispatch, runSwitch, switchActions, threadId],
+  );
+
   const switchBranch = useCallback(
     async (branchId: string) => {
       dispatch({ type: "switchStart", branchId });
@@ -472,6 +487,7 @@ export function useChatController(switchActions: SwitchActions) {
       switchPersona,
       switchBrainModel,
       switchTokens,
+      switchDirectorNotes,
       switchBranch,
       setSurfaceError,
     }),
@@ -503,6 +519,7 @@ export function useChatController(switchActions: SwitchActions) {
       switchPersona,
       switchBrainModel,
       switchTokens,
+      switchDirectorNotes,
       switchBranch,
       setSurfaceError,
     ],

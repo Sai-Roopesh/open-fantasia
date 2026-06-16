@@ -23,10 +23,14 @@ export function buildRoleplaySystemPrompt(args: {
   snapshot: DurableMemorySnapshot | null;
   pins: ChatPinRecord[];
   timeline: TimelineEventRecord[];
+  directorNotes?: string | null;
 }) {
   const { character, persona, snapshot, pins, timeline } = args;
   const charName = character.character.name;
   const promptTimeline = timeline;
+  // Per-thread user instructions. Static within a thread, so it stays in the
+  // cached prompt prefix (injected below, before the dynamic durable_state).
+  const directorNotesText = args.directorNotes?.trim();
 
   const characterLines = compactLabeledLines([
     ["Personality", character.character.core_persona],
@@ -94,6 +98,15 @@ export function buildRoleplaySystemPrompt(args: {
   );
   if (personaLines.length) {
     sections.push(formatSection("user_persona", personaLines));
+  }
+
+  if (directorNotesText) {
+    sections.push(
+      formatSection("director_notes", [
+        "Out-of-character directions the user has set for THIS thread. Treat them as authoritative instructions you must follow (tone, pacing, length, focus, content). They override default stylistic choices, but never the hard constraints in <durable_state> or the rule that you never act, speak, or decide for the user.",
+        directorNotesText,
+      ]),
+    );
   }
 
   sections.push(

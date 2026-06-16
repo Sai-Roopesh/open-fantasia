@@ -37,6 +37,7 @@ type SwitchActions = {
   switchPersonaAction: (input: { threadId: string; personaId: string; }) => Promise<MutationResult>;
   switchBrainModelAction: (input: { threadId: string; connectionId: string | null; modelId: string | null; }) => Promise<MutationResult>;
   switchTokensAction: (input: { threadId: string; maxOutputTokens: number; }) => Promise<MutationResult>;
+  switchDirectorNotesAction: (input: { threadId: string; directorNotes: string; }) => Promise<MutationResult>;
 };
 
 type ChatWorkspaceProps = SwitchActions & {
@@ -86,6 +87,7 @@ function ChatWorkspaceInner({
   switchPersonaAction,
   switchBrainModelAction,
   switchTokensAction,
+  switchDirectorNotesAction,
 }: ChatWorkspaceProps) {
   const controller = useChatController({
     switchModelAction,
@@ -93,6 +95,7 @@ function ChatWorkspaceInner({
     switchBranchAction,
     switchBrainModelAction,
     switchTokensAction,
+    switchDirectorNotesAction,
   });
 
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -313,6 +316,8 @@ function ChatWorkspaceInner({
         onBrainModelSwitch={controller.switchBrainModel}
         maxOutputTokens={displaySettings.maxOutputTokens}
         onTokensSwitch={controller.switchTokens}
+        directorNotes={displaySettings.directorNotes}
+        onDirectorNotesChange={controller.switchDirectorNotes}
       />
 
       {sheet ? (
