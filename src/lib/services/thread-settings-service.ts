@@ -5,6 +5,7 @@ import type { DatabaseClient } from "@/lib/data/shared";
 import { insertTimelineEvent } from "@/lib/data/timeline";
 import {
   updateThreadBrainModel,
+  updateThreadDirectorNotes,
   updateThreadModel,
   updateThreadPersona,
   updateThreadTokens,
@@ -125,6 +126,23 @@ export async function switchThreadTokens(
   return commitSettingsChange(supabase, userId, args.threadId, branch, {
     title: "Response length limit updated",
     detail: `Updated response limit to ${args.maxOutputTokens} tokens.`,
+  });
+}
+
+export async function switchThreadDirectorNotes(
+  supabase: DatabaseClient,
+  userId: string,
+  args: { threadId: string; directorNotes: string },
+): Promise<MutationResult> {
+  const branch = await getActiveBranch(supabase, userId, args.threadId);
+  if (!branch) return { ok: false, error: "Thread not found." };
+
+  await updateThreadDirectorNotes(supabase, userId, args);
+  return commitSettingsChange(supabase, userId, args.threadId, branch, {
+    title: "Director notes updated",
+    detail: args.directorNotes.trim()
+      ? "Updated this thread's director notes."
+      : "Cleared this thread's director notes.",
   });
 }
 

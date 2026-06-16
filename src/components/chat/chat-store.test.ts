@@ -38,6 +38,7 @@ const settings = (overrides: Partial<ThreadSettingsSlice> = {}): ThreadSettingsS
   personaId: "p1",
   brain: { connectionId: null, modelId: null },
   maxOutputTokens: 2048,
+  directorNotes: "",
   ...overrides,
 });
 

@@ -136,6 +136,7 @@ export async function streamNewTurn(args: {
       snapshot: runtime.snapshot.snapshot,
       pins: runtime.assembly.pins,
       timeline: runtime.assembly.timeline,
+      directorNotes: runtime.assembly.thread.director_notes,
     });
 
     messages = await convertToModelMessages(
@@ -319,6 +320,7 @@ export async function streamRewriteTurn(args: {
       snapshot: previousSnapshot,
       pins: runtime.assembly.pins,
       timeline: runtime.assembly.timeline,
+      directorNotes: runtime.assembly.thread.director_notes,
     });
 
     const contextTurns = runtime.assembly.turns.slice(0, -1);
@@ -442,6 +444,7 @@ export async function generateReply(args: {
       snapshot,
       pins: runtime.assembly.pins,
       timeline: runtime.assembly.timeline,
+      directorNotes: runtime.assembly.thread.director_notes,
     }),
     messages: await convertToModelMessages(messages),
     temperature: runtime.generationSettings.temperature,

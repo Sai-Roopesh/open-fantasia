@@ -179,6 +179,7 @@ export function buildThreadSettingsSlice(
       modelId: assembly.thread.brain_model_id,
     },
     maxOutputTokens: assembly.thread.max_output_tokens,
+    directorNotes: assembly.thread.director_notes,
   };
 }
 

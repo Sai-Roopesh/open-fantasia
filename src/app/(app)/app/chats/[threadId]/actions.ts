@@ -10,6 +10,7 @@ import {
   switchThreadBrainModel,
   switchThreadPersona,
   switchThreadTokens,
+  switchThreadDirectorNotes,
   switchThreadBranch,
 } from "@/lib/services/thread-settings-service";
 import {
@@ -19,6 +20,7 @@ import {
   switchThreadPersonaSchema,
   threadDeleteCommandSchema,
   updateThreadTokensSchema,
+  updateThreadDirectorNotesSchema,
 } from "@/lib/validation";
 
 export async function switchThreadModelAction(input: {
@@ -58,6 +60,20 @@ export async function switchThreadTokensAction(input: {
   const parsed = updateThreadTokensSchema.parse(input);
   const { supabase, user } = await requireAllowedUser();
   const result = await switchThreadTokens(supabase, user.id, parsed);
+  if (result.ok) {
+    revalidatePath(`/app/chats/${parsed.threadId}`);
+    revalidatePath("/app");
+  }
+  return result;
+}
+
+export async function switchThreadDirectorNotesAction(input: {
+  threadId: string;
+  directorNotes: string;
+}): Promise<MutationResult> {
+  const parsed = updateThreadDirectorNotesSchema.parse(input);
+  const { supabase, user } = await requireAllowedUser();
+  const result = await switchThreadDirectorNotes(supabase, user.id, parsed);
   if (result.ok) {
     revalidatePath(`/app/chats/${parsed.threadId}`);
     revalidatePath("/app");

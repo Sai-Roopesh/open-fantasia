@@ -155,6 +155,7 @@ export type ThreadSettingsSlice = {
   personaId: string;
   brain: { connectionId: string | null; modelId: string | null };
   maxOutputTokens: number;
+  directorNotes: string;
 };
 
 /**

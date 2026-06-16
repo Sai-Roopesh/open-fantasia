@@ -4,7 +4,7 @@ This document explains the current persisted model for Open-Fantasia, including 
 
 ## Schema Overview
 
-The schema lives in a single migration: `supabase/migrations/0001_baseline.sql` — a live-derived snapshot of the linked Supabase project's `public` schema plus the storage bucket and the fixed-user seed. It is the only source of truth; the remote migration ledger records only this baseline, so the migration file, the ledger, and the live schema all agree.
+The schema is a consolidated baseline (`supabase/migrations/0001_baseline.sql` — a live-derived snapshot of the linked Supabase project's `public` schema plus the storage bucket and the fixed-user seed) plus incremental migrations layered on top (`0002`+). The migration files, the remote `supabase_migrations` ledger, and the live schema are kept in agreement — that is the single source of truth.
 
 The application uses:
 
@@ -39,7 +39,7 @@ The application uses:
 
 | Table | Purpose | Key columns |
 | --- | --- | --- |
-| `chat_threads` | top-level conversation container | `character_id`, `connection_id`, `model_id`, `persona_id`, `title`, `status`, `pinned_at` |
+| `chat_threads` | top-level conversation container | `character_id`, `connection_id`, `model_id`, `persona_id`, `brain_connection_id`, `brain_model_id`, `max_output_tokens`, `director_notes` (per-thread prompt instructions), `title`, `status`, `pinned_at` |
 | `chat_branches` | alternate timelines within a thread | `name`, `parent_branch_id`, `fork_turn_id`, `head_turn_id`, `is_active`, `generation_locked`, `locked_by_turn_id` |
 | `chat_turns` | user/assistant exchange records | `parent_turn_id`, `user_input_text`, `assistant_output_text`, `generation_status`, provider/model metadata, token counts, feedback |
 
@@ -167,9 +167,9 @@ Because the service role bypasses RLS, these `auth.uid()` policies currently nev
 
 ### `0001_baseline.sql` (single consolidated baseline)
 
-There is exactly one migration file: `0001_baseline.sql`. It is a live-derived snapshot of the `public` schema — all tables, constraints, indexes, triggers, SQL RPCs (with explicit `p_user_id`), RLS policies, the `world_state` JSONB model, the storage bucket, and the fixed-user seed. Earlier incremental migrations (the JSONB world-state rebuild, the single-user auth switch, the `p_user_id` RPC change) were squashed into it.
+`0001_baseline.sql` is the consolidated baseline — a live-derived snapshot of the `public` schema (all tables, constraints, indexes, triggers, SQL RPCs with explicit `p_user_id`, RLS policies, the `world_state` JSONB model, the storage bucket, the fixed-user seed). The pre-squash incremental migrations (JSONB world-state rebuild, single-user auth, `p_user_id` RPCs) were folded into it; new schema changes since land as fresh incremental migrations on top (`0002`+, e.g. `0002` adds `chat_threads.director_notes`).
 
-The single migration file, the `supabase_migrations.schema_migrations` ledger (which records only `0001`), and the live schema are all in agreement — that is the single source of truth.
+The migration files, the `supabase_migrations.schema_migrations` ledger, and the live schema are all in agreement — that is the single source of truth.
 
 When the schema is deliberately re-baselined, the workflow is:
 
